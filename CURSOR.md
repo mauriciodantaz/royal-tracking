@@ -32,7 +32,7 @@ Documentação viva do sistema de tracking server-side. Atualizar ao fim de cada
 | Fase | Status | Entrega |
 |------|--------|---------|
 | 0 | concluída | Scaffold + design system + Docker/CI stub |
-| 1 | pendente | Schema, RLS, crypto, auth, pg_cron |
+| 1 | concluída | Schema, RLS, crypto, clients; migration pronta (aplicar no Dashboard) |
 | 2 | pendente | `/api/identify` + `/api/event` + Meta CAPI |
 | 3 | pendente | Webhook compra + GA4 MP |
 | 4 | pendente | Painel auth + CRUD multi-conta |
@@ -43,10 +43,22 @@ Documentação viva do sistema de tracking server-side. Atualizar ao fim de cada
 ## Como rodar
 
 ```bash
-cp .env.example .env   # preencher keys
+cp .env.example .env   # preencher keys (incl. NEXT_PUBLIC_* espelhando URL/anon)
 npm install
 npm run dev
 ```
+
+### Aplicar migration (Fase 1)
+
+O CLI logado neste ambiente **não** vê o projeto `tdgaitwvakzztcbodwfm`. Opções:
+
+1. **SQL Editor** (recomendado): cole `supabase/migrations/20260709120000_init_tracking.sql` no Dashboard do projeto.
+2. Token da conta certa: `SUPABASE_ACCESS_TOKEN=sbp_... node scripts/apply-migration.mjs`
+3. `npx supabase link --project-ref tdgaitwvakzztcbodwfm` (login na conta dona) + `npx supabase db push`
+
+No Dashboard → Authentication → Providers: **desligar** signup público / “Allow new users to sign up”.
+
+Preencher no `.env` (local, não commitado): `SUPABASE_SERVICE_ROLE_KEY`, `ENCRYPTION_KEY`, e espelhar URL/anon em `NEXT_PUBLIC_*`.
 
 Build Docker local:
 
