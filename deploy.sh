@@ -11,7 +11,11 @@ BUILD_IMAGE="node:22-alpine"
 
 cd "$PROJECT_DIR"
 
-git pull --ff-only origin main
+# Descarta alterações locais no clone da VPS (ex.: edits manuais em deploy.sh)
+# para o pull nunca falhar no Actions.
+git fetch origin main
+git reset --hard origin/main
+git clean -fd -e .env -e node_modules -e .next
 
 if [ ! -f .env ]; then
   echo "ERRO: $PROJECT_DIR/.env não existe. Crie antes do primeiro deploy."
