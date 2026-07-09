@@ -1,4 +1,4 @@
-# Auditoria de segurança — Fase 7
+# Auditoria de segurança — Fizzing Advanced Tracking
 
 Checklist verificado no código (revisar de novo a cada release):
 

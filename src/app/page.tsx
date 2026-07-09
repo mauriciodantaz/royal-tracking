@@ -6,7 +6,9 @@ export default function HomePage() {
   return (
     <main className="mx-auto flex min-h-svh w-full max-w-3xl flex-col justify-center gap-8 px-6 py-16">
       <div className="space-y-3">
-        <p className="text-sm font-medium text-primary">Tracking</p>
+        <p className="text-sm font-medium text-primary">
+          Fizzing Advanced Tracking
+        </p>
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
           Captura server-side com painel
         </h1>

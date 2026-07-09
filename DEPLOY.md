@@ -1,4 +1,4 @@
-# Deploy RoyalServer — Tracking
+# Deploy RoyalServer — Fizzing Advanced Tracking
 
 Domínio: **https://tracking.fizzing.marketing**
 

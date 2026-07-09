@@ -1,4 +1,4 @@
-# Snippet no site do cliente
+# Fizzing Advanced Tracking — snippet no site do cliente
 
 ## Código para colar
 

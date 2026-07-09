@@ -1,5 +1,5 @@
 /**
- * Tracking snippet — cole no site do cliente.
+ * Fizzing Advanced Tracking — snippet para o site do cliente.
  * Servido em: https://tracking.fizzing.marketing/snippet.js
  *
  * Uso mínimo:

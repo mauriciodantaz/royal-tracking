@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Deploy Tracking (Next.js) — RoyalServer / Docker Swarm
+# Deploy Fizzing Advanced Tracking (Next.js) — RoyalServer / Docker Swarm
 # Build roda DENTRO de um container Node (não precisa de npm no host).
 
 PROJECT_DIR="/root/projects/tracking"
@@ -47,4 +47,4 @@ cp -f .env "$DEST/.env"
 echo "==> Reiniciar service $SERVICE_NAME"
 docker service update --force "$SERVICE_NAME"
 
-echo "Deploy tracking OK → https://tracking.fizzing.marketing"
+echo "Deploy Fizzing Advanced Tracking OK → https://tracking.fizzing.marketing"

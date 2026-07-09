@@ -19,8 +19,8 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Tracking",
-  description: "Sistema de tracking server-side com painel",
+  title: "Fizzing Advanced Tracking",
+  description: "Sistema de tracking server-side com painel — Fizzing Advanced Tracking",
 };
 
 export default function RootLayout({
