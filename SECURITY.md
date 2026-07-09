@@ -13,8 +13,10 @@ Checklist verificado no código (revisar de novo a cada release):
 
 ## Auth / RLS
 
-- [x] Policies SELECT para `authenticated` em todas as tabelas
+- [x] Policies SELECT para `authenticated` nas tabelas de leitura do painel
+- [x] `settings` **sem** SELECT autenticado (webhook_token só service_role); view `settings_public` sem o token
 - [x] Sem policies de INSERT/UPDATE/DELETE para anon/authenticated (escrita via service_role)
+- [x] `REVOKE` de anon/public nas tabelas de tracking
 - [ ] **Manual:** Dashboard Auth → desligar “Allow new users to sign up”
 - [x] Proxy protege `/dashboard/*` (redirect login)
 - [x] UI de login sem signup

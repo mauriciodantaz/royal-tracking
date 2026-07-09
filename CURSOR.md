@@ -49,6 +49,12 @@ npm install
 npm run dev
 ```
 
+### Deploy (RoyalServer)
+
+Domínio: **https://tracking.fizzing.marketing**  
+Guia passo a passo: [DEPLOY.md](./DEPLOY.md)  
+Padrão: push `main` → Actions → SSH → `deploy.sh` (igual aos outros projetos; stack Node :3000, não Nginx).
+
 ### Aplicar migration (Fase 1)
 
 O CLI logado neste ambiente **não** vê o projeto `tdgaitwvakzztcbodwfm`. Opções:
@@ -56,6 +62,13 @@ O CLI logado neste ambiente **não** vê o projeto `tdgaitwvakzztcbodwfm`. Opç�
 1. **SQL Editor** (recomendado): cole `supabase/migrations/20260709120000_init_tracking.sql` no Dashboard do projeto.
 2. Token da conta certa: `SUPABASE_ACCESS_TOKEN=sbp_... node scripts/apply-migration.mjs`
 3. `npx supabase link --project-ref tdgaitwvakzztcbodwfm` (login na conta dona) + `npx supabase db push`
+
+Hardening da migration:
+- `settings` **sem** SELECT para `authenticated` (webhook_token só via `service_role`)
+- view `settings_public` sem o token (só flag `has_webhook_token`)
+- `REVOKE` de `anon`/`public` em todas as tabelas
+- segredos em **text hex** (pgcrypto) — compatível com PostgREST/JS
+- `pg_cron` opcional (não aborta se a extensão não existir)
 
 No Dashboard → Authentication → Providers: **desligar** signup público / “Allow new users to sign up”.
 

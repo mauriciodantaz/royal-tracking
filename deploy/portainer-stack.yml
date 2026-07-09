@@ -1,0 +1,56 @@
+version: "3.7"
+
+# Stack Portainer — Tracking (Next.js standalone)
+# Domínio: https://tracking.fizzing.marketing
+#
+# Pré-requisitos na VPS:
+#   mkdir -p /var/lib/docker/volumes/tracking/_data
+#   /root/projects/tracking/.env  (secrets — nunca no git)
+#
+# O deploy.sh copia o build standalone + .env para o volume.
+# Swarm não usa env_file; o entrypoint carrega /app/.env.
+
+services:
+  tracking:
+    image: node:22-alpine
+    working_dir: /app
+    command:
+      - sh
+      - -c
+      - |
+        set -a
+        [ -f /app/.env ] && . /app/.env
+        set +a
+        exec node server.js
+    volumes:
+      - /var/lib/docker/volumes/tracking/_data:/app
+    networks:
+      - RoyalNet
+    environment:
+      - TZ=America/Sao_Paulo
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1024M
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.tracking.rule=Host(`tracking.fizzing.marketing`)
+        - traefik.http.services.tracking.loadbalancer.server.port=3000
+        - traefik.http.routers.tracking.service=tracking
+        - traefik.http.routers.tracking.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.tracking.entrypoints=websecure
+        - traefik.http.routers.tracking.tls=true
+
+networks:
+  RoyalNet:
+    external: true
+    name: RoyalNet
