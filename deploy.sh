@@ -2,36 +2,49 @@
 set -euo pipefail
 
 # Deploy Tracking (Next.js) — RoyalServer / Docker Swarm
-# Chamado pelo GitHub Actions via SSH após push na main.
+# Build roda DENTRO de um container Node (não precisa de npm no host).
 
-cd /root/projects/tracking
+PROJECT_DIR="/root/projects/tracking"
+DEST="/var/lib/docker/volumes/tracking/_data"
+SERVICE_NAME="tracking_tracking"
+BUILD_IMAGE="node:22-alpine"
 
-git pull origin main
+cd "$PROJECT_DIR"
 
-# Env da app (nunca no git) — deve existir na VPS
+git pull --ff-only origin main
+
 if [ ! -f .env ]; then
-  echo "ERRO: /root/projects/tracking/.env não existe. Crie antes do primeiro deploy."
+  echo "ERRO: $PROJECT_DIR/.env não existe. Crie antes do primeiro deploy."
   exit 1
 fi
 
-npm ci --legacy-peer-deps
-npm run build
+echo "==> Build Next.js (Docker $BUILD_IMAGE)"
+docker run --rm \
+  -v "$PROJECT_DIR":/app \
+  -w /app \
+  -e NEXT_TELEMETRY_DISABLED=1 \
+  "$BUILD_IMAGE" \
+  sh -c "npm ci --legacy-peer-deps && npm run build"
 
-# Standalone: estáticos ao lado do server.js
+if [ ! -f .next/standalone/server.js ]; then
+  echo "ERRO: build não gerou .next/standalone/server.js (next.config output: standalone?)"
+  exit 1
+fi
+
+echo "==> Preparar standalone + estáticos"
 mkdir -p .next/standalone/.next
 rm -rf .next/standalone/.next/static
 cp -r .next/static .next/standalone/.next/static
 rm -rf .next/standalone/public
 cp -r public .next/standalone/public
 
-# Volume servido pelo container Node
-DEST="/var/lib/docker/volumes/tracking/_data"
+echo "==> Publicar no volume $DEST"
 mkdir -p "$DEST"
 rm -rf "${DEST:?}/"*
 cp -a .next/standalone/. "$DEST/"
 cp -f .env "$DEST/.env"
 
-# Nome do service: STACK_SERVICE (ex.: tracking_tracking)
-docker service update --force tracking_tracking
+echo "==> Reiniciar service $SERVICE_NAME"
+docker service update --force "$SERVICE_NAME"
 
 echo "Deploy tracking OK → https://tracking.fizzing.marketing"
