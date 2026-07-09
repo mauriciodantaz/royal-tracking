@@ -1,0 +1,29 @@
+name: Deploy VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: tracking
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        run: |
+          docker build -t ${{ env.IMAGE_NAME }}:latest .
+
+      # Stub — Fase 7: push para registry + SSH deploy na VPS
+      - name: Deploy stub
+        run: |
+          echo "Fase 0 stub: imagem buildada localmente no runner."
+          echo "Fase 7: configurar secrets (REGISTRY_*, VPS_HOST, VPS_SSH_KEY) e deploy via SSH/compose."

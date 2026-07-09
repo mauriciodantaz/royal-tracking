@@ -1,0 +1,16 @@
+# Dependências e artefatos locais — não enviar ao contexto Docker
+Dockerfile
+.dockerignore
+.git
+.github
+.cursor
+.gitignore
+.env
+.env.*
+!.env.example
+node_modules
+.next
+npm-debug.log*
+README.md
+CURSOR.md
+supabase/.temp
