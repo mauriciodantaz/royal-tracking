@@ -33,8 +33,8 @@ Documentação viva do sistema de tracking server-side. Atualizar ao fim de cada
 |------|--------|---------|
 | 0 | concluída | Scaffold + design system + Docker/CI stub |
 | 1 | concluída | Schema, RLS, crypto, clients; migration pronta (aplicar no Dashboard) |
-| 2 | pendente | `/api/identify` + `/api/event` + Meta CAPI |
-| 3 | pendente | Webhook compra + GA4 MP |
+| 2 | concluída | `/api/identify` + `/api/event` + Meta CAPI |
+| 3 | concluída | Webhook compra + GA4 MP |
 | 4 | pendente | Painel auth + CRUD multi-conta |
 | 5 | pendente | Dashboard + gtag dinâmica |
 | 6 | pendente | Campanhas Ads + geo + retenção |
