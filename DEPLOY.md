@@ -18,15 +18,15 @@ Diferença vs sites Vite: **não é Nginx/`dist`**. É Node 22 com `server.js` (
 
 ## Checklist
 
-1. [ ] DNS Cloudflare: `tracking` → IP da VPS (A)
-2. [ ] Volume: `mkdir -p /var/lib/docker/volumes/tracking/_data`
-3. [ ] Stack Portainer: colar `deploy/portainer-stack.yml` (nome stack: `tracking`)
-4. [ ] Deploy key VPS no repo GitHub
-5. [ ] Clone: `/root/projects/tracking`
-6. [ ] `.env` na VPS em `/root/projects/tracking/.env`
-7. [ ] `deploy.sh` + `chmod +x`
-8. [ ] Teste manual `./deploy.sh`
-9. [ ] Secrets Actions: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`
+1. [x] DNS Cloudflare: `tracking` → IP da VPS (A)
+2. [x] Volume: `mkdir -p /var/lib/docker/volumes/tracking/_data`
+3. [x] Stack Portainer: colar `deploy/portainer-stack.yml` (nome stack: `tracking`)
+4. [x] Deploy key VPS no repo GitHub
+5. [x] Clone: `/root/projects/tracking`
+6. [x] `.env` na VPS em `/root/projects/tracking/.env`
+7. [x] `deploy.sh` + `chmod +x`
+8. [x] Teste manual `./deploy.sh` (service converged)
+9. [x] Secrets Actions: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`
 10. [ ] Push workflow → Actions verde
 
 Arquivos no repo:

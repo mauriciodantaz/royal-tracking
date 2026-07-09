@@ -29,3 +29,11 @@ next-env.d.ts
 
 # docker
 *.log
+
+# SSH keys (nunca commitar)
+*_actions25519
+*_ed25519.pub
+tracking_actions
+tracking_actions.pub
+*_actions
+*_actions.pub
