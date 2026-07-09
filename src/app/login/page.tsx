@@ -1,51 +1,25 @@
-import Link from "next/link";
-
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { LoginForm } from "./login-form";
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const params = await searchParams;
+  const nextPath = params.next?.startsWith("/") ? params.next : "/dashboard";
+
   return (
     <main className="mx-auto flex min-h-svh w-full max-w-md flex-col justify-center px-4 py-12">
       <Card className="glass">
         <CardHeader>
           <CardTitle className="text-xl">Entrar</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Auth Supabase — implementação na Fase 4. Cadastro público
-            desligado.
+            Painel autenticado via Supabase Auth.
           </p>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">E-mail</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              placeholder="voce@empresa.com"
-              disabled
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Senha</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              disabled
-            />
-          </div>
-          <Button className="w-full" disabled>
-            Entrar
-          </Button>
-          <Button
-            variant="ghost"
-            className="w-full"
-            render={<Link href="/dashboard" />}
-          >
-            Ir ao painel (dev)
-          </Button>
+        <CardContent>
+          <LoginForm nextPath={nextPath} />
         </CardContent>
       </Card>
     </main>

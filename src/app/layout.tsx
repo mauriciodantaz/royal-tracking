@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono, Manrope } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
+import { GtagLoader } from "@/components/tracking/gtag-loader";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -44,6 +45,7 @@ export default function RootLayout({
             <div className="relative z-10 flex min-h-svh flex-col">
               {children}
             </div>
+            <GtagLoader />
             <Toaster />
           </TooltipProvider>
         </ThemeProvider>

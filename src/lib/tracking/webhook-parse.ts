@@ -53,9 +53,9 @@ export function parsePurchaseWebhook(raw: unknown): NormalizedPurchase | null {
       str(purchase?.transaction) ??
       str(purchase?.transaction_id) ??
       str(root.transaction_id);
+    const priceObj = asRecord(purchase?.price);
     const value =
-      num(purchase?.price?.value) ??
-      num(asRecord(purchase?.price)?.value) ??
+      num(priceObj?.value) ??
       num(purchase?.value) ??
       num(root.value);
     if (!transactionId || value === null) return null;

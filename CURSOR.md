@@ -23,9 +23,10 @@ Documentação viva do sistema de tracking server-side. Atualizar ao fim de cada
 ## Segurança
 
 - RLS em todas as tabelas: leitura autenticada; escrita só `service_role` no servidor.
-- Cadastro público desligado.
+- Cadastro público desligado (configurar no Dashboard Auth).
 - Endpoints públicos: validação + rate limit; webhook exige token.
 - Segredos de plataforma (tokens Meta/GA4) no Postgres, cifrados (pgcrypto).
+- Checklist: [SECURITY.md](./SECURITY.md)
 
 ## Fases
 
@@ -35,10 +36,10 @@ Documentação viva do sistema de tracking server-side. Atualizar ao fim de cada
 | 1 | concluída | Schema, RLS, crypto, clients; migration pronta (aplicar no Dashboard) |
 | 2 | concluída | `/api/identify` + `/api/event` + Meta CAPI |
 | 3 | concluída | Webhook compra + GA4 MP |
-| 4 | pendente | Painel auth + CRUD multi-conta |
-| 5 | pendente | Dashboard + gtag dinâmica |
-| 6 | pendente | Campanhas Ads + geo + retenção |
-| 7 | pendente | Auditoria + deploy VPS |
+| 4 | concluída | Auth + CRUD multi-conta + testar conexão |
+| 5 | concluída | Dashboard + gtag dinâmica |
+| 6 | concluída | Campanhas Ads + geo + retenção |
+| 7 | concluída | Auditoria + deploy VPS |
 
 ## Como rodar
 
@@ -60,11 +61,21 @@ No Dashboard → Authentication → Providers: **desligar** signup público / �
 
 Preencher no `.env` (local, não commitado): `SUPABASE_SERVICE_ROLE_KEY`, `ENCRYPTION_KEY`, e espelhar URL/anon em `NEXT_PUBLIC_*`.
 
+### Webhook na plataforma de venda
+
+URL: `https://SEU_DOMINIO/api/webhook/compra`  
+Header: `x-webhook-token: <valor em settings>` (ou `Authorization: Bearer …` / `?token=`)
+
 Build Docker local:
 
 ```bash
 docker compose up --build
 ```
+
+### Deploy VPS (GitHub Actions)
+
+Secrets do repositório: `REGISTRY_HOST`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`, `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_APP_DIR`.  
+No servidor: `.env` + `docker-compose.yml` apontando a imagem.
 
 ## Design system
 
@@ -72,3 +83,12 @@ docker compose up --build
 - Primária verde-neon HSL: escuro `142 76% 58%` / claro `142 70% 26%`
 - Accents: ciano e âmbar; radius `0.625rem`
 - Fontes: Manrope (texto), JetBrains Mono (números/JSON); tabular-nums
+
+## APIs
+
+| Rota | Auth | Função |
+|------|------|--------|
+| `POST /api/identify` | rate limit | UPSERT visitor |
+| `POST /api/event` | rate limit | events_log + Meta CAPI (todos pixels) |
+| `POST /api/webhook/compra` | webhook_token | Purchase Meta + GA4 MP |
+| `GET /api/ga4/ids` | público | measurement_ids ativos (gtag) |

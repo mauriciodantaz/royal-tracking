@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
 
   const body = parsed.data;
   const userAgent = getUserAgent(request);
-  const geo = lookupGeo(ip);
+  const geo = await lookupGeo(ip);
   const trckUserId = body.trck_user_id ?? newTrckUserId();
 
   const row = {
