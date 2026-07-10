@@ -25,7 +25,7 @@ Abra http://localhost:3000 → login `admin@localhost` / `admin123456` (só no c
 ./install.sh
 ```
 
-O script pergunta o **nome da empresa/projeto** e cria stack, serviço, volume, DB e user como `royaltracking_<slug>`. Postgres fica na stack externa (`RoyalNet`).
+O script pergunta o **nome da empresa/projeto** e cria stack, serviço, volume, DB e user como `royaltracking_<slug>`. Postgres fica na stack externa (`RoyalNet`). **Env vai no YAML da stack Portainer** (não no volume).
 
 Produção: ver [DEPLOY.md](./DEPLOY.md).
 

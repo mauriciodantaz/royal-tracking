@@ -39,8 +39,9 @@ Quickstart Docker: [README.md](./README.md) · `./install.sh` · [DEPLOY.md](./D
 ### Deploy
 
 Domínio de produção: **https://tracking.royalserver.com.br** (VPS RoyalServer, rede `RoyalNet`)  
+Instância: `royaltracking_dev` · Postgres externo (host Swarm `postgres`)  
+**Env na stack Portainer** (YAML); volume = build only.  
 Imagem (opcional): `royalserver/royal-tracking`  
-Stack build-on-VPS: `deploy/portainer-stack.yml` · Hub: `deploy/royal-tracking-stack.yml`  
 Guia: [DEPLOY.md](./DEPLOY.md)
 
 ### Webhook na plataforma de venda

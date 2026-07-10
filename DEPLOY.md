@@ -3,9 +3,27 @@
 Domínio exemplo: **https://tracking.royalserver.com.br**  
 Rede: **`RoyalNet`** · Postgres: **stack externa**
 
-## Naming (obrigatório)
+## Regra de ouro (env)
 
-Tudo derivado do nome da empresa/projeto:
+**Secrets ficam no YAML da stack Portainer** (`environment:`), igual ao n8n.  
+O volume só tem o **build standalone** (`server.js`, `.next`, `public`, `db/`).  
+Não usar `.env` no volume / `env_file` no Swarm.
+
+| Onde | O quê |
+|------|--------|
+| Stack Portainer YAML | `DATABASE_URL`, `ENCRYPTION_KEY`, `AUTH_SECRET`, `NEXTAUTH_URL`, `ADMIN_*`, … |
+| Volume `_data` | artefatos do `deploy.sh` (código) |
+| `/root/projects/royaltracking_<slug>/.env` | backup local + input do `print-stack-yml.sh` (não é o que o container lê em produção) |
+
+Gerar YAML com secrets a partir do `.env` da instância:
+
+```bash
+cd /root/projects/royaltracking_<slug>
+bash deploy/print-stack-yml.sh
+# cole a saída no Portainer (Add stack / Editor)
+```
+
+## Naming (obrigatório)
 
 | Recurso | Padrão |
 |---------|--------|
@@ -17,62 +35,40 @@ Tudo derivado do nome da empresa/projeto:
 | DB + user Postgres | `royaltracking_<slug>` |
 | Traefik router | `royaltracking_<slug>` |
 
-Ex.: projeto `royalserver` → stack `royaltracking_royalserver`, DB `royaltracking_royalserver`.
+Ex.: projeto `dev` → stack `royaltracking_dev`.
 
-Slug: minúsculas, `[a-z0-9_]`, gerado por `deploy/lib/naming.sh`.
-
-## Setup do zero (recomendado)
-
-Na VPS (root), com deploy key SSH já configurada:
+## Setup do zero
 
 ```bash
-mkdir -p /root/projects && cd /root/projects
-GIT_SSH_COMMAND='ssh -i ~/.ssh/tracking_deploy -o IdentitiesOnly=yes' \
-  git clone -b feat/self-hosted-oss git@github.com:mauriciodantaz/tracking.git tracking-src
-cd tracking-src
-chmod +x install.sh deploy.sh
+# clone fonte + deploy key
+cd /root/projects/tracking-src   # ou clone fresco
 ./install.sh
 ```
 
-O script pergunta:
+O script cria DB/user, `.env`/`.instance`, sobe a stack e faz o 1º build.  
+Para editar no Portainer: remova a stack CLI (`docker stack rm …`) e recrie colando o YAML gerado (`print-stack-yml.sh`).
 
-1. **Nome da empresa/projeto** → gera o prefixo `royaltracking_<slug>`
-2. Domínio
-3. Admin
-4. Hostname do Postgres na Swarm
-5. Se cria role/DB no Postgres externo agora
-
-Depois sobe a stack **só do app**, gera `.env` + `.instance`, e roda o primeiro build.
-
-## Deploys seguintes
+## Deploys seguintes (código)
 
 ```bash
 cd /root/projects/royaltracking_<slug>
 ./deploy.sh
 ```
 
-`deploy.sh` lê `.instance` (paths, service name, domínio).
+Atualiza só o volume + `docker service update --force`. Env continua no YAML.
 
 ### GitHub Actions
 
-Aponte o secret/script para a pasta da instância, ex.:
-
 ```yaml
 script: |
-  /root/projects/royaltracking_royalserver/deploy.sh
+  /root/projects/royaltracking_dev/deploy.sh
 ```
 
-(ou variável `ROYAL_TRACKING_INSTANCE` se padronizar depois)
-
-## Portainer manual
-
-Template: [`deploy/portainer-stack.yml`](./deploy/portainer-stack.yml) — troque `<SLUG>` e `<DOMAIN>`.  
-Stack name no Portainer = `royaltracking_<SLUG>`.
+Ajuste o path se o slug for outro.
 
 ## Checagem
 
 ```bash
-docker service ls | grep royaltracking_
 docker service ps royaltracking_<slug>_app --no-trunc
 curl -I https://SEU_DOMINIO
 ```

@@ -12,7 +12,7 @@ on:
 
 env:
   # Pasta da instância na VPS (padrão naming royaltracking_<projeto>)
-  INSTANCE_DIR: /root/projects/royaltracking_royalserver
+  INSTANCE_DIR: /root/projects/royaltracking_dev
 
 jobs:
   deploy:
