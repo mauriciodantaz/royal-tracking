@@ -108,6 +108,18 @@ echo "==> Pastas"
 mkdir -p /root/projects
 mkdir -p "$VOLUME_DATA"
 
+# Deploy key SSH (repo privado) — obrigatório para clone/fetch sem prompt
+DEPLOY_KEY="${ROYAL_TRACKING_DEPLOY_KEY:-$HOME/.ssh/tracking_deploy}"
+if [[ -f "$DEPLOY_KEY" ]]; then
+  export GIT_SSH_COMMAND="ssh -i ${DEPLOY_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+  echo "==> Usando deploy key: $DEPLOY_KEY"
+else
+  echo "AVISO: $DEPLOY_KEY não encontrada — git clone/fetch pode falhar no repo privado."
+fi
+
+# Fonte local opcional (evita segundo clone): /root/projects/tracking-src
+LOCAL_SRC="${ROYAL_TRACKING_LOCAL_SRC:-/root/projects/tracking-src}"
+
 # Clone do código (build-on-VPS) ou só pasta para .env/.instance
 if [[ "$BUILD_ON_VPS" == "1" ]]; then
   if [[ -d "$PROJECT_DIR/.git" ]]; then
@@ -115,13 +127,19 @@ if [[ "$BUILD_ON_VPS" == "1" ]]; then
     git -C "$PROJECT_DIR" fetch origin
     git -C "$PROJECT_DIR" checkout "$BRANCH"
     git -C "$PROJECT_DIR" reset --hard "origin/$BRANCH"
+  elif [[ -d "$LOCAL_SRC/.git" ]]; then
+    echo "==> Copiando de $LOCAL_SRC → $PROJECT_DIR"
+    git clone --branch "$BRANCH" "$LOCAL_SRC" "$PROJECT_DIR"
+    # Reapontar origin para o GitHub (não para o path local)
+    git -C "$PROJECT_DIR" remote set-url origin "$REPO_URL"
+    git -C "$PROJECT_DIR" fetch origin "$BRANCH" || true
   else
     echo "==> Clonando $REPO_URL ($BRANCH) → $PROJECT_DIR"
     git clone --branch "$BRANCH" "$REPO_URL" "$PROJECT_DIR"
   fi
   chmod +x "$PROJECT_DIR/deploy.sh" "$PROJECT_DIR/install.sh" "$PROJECT_DIR/bootstrap-vps.sh" 2>/dev/null || true
-  if [[ -f "$HOME/.ssh/tracking_deploy" ]]; then
-    git -C "$PROJECT_DIR" config core.sshCommand 'ssh -i ~/.ssh/tracking_deploy -o IdentitiesOnly=yes'
+  if [[ -f "$DEPLOY_KEY" ]]; then
+    git -C "$PROJECT_DIR" config core.sshCommand "ssh -i ${DEPLOY_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
   fi
 else
   mkdir -p "$PROJECT_DIR"

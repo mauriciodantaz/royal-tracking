@@ -25,6 +25,12 @@ BRANCH="${ROYAL_TRACKING_BRANCH:-feat/self-hosted-oss}"
 
 cd "$PROJECT_DIR"
 
+DEPLOY_KEY="${ROYAL_TRACKING_DEPLOY_KEY:-$HOME/.ssh/tracking_deploy}"
+if [[ -f "$DEPLOY_KEY" ]]; then
+  export GIT_SSH_COMMAND="ssh -i ${DEPLOY_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+  git config core.sshCommand "ssh -i ${DEPLOY_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+fi
+
 git fetch origin "$BRANCH"
 git checkout "$BRANCH"
 git reset --hard "origin/$BRANCH"
