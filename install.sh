@@ -218,8 +218,16 @@ fi
 
 STACK_FILE="/tmp/${STACK_NAME}-stack.yml"
 
+# Escape for YAML double-quoted strings
+_yaml_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+_DB_URL="postgresql://${PG_USER}:${DB_PASSWORD}@${PG_HOST}:5432/${PG_DB}"
+_NEXTAUTH_URL="https://${DOMAIN}"
+
 if [[ "$BUILD_ON_VPS" == "1" ]]; then
-  # App via volume + node alpine (deploy.sh preenche)
+  # App via volume + node alpine — env no YAML (padrão n8n)
   cat > "$STACK_FILE" <<EOF
 version: "3.7"
 
@@ -227,23 +235,23 @@ services:
   ${SERVICE_KEY}:
     image: node:22-alpine
     working_dir: /app
-    command:
-      - sh
-      - -c
-      - |
-        set -a
-        [ -f /app/.env ] && . /app/.env
-        set +a
-        exec node server.js
+    command: ["node", "server.js"]
     volumes:
       - ${VOLUME_DATA}:/app
     networks:
       - royalnet
     environment:
-      - TZ=America/Sao_Paulo
-      - NODE_ENV=production
-      - PORT=3000
-      - HOSTNAME=0.0.0.0
+      TZ: America/Sao_Paulo
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      DATABASE_URL: "$(_yaml_escape "${_DB_URL}")"
+      ENCRYPTION_KEY: "$(_yaml_escape "${ENCRYPTION_KEY}")"
+      AUTH_SECRET: "$(_yaml_escape "${AUTH_SECRET}")"
+      NEXTAUTH_URL: "$(_yaml_escape "${_NEXTAUTH_URL}")"
+      NEXT_PUBLIC_APP_URL: "$(_yaml_escape "${_NEXTAUTH_URL}")"
+      ADMIN_EMAIL: "$(_yaml_escape "${ADMIN_EMAIL}")"
+      ADMIN_PASSWORD: "$(_yaml_escape "${ADMIN_PASSWORD}")"
     deploy:
       replicas: 1
       placement:
@@ -279,13 +287,13 @@ services:
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
       TZ: America/Sao_Paulo
-      DATABASE_URL: postgresql://${PG_USER}:${DB_PASSWORD}@${PG_HOST}:5432/${PG_DB}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-      AUTH_SECRET: ${AUTH_SECRET}
-      NEXTAUTH_URL: https://${DOMAIN}
-      NEXT_PUBLIC_APP_URL: https://${DOMAIN}
-      ADMIN_EMAIL: ${ADMIN_EMAIL}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      DATABASE_URL: "$(_yaml_escape "${_DB_URL}")"
+      ENCRYPTION_KEY: "$(_yaml_escape "${ENCRYPTION_KEY}")"
+      AUTH_SECRET: "$(_yaml_escape "${AUTH_SECRET}")"
+      NEXTAUTH_URL: "$(_yaml_escape "${_NEXTAUTH_URL}")"
+      NEXT_PUBLIC_APP_URL: "$(_yaml_escape "${_NEXTAUTH_URL}")"
+      ADMIN_EMAIL: "$(_yaml_escape "${ADMIN_EMAIL}")"
+      ADMIN_PASSWORD: "$(_yaml_escape "${ADMIN_PASSWORD}")"
     networks:
       - royalnet
     deploy:
@@ -312,12 +320,14 @@ fi
 echo "==> Deploy stack ${STACK_NAME}"
 docker stack deploy -c "$STACK_FILE" "$STACK_NAME"
 cp -f "$STACK_FILE" "${PROJECT_DIR}/stack.deployed.yml" 2>/dev/null || true
+# Também grava YAML para colar no Portainer (com secrets)
+cp -f "$STACK_FILE" "${PROJECT_DIR}/portainer-stack.generated.yml" 2>/dev/null || true
+chmod 600 "${PROJECT_DIR}/portainer-stack.generated.yml" 2>/dev/null || true
 
 if [[ "$BUILD_ON_VPS" == "1" ]]; then
   if [[ ! -f "${VOLUME_DATA}/server.js" ]]; then
     echo 'console.log("Royal Tracking placeholder — rode deploy.sh"); setInterval(()=>{},6e4);' > "${VOLUME_DATA}/server.js"
   fi
-  cp -f "${PROJECT_DIR}/.env" "${VOLUME_DATA}/.env"
   echo "==> Primeiro build"
   (
     cd "$PROJECT_DIR"
@@ -338,5 +348,8 @@ echo "Snippet:  <script src=\"https://${DOMAIN}/snippet.js\" async></script>"
 echo "Webhook:  https://${DOMAIN}/api/webhook/compra"
 echo
 echo "Arquivos: ${PROJECT_DIR}/.env  ${INSTANCE_FILE}"
+echo "YAML Portainer (env incluso): ${PROJECT_DIR}/portainer-stack.generated.yml"
+echo "  cat ${PROJECT_DIR}/portainer-stack.generated.yml"
+echo "  # ou: bash ${PROJECT_DIR}/deploy/print-stack-yml.sh"
 echo "Deploy:   cd ${PROJECT_DIR} && ./deploy.sh"
 echo "Actions:  aponte o workflow para ${PROJECT_DIR}/deploy.sh"

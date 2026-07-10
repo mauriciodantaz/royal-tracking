@@ -34,7 +34,7 @@ fi
 git fetch origin "$BRANCH"
 git checkout "$BRANCH"
 git reset --hard "origin/$BRANCH"
-git clean -fd -e .env -e .instance -e node_modules -e .next -e stack.deployed.yml
+git clean -fd -e .env -e .instance -e node_modules -e .next -e stack.deployed.yml -e portainer-stack.generated.yml
 
 if [ ! -f .env ]; then
   echo "ERRO: $PROJECT_DIR/.env não existe. Rode install.sh antes do primeiro deploy."
@@ -68,14 +68,15 @@ cp -a db .next/standalone/db
 echo "==> Publicar no volume $VOLUME_DATA"
 rm -rf "${VOLUME_DATA:?}/"*
 cp -a .next/standalone/. "$VOLUME_DATA/"
-cp -f .env "$VOLUME_DATA/.env"
-# Mantém .instance no projeto (não no volume da app)
+# Env fica na stack Portainer (YAML), não no volume.
+# Mantém .env no PROJECT_DIR para print-stack-yml.sh / backup.
 
 echo "==> Reiniciar service $SERVICE_NAME"
 if docker service inspect "$SERVICE_NAME" >/dev/null 2>&1; then
   docker service update --force "$SERVICE_NAME"
 else
-  echo "AVISO: service $SERVICE_NAME ainda não existe. Rode install.sh / Portainer."
+  echo "AVISO: service $SERVICE_NAME ainda não existe. Cole o YAML no Portainer:"
+  echo "  bash ${PROJECT_DIR}/deploy/print-stack-yml.sh"
 fi
 
 echo "Deploy Royal Tracking OK → https://${DOMAIN:-?}"

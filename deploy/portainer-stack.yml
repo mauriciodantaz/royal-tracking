@@ -1,44 +1,35 @@
 version: "3.7"
 
-# Template Portainer — Royal Tracking
-# Naming: royaltracking_<projeto>
+# Template Portainer — Royal Tracking (env no YAML, padrão n8n)
+# Naming: royaltracking_<SLUG>
 #
-# Substitua:
-#   <SLUG>     → slug do projeto (ex: royalserver, fizzing)
-#   <DOMAIN>   → tracking.royalserver.com.br
+# Preferível gerar com secrets reais:
+#   cd /root/projects/royaltracking_<SLUG>
+#   bash deploy/print-stack-yml.sh
 #
-# Prefixo completo: royaltracking_<SLUG>
-# Stack name no Portainer: royaltracking_<SLUG>
-# Serviço Swarm: royaltracking_<SLUG>_app
-# Volume: /var/lib/docker/volumes/royaltracking_<SLUG>/_data
-# DB/user (Postgres externo): royaltracking_<SLUG>
-#
-# Preferível: bash install.sh (gera tudo sozinho).
-#
-# Postgres NÃO fica nesta stack — stack externa na RoyalNet.
-# .env no volume (deploy.sh) com DATABASE_URL apontando ao PG externo.
+# Volume só com o build (deploy.sh). Secrets ficam no environment abaixo.
 
 services:
   app:
     image: node:22-alpine
     working_dir: /app
-    command:
-      - sh
-      - -c
-      - |
-        set -a
-        [ -f /app/.env ] && . /app/.env
-        set +a
-        exec node server.js
+    command: ["node", "server.js"]
     volumes:
       - /var/lib/docker/volumes/royaltracking_<SLUG>/_data:/app
     networks:
       - RoyalNet
     environment:
-      - TZ=America/Sao_Paulo
-      - NODE_ENV=production
-      - PORT=3000
-      - HOSTNAME=0.0.0.0
+      TZ: America/Sao_Paulo
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      DATABASE_URL: postgresql://royaltracking_<SLUG>:CHANGE_ME@postgres:5432/royaltracking_<SLUG>
+      ENCRYPTION_KEY: CHANGE_ME_ENCRYPTION_KEY
+      AUTH_SECRET: CHANGE_ME_AUTH_SECRET
+      NEXTAUTH_URL: https://<DOMAIN>
+      NEXT_PUBLIC_APP_URL: https://<DOMAIN>
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: CHANGE_ME_ADMIN_PASSWORD
     deploy:
       mode: replicated
       replicas: 1
