@@ -28,4 +28,7 @@ jobs:
             set -euo pipefail
             cd "${{ env.INSTANCE_DIR }}"
             chmod +x deploy.sh install.sh bootstrap-vps.sh deploy/print-stack-yml.sh 2>/dev/null || true
+            # VPS pode ter ROYAL_TRACKING_BRANCH legado (ex.: feat/self-hosted-oss).
+            # Actions sempre publica main.
+            export ROYAL_TRACKING_BRANCH=main
             ./deploy.sh
