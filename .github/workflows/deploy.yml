@@ -1,8 +1,8 @@
 name: Deploy Royal Tracking
 
-# Alvo: VPS RoyalServer
+# Alvo: VPS RoyalServer — https://tracking.royalserver.com.br
 # Secrets: VPS_HOST, VPS_USER, VPS_SSH_KEY
-# Instância padrão: royaltracking_royalserver (ajuste se o slug for outro)
+# Instância: royaltracking_dev
 
 on:
   push:
@@ -11,7 +11,6 @@ on:
   workflow_dispatch:
 
 env:
-  # Pasta da instância na VPS (padrão naming royaltracking_<projeto>)
   INSTANCE_DIR: /root/projects/royaltracking_dev
 
 jobs:
@@ -24,7 +23,9 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 30m
           script: |
             set -euo pipefail
             cd "${{ env.INSTANCE_DIR }}"
+            chmod +x deploy.sh install.sh bootstrap-vps.sh deploy/print-stack-yml.sh 2>/dev/null || true
             ./deploy.sh

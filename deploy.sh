@@ -21,7 +21,7 @@ else
 fi
 
 BUILD_IMAGE="node:22-alpine"
-BRANCH="${ROYAL_TRACKING_BRANCH:-feat/self-hosted-oss}"
+BRANCH="${ROYAL_TRACKING_BRANCH:-main}"
 
 cd "$PROJECT_DIR"
 

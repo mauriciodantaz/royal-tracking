@@ -16,7 +16,7 @@ source "${SCRIPT_DIR}/deploy/lib/naming.sh"
 IMAGE="${ROYAL_TRACKING_IMAGE:-royalserver/royal-tracking:latest}"
 TRAEFIK_NET="${ROYAL_TRACKING_NETWORK:-RoyalNet}"
 REPO_URL="${ROYAL_TRACKING_REPO:-git@github.com:mauriciodantaz/tracking.git}"
-BRANCH="${ROYAL_TRACKING_BRANCH:-feat/self-hosted-oss}"
+BRANCH="${ROYAL_TRACKING_BRANCH:-main}"
 BUILD_ON_VPS="${ROYAL_TRACKING_BUILD_ON_VPS:-1}"
 
 echo "=== Royal Tracking — setup (royaltracking_<projeto>) ==="
