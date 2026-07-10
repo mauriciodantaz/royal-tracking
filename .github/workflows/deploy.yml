@@ -27,8 +27,10 @@ jobs:
           script: |
             set -euo pipefail
             cd "${{ env.INSTANCE_DIR }}"
-            chmod +x deploy.sh install.sh bootstrap-vps.sh deploy/print-stack-yml.sh 2>/dev/null || true
-            # VPS pode ter ROYAL_TRACKING_BRANCH legado (ex.: feat/self-hosted-oss).
-            # Actions sempre publica main.
+            # Actions sempre publica main (VPS pode ter BRANCH legado).
             export ROYAL_TRACKING_BRANCH=main
-            ./deploy.sh
+            # Troca para main ANTES do deploy.sh (repo na VPS pode estar em branch antiga).
+            git fetch origin main
+            git reset --hard origin/main
+            git clean -fd -e .env -e .instance -e node_modules -e .next -e stack.deployed.yml -e portainer-stack.generated.yml || true
+            bash ./deploy.sh
