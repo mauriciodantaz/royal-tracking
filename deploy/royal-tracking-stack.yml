@@ -1,13 +1,10 @@
 version: "3.8"
 
-# Stack Portainer / Swarm — Royal Tracking (self-hosted)
-# Uma stack por domínio. Substitua TODOS os placeholders antes de deploy.
+# Stack Portainer / Swarm — Royal Tracking (self-hosted, imagem Hub)
+# Domínio produção RoyalServer: https://tracking.royalserver.com.br
+# Rede Traefik: RoyalNet
 #
-# Pré-requisitos:
-#   - Rede externa Traefik (ex.: fizzing_net) já existente
-#   - DNS do domínio apontando para a VPS
-#
-# Imagem: royalserver/royal-tracking:latest
+# Substitua CHANGE_ME_* antes do deploy (ou use install.sh).
 
 services:
   postgres:
@@ -41,13 +38,13 @@ services:
       DATABASE_URL: postgresql://tracking:CHANGE_ME_DB_PASSWORD@postgres:5432/tracking
       ENCRYPTION_KEY: CHANGE_ME_ENCRYPTION_KEY_MIN_32_CHARS
       AUTH_SECRET: CHANGE_ME_AUTH_SECRET_MIN_32_CHARS
-      NEXTAUTH_URL: https://tracking.example.com
-      NEXT_PUBLIC_APP_URL: https://tracking.example.com
+      NEXTAUTH_URL: https://tracking.royalserver.com.br
+      NEXT_PUBLIC_APP_URL: https://tracking.royalserver.com.br
       ADMIN_EMAIL: admin@example.com
       ADMIN_PASSWORD: CHANGE_ME_ADMIN_PASSWORD
     networks:
       - internal
-      - traefik_public
+      - RoyalNet
     depends_on:
       - postgres
     deploy:
@@ -62,7 +59,7 @@ services:
           memory: 1024M
       labels:
         - traefik.enable=true
-        - traefik.http.routers.royal-tracking.rule=Host(`tracking.example.com`)
+        - traefik.http.routers.royal-tracking.rule=Host(`tracking.royalserver.com.br`)
         - traefik.http.services.royal-tracking.loadbalancer.server.port=3000
         - traefik.http.routers.royal-tracking.service=royal-tracking
         - traefik.http.routers.royal-tracking.tls.certresolver=letsencryptresolver
@@ -72,9 +69,9 @@ services:
 networks:
   internal:
     driver: overlay
-  traefik_public:
+  RoyalNet:
     external: true
-    name: fizzing_net
+    name: RoyalNet
 
 volumes:
   royal_tracking_pg:

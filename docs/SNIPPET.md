@@ -1,6 +1,6 @@
 # Royal Tracking — snippet no site do cliente
 
-Use o domínio da **sua** instalação (uma stack por domínio). Exemplo de produção atual: `tracking.fizzing.marketing`.
+Use o domínio da **sua** instalação (uma stack por domínio). Produção RoyalServer: `tracking.royalserver.com.br`.
 
 ## Código para colar
 

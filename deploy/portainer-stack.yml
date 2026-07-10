@@ -1,7 +1,8 @@
 version: "3.7"
 
 # Stack Portainer — Royal Tracking (Next.js standalone)
-# Domínio: https://tracking.fizzing.marketing
+# Domínio: https://tracking.royalserver.com.br
+# VPS: RoyalServer (rede Traefik RoyalNet)
 #
 # Pré-requisitos na VPS:
 #   mkdir -p /var/lib/docker/volumes/tracking/_data
@@ -25,7 +26,7 @@ services:
     volumes:
       - /var/lib/docker/volumes/tracking/_data:/app
     networks:
-      - fizzing_net
+      - RoyalNet
     environment:
       - TZ=America/Sao_Paulo
       - NODE_ENV=production
@@ -43,7 +44,7 @@ services:
           memory: 1024M
       labels:
         - traefik.enable=true
-        - traefik.http.routers.tracking.rule=Host(`tracking.fizzing.marketing`)
+        - traefik.http.routers.tracking.rule=Host(`tracking.royalserver.com.br`)
         - traefik.http.services.tracking.loadbalancer.server.port=3000
         - traefik.http.routers.tracking.service=tracking
         - traefik.http.routers.tracking.tls.certresolver=letsencryptresolver
@@ -51,6 +52,6 @@ services:
         - traefik.http.routers.tracking.tls=true
 
 networks:
-  fizzing_net:
+  RoyalNet:
     external: true
-    name: fizzing_net
+    name: RoyalNet

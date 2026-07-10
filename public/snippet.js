@@ -1,18 +1,18 @@
 /**
  * Royal Tracking — snippet para o site do cliente.
- * Servido em: https://tracking.fizzing.marketing/snippet.js
+ * Servido em: https://tracking.royalserver.com.br/snippet.js
  *
  * Uso mínimo:
- *   <script src="https://tracking.fizzing.marketing/snippet.js" async></script>
+ *   <script src="https://tracking.royalserver.com.br/snippet.js" async></script>
  *
  * Opcional (antes do script):
- *   <script>window.TRCK_ENDPOINT="https://tracking.fizzing.marketing";</script>
+ *   <script>window.TRCK_ENDPOINT="https://tracking.royalserver.com.br";</script>
  */
 (function () {
   "use strict";
 
   var ENDPOINT = (
-    window.TRCK_ENDPOINT || "https://tracking.fizzing.marketing"
+    window.TRCK_ENDPOINT || "https://tracking.royalserver.com.br"
   ).replace(/\/$/, "");
   var STORAGE_KEY = "trck_user_id";
   var COOKIE_DAYS = 365;

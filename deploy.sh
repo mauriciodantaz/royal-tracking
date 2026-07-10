@@ -51,4 +51,4 @@ cp -f .env "$DEST/.env"
 echo "==> Reiniciar service $SERVICE_NAME"
 docker service update --force "$SERVICE_NAME"
 
-echo "Deploy Royal Tracking OK → https://tracking.fizzing.marketing"
+echo "Deploy Royal Tracking OK → https://tracking.royalserver.com.br"

@@ -39,4 +39,4 @@ Ou re-deploy da stack no Portainer com a tag nova.
 4. Apontar DNS / Traefik para a nova stack.
 5. Atualizar snippet e webhook nas plataformas de venda.
 
-Produção atual (`tracking.fizzing.marketing`) pode continuar no fluxo antigo até a janela de cutover.
+Produção RoyalServer: `https://tracking.royalserver.com.br` (rede Traefik `RoyalNet`).

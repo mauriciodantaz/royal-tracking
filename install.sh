@@ -6,14 +6,14 @@ set -euo pipefail
 
 IMAGE="${ROYAL_TRACKING_IMAGE:-royalserver/royal-tracking:latest}"
 STACK_NAME="${ROYAL_TRACKING_STACK:-royal-tracking}"
-TRAEFIK_NET="${ROYAL_TRACKING_NETWORK:-fizzing_net}"
+TRAEFIK_NET="${ROYAL_TRACKING_NETWORK:-RoyalNet}"
 
 echo "=== Royal Tracking installer ==="
 echo "Imagem: $IMAGE"
 echo "Stack:  $STACK_NAME"
 echo
 
-read -r -p "Domínio (ex: tracking.cliente.com): " DOMAIN
+read -r -p "Domínio (ex: tracking.royalserver.com.br): " DOMAIN
 DOMAIN="${DOMAIN// /}"
 if [[ -z "$DOMAIN" ]]; then
   echo "Domínio obrigatório." >&2

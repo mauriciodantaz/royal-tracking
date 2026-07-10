@@ -1,5 +1,8 @@
 name: Deploy Royal Tracking
 
+# Alvo: VPS RoyalServer — https://tracking.royalserver.com.br
+# Secrets: VPS_HOST (IP da nova VPS), VPS_USER, VPS_SSH_KEY
+
 on:
   push:
     branches:
@@ -10,7 +13,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy on VPS
+      - name: Deploy on RoyalServer VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}

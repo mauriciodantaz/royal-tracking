@@ -38,9 +38,10 @@ Quickstart Docker: [README.md](./README.md) · `./install.sh` · [DEPLOY.md](./D
 
 ### Deploy
 
-Domínio de produção atual: **https://tracking.fizzing.marketing**  
-Imagem: `royalserver/royal-tracking`  
-Stack de referência: `deploy/royal-tracking-stack.yml`
+Domínio de produção: **https://tracking.royalserver.com.br** (VPS RoyalServer, rede `RoyalNet`)  
+Imagem (opcional): `royalserver/royal-tracking`  
+Stack build-on-VPS: `deploy/portainer-stack.yml` · Hub: `deploy/royal-tracking-stack.yml`  
+Guia: [DEPLOY.md](./DEPLOY.md)
 
 ### Webhook na plataforma de venda
 
