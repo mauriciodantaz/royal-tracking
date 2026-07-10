@@ -1,80 +1,85 @@
-# Deploy — Royal Tracking (RoyalServer) do zero
+# Deploy — Royal Tracking (RoyalServer) · Postgres externo
 
 Domínio: **https://tracking.royalserver.com.br**  
-VPS: RoyalServer · rede Traefik **`RoyalNet`**
+Rede Traefik / apps: **`RoyalNet`**  
+Postgres: **stack externa** (mesmo padrão do n8n — não sobe PG dentro do tracking)
 
-## Bootstrap (primeira vez na VPS)
+## Arquitetura
 
-Na **nova** VPS, como `root`:
+```txt
+Stack Postgres (já existente na VPS)
+  └─ serviço ex.: postgres  ──RoyalNet──┐
+                                        ├─ Stack tracking (só o app Node)
+Traefik ── Host(tracking.royalserver.com.br) ─┘
+```
+
+`DATABASE_URL` usa o **hostname Swarm** do Postgres (nome do serviço), não `localhost`.
+
+## 1) Postgres externo — criar DB/user
+
+No container/serviço do Postgres da VPS:
+
+```sql
+CREATE USER tracking WITH PASSWORD 'SENHA_FORTE';
+CREATE DATABASE tracking OWNER tracking;
+GRANT ALL PRIVILEGES ON DATABASE tracking TO tracking;
+```
+
+Anote o **hostname** do serviço na Swarm (ex.: `postgres`, `postgres_postgres`, etc.):
 
 ```bash
-# 1) DNS já apontando tracking.royalserver.com.br → IP desta VPS (recomendado)
+docker service ls | grep -i postgres
+```
 
-# 2) Deploy key SSH (repo privado) — chave privada em ~/.ssh/tracking_deploy
-#    (pública já registrada no GitHub como "VPS RoyalServer")
+## 2) Bootstrap do app (volume + clone + .env + stack app)
 
-# 3) Clone + bootstrap
+```bash
+# Deploy key SSH já em ~/.ssh/tracking_deploy (repo privado)
+
 mkdir -p /root/projects && cd /root/projects
 GIT_SSH_COMMAND='ssh -i ~/.ssh/tracking_deploy -o IdentitiesOnly=yes' \
   git clone -b feat/self-hosted-oss git@github.com:mauriciodantaz/tracking.git tracking
 cd tracking
+git config core.sshCommand 'ssh -i ~/.ssh/tracking_deploy -o IdentitiesOnly=yes'
 chmod +x bootstrap-vps.sh deploy.sh
+
+# Ajuste o host do PG se não for "postgres":
+#   export ROYAL_TRACKING_PG_HOST=NOME_DO_SERVICO_PG
+#   export ROYAL_TRACKING_PG_PASSWORD='SENHA_FORTE'
 ./bootstrap-vps.sh
 ```
 
-> Até mergear `feat/self-hosted-oss` na `main`, o bootstrap e o `deploy.sh` usam essa branch (`ROYAL_TRACKING_BRANCH`). Depois do merge, mude para `main`.
+O bootstrap:
 
-O `bootstrap-vps.sh` faz:
+1. Cria `/var/lib/docker/volumes/tracking/_data`
+2. Gera `.env` com `DATABASE_URL=...@PG_HOST:5432/tracking`
+3. Sobe stack **`tracking` só com o app** (sem Postgres)
+4. Roda o primeiro `deploy.sh`
 
-1. Garante Swarm + rede `RoyalNet`
-2. Cria `/var/lib/docker/volumes/tracking/_data`
-3. Clona/atualiza `/root/projects/tracking`
-4. Gera `.env` (Postgres, ENCRYPTION_KEY, AUTH_SECRET, admin)
-5. Sobe stack `tracking` (Postgres + app Node no volume)
-6. Roda o primeiro `deploy.sh` (build + publica no volume)
+Schema: o app aplica `db/migrations/` no boot (não precisa SQL manual além do CREATE USER/DB).
 
-Anote a senha do admin impressa no final.
+## 3) Stack no Portainer (alternativa ao bootstrap)
 
-### Checagem
+Arquivo: [`deploy/portainer-stack.yml`](./deploy/portainer-stack.yml) — **somente** serviço `tracking` + `RoyalNet`.
 
-```bash
-docker service ls | grep tracking
-docker service ps tracking_tracking --no-trunc
-curl -I https://tracking.royalserver.com.br
-```
+Env fica no `.env` do volume (preenchido pelo `deploy.sh`), não no YAML.
 
 ## Deploys seguintes (GitHub Actions)
 
 ```txt
-git push main
-→ Actions SSH → /root/projects/tracking/deploy.sh
-→ build no container node:22-alpine
-→ copia standalone + db/ + .env → volume
-→ docker service update --force tracking_tracking
+push main → SSH → deploy.sh → build → volume → service update --force tracking_tracking
 ```
 
-Secrets no repo:
+Secrets: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` (nova VPS).
 
-| Secret | Valor |
-|--------|--------|
-| `VPS_HOST` | IP da **nova** VPS |
-| `VPS_USER` | `root` |
-| `VPS_SSH_KEY` | chave privada cujo `.pub` está no `authorized_keys` desta VPS |
+## Checagem
 
-## Stack manual (Portainer)
+```bash
+docker service ls | grep tracking
+# só tracking_tracking (não tracking_postgres)
 
-Arquivo de referência: [`deploy/portainer-stack.yml`](./deploy/portainer-stack.yml)
+docker service ps tracking_tracking --no-trunc
+curl -I https://tracking.royalserver.com.br
+```
 
-- Troque `CHANGE_ME_DB_PASSWORD` pela mesma senha do `DATABASE_URL` no `.env`
-- Volume app: `/var/lib/docker/volumes/tracking/_data`
-- Volume Postgres: `tracking_pg` (nome Swarm)
-
-## Env
-
-Ver [`.env.example`](./.env.example). O bootstrap gera um `.env` completo em `/root/projects/tracking/.env` (e copia para o volume).
-
-`DATABASE_URL` usa host `postgres` (serviço na rede interna da stack).
-
-## Imagem Docker Hub (alternativa)
-
-Sem build na VPS: [`.github/workflows/docker-hub.yml`](./.github/workflows/docker-hub.yml) + [`deploy/royal-tracking-stack.yml`](./deploy/royal-tracking-stack.yml) + [`install.sh`](./install.sh).
+Se a app não conectar no banco: hostname errado, user/senha, ou Postgres fora da `RoyalNet`.

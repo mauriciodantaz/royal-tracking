@@ -39,4 +39,5 @@ Ou re-deploy da stack no Portainer com a tag nova.
 4. Apontar DNS / Traefik para a nova stack.
 5. Atualizar snippet e webhook nas plataformas de venda.
 
-Produção RoyalServer: `https://tracking.royalserver.com.br` (rede Traefik `RoyalNet`).
+Produção RoyalServer: `https://tracking.royalserver.com.br` (rede Traefik `RoyalNet`).  
+Postgres fica em **stack externa** na mesma rede; a stack do app só sobe o Node.

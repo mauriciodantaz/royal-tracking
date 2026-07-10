@@ -1,42 +1,21 @@
-version: "3.8"
+version: "3.7"
 
-# Stack Portainer — Royal Tracking (build na VPS + Postgres local)
+# Stack Portainer — Royal Tracking (só o app)
 # Domínio: https://tracking.royalserver.com.br
-# Rede Traefik: RoyalNet
+# Rede: RoyalNet (mesma do Traefik + Postgres externo)
+#
+# Postgres NÃO fica nesta stack — use a stack Postgres da VPS (como o n8n).
+# No .env: DATABASE_URL=postgresql://USER:SENHA@HOST_DO_POSTGRES:5432/tracking
 #
 # Pré-requisitos:
-#   bash bootstrap-vps.sh   # cria pastas, volume, .env, stack, 1º build
-#   ou manualmente:
-#     mkdir -p /var/lib/docker/volumes/tracking/_data /root/projects/tracking
-#     # .env em /root/projects/tracking/.env
-#     # deploy.sh preenche o volume com o standalone
+#   1) DB + user criados no Postgres externo
+#   2) mkdir -p /var/lib/docker/volumes/tracking/_data
+#   3) /root/projects/tracking/.env
+#   4) ./deploy.sh (preenche o volume com standalone + migrations)
 #
-# O deploy.sh copia build standalone + db/migrations + .env para o volume.
-# Swarm não usa env_file; o entrypoint carrega /app/.env.
+# Swarm não usa env_file; o entrypoint carrega /app/.env do volume.
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: tracking
-      # Mesma senha usada em DATABASE_URL do .env da app
-      POSTGRES_PASSWORD: CHANGE_ME_DB_PASSWORD
-      POSTGRES_DB: tracking
-    volumes:
-      - tracking_pg:/var/lib/postgresql/data
-    networks:
-      - internal
-    deploy:
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 512M
-
   tracking:
     image: node:22-alpine
     working_dir: /app
@@ -51,7 +30,6 @@ services:
     volumes:
       - /var/lib/docker/volumes/tracking/_data:/app
     networks:
-      - internal
       - RoyalNet
     environment:
       - TZ=America/Sao_Paulo
@@ -78,11 +56,6 @@ services:
         - traefik.http.routers.tracking.tls=true
 
 networks:
-  internal:
-    driver: overlay
   RoyalNet:
     external: true
     name: RoyalNet
-
-volumes:
-  tracking_pg:

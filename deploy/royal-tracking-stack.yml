@@ -1,33 +1,12 @@
 version: "3.8"
 
-# Stack Portainer / Swarm — Royal Tracking (self-hosted, imagem Hub)
-# Domínio produção RoyalServer: https://tracking.royalserver.com.br
-# Rede Traefik: RoyalNet
+# Stack Portainer — Royal Tracking via imagem Hub (app only)
+# Domínio: https://tracking.royalserver.com.br
+# Rede: RoyalNet
 #
-# Substitua CHANGE_ME_* antes do deploy (ou use install.sh).
+# Postgres = stack EXTERNA. Ajuste DATABASE_URL (host = nome do serviço PG).
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: tracking
-      POSTGRES_PASSWORD: CHANGE_ME_DB_PASSWORD
-      POSTGRES_DB: tracking
-    volumes:
-      - royal_tracking_pg:/var/lib/postgresql/data
-    networks:
-      - internal
-    deploy:
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 512M
-
   app:
     image: royalserver/royal-tracking:latest
     environment:
@@ -43,10 +22,7 @@ services:
       ADMIN_EMAIL: admin@example.com
       ADMIN_PASSWORD: CHANGE_ME_ADMIN_PASSWORD
     networks:
-      - internal
       - RoyalNet
-    depends_on:
-      - postgres
     deploy:
       mode: replicated
       replicas: 1
@@ -67,11 +43,6 @@ services:
         - traefik.http.routers.royal-tracking.tls=true
 
 networks:
-  internal:
-    driver: overlay
   RoyalNet:
     external: true
     name: RoyalNet
-
-volumes:
-  royal_tracking_pg:

@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 # Royal Tracking — install.sh (VPS / Swarm + Traefik)
-# Uso: curl -fsSL https://raw.githubusercontent.com/.../install.sh | bash
-#   ou: bash install.sh
+# App only; Postgres = stack EXTERNA na mesma rede (padrão n8n / RoyalServer).
 set -euo pipefail
 
 IMAGE="${ROYAL_TRACKING_IMAGE:-royalserver/royal-tracking:latest}"
 STACK_NAME="${ROYAL_TRACKING_STACK:-royal-tracking}"
 TRAEFIK_NET="${ROYAL_TRACKING_NETWORK:-RoyalNet}"
 
-echo "=== Royal Tracking installer ==="
+echo "=== Royal Tracking installer (Postgres externo) ==="
 echo "Imagem: $IMAGE"
 echo "Stack:  $STACK_NAME"
 echo
@@ -23,9 +22,15 @@ fi
 read -r -p "E-mail do admin: " ADMIN_EMAIL
 read -r -s -p "Senha do admin: " ADMIN_PASSWORD
 echo
-read -r -s -p "Senha do Postgres: " DB_PASSWORD
+read -r -p "Hostname do Postgres na Swarm (ex: postgres): " PG_HOST
+PG_HOST="${PG_HOST:-postgres}"
+read -r -p "User Postgres [tracking]: " PG_USER
+PG_USER="${PG_USER:-tracking}"
+read -r -p "Database [tracking]: " PG_DB
+PG_DB="${PG_DB:-tracking}"
+read -r -s -p "Senha do Postgres (user acimaPG_USER}): " DB_PASSWORD
 echo
-read -r -p "Rede Traefik externa [$TRAEFIK_NET]: " NET_IN
+read -r -p "Rede Traefik/apps [$TRAEFIK_NET]: " NET_IN
 TRAEFIK_NET="${NET_IN:-$TRAEFIK_NET}"
 
 gen_secret() {
@@ -45,22 +50,6 @@ cat > "$STACK_FILE" <<EOF
 version: "3.8"
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: tracking
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: tracking
-    volumes:
-      - ${STACK_NAME}_pg:/var/lib/postgresql/data
-    networks:
-      - internal
-    deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-
   app:
     image: ${IMAGE}
     environment:
@@ -68,7 +57,7 @@ services:
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
       TZ: America/Sao_Paulo
-      DATABASE_URL: postgresql://tracking:${DB_PASSWORD}@postgres:5432/tracking
+      DATABASE_URL: postgresql://${PG_USER}:${DB_PASSWORD}@${PG_HOST}:5432/${PG_DB}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       AUTH_SECRET: ${AUTH_SECRET}
       NEXTAUTH_URL: ${APP_URL}
@@ -76,7 +65,6 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     networks:
-      - internal
       - traefik_public
     deploy:
       replicas: 1
@@ -93,33 +81,26 @@ services:
         - traefik.http.routers.${STACK_NAME}.tls=true
 
 networks:
-  internal:
-    driver: overlay
   traefik_public:
     external: true
     name: ${TRAEFIK_NET}
-
-volumes:
-  ${STACK_NAME}_pg:
 EOF
 
 if ! docker network inspect "$TRAEFIK_NET" >/dev/null 2>&1; then
-  echo "Aviso: rede externa '$TRAEFIK_NET' não encontrada. Crie-a ou ajuste o nome." >&2
+  echo "Aviso: rede externa '$TRAEFIK_NET' não encontrada." >&2
 fi
 
 echo
-echo "Deploy da stack '$STACK_NAME'..."
+echo "Deploy da stack '$STACK_NAME' (app only)..."
 docker stack deploy -c "$STACK_FILE" "$STACK_NAME"
 
 echo
 echo "=== Pronto ==="
 echo "URL:      $APP_URL"
 echo "Login:    $ADMIN_EMAIL"
+echo "Postgres: ${PG_USER}@${PG_HOST}:5432/${PG_DB} (stack externa)"
 echo "Snippet:  <script src=\"${APP_URL}/snippet.js\" async></script>"
 echo "Webhook:  ${APP_URL}/api/webhook/compra"
 echo
-echo "Configure o token do webhook no painel → Configuração."
-echo "Stack file temporário: $STACK_FILE (apague se não precisar)."
-echo
-echo "Atualizar imagem depois:"
-echo "  docker service update --image ${IMAGE} ${STACK_NAME}_app"
+echo "Crie user/DB no Postgres externo se ainda não existirem."
+echo "Atualizar imagem: docker service update --image ${IMAGE} ${STACK_NAME}_app"

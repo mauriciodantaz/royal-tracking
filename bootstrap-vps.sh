@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# Bootstrap Royal Tracking na VPS do zero (RoyalServer).
-# Rode UMA VEZ como root na nova VPS:
-#   curl -fsSL ... | bash
-#   ou: bash bootstrap-vps.sh
+# Bootstrap Royal Tracking na VPS (RoyalServer) — app only.
+# Postgres = stack EXTERNA (mesma rede RoyalNet), igual n8n.
+#
+# Variáveis opcionais:
+#   ROYAL_TRACKING_PG_HOST   hostname do serviço Postgres na Swarm (ex: postgres)
+#   ROYAL_TRACKING_PG_USER   default: tracking
+#   ROYAL_TRACKING_PG_DB     default: tracking
+#   ROYAL_TRACKING_PG_PASSWORD  se vazio, gera uma (você cria o role no PG externo)
 set -euo pipefail
 
 DOMAIN="${ROYAL_TRACKING_DOMAIN:-tracking.royalserver.com.br}"
@@ -11,17 +15,21 @@ VOLUME_DATA="/var/lib/docker/volumes/tracking/_data"
 STACK_NAME="${ROYAL_TRACKING_STACK:-tracking}"
 TRAEFIK_NET="${ROYAL_TRACKING_NETWORK:-RoyalNet}"
 REPO_URL="${ROYAL_TRACKING_REPO:-git@github.com:mauriciodantaz/tracking.git}"
-# Até o merge do self-hosted na main, use a feature branch:
 BRANCH="${ROYAL_TRACKING_BRANCH:-feat/self-hosted-oss}"
 SERVICE_NAME="${STACK_NAME}_tracking"
 export ROYAL_TRACKING_BRANCH="$BRANCH"
 
-echo "=== Royal Tracking — bootstrap VPS ==="
-echo "Domínio:  $DOMAIN"
-echo "Projeto:  $PROJECT_DIR"
-echo "Volume:   $VOLUME_DATA"
-echo "Rede:     $TRAEFIK_NET"
-echo "Branch:   $BRANCH"
+PG_HOST="${ROYAL_TRACKING_PG_HOST:-postgres}"
+PG_USER="${ROYAL_TRACKING_PG_USER:-tracking}"
+PG_DB="${ROYAL_TRACKING_PG_DB:-tracking}"
+
+echo "=== Royal Tracking — bootstrap VPS (Postgres externo) ==="
+echo "Domínio:   $DOMAIN"
+echo "Projeto:   $PROJECT_DIR"
+echo "Volume:    $VOLUME_DATA"
+echo "Rede:      $TRAEFIK_NET"
+echo "PG host:   $PG_HOST (stack externa)"
+echo "Branch:    $BRANCH"
 echo
 
 if [[ "$(id -u)" -ne 0 ]]; then
@@ -39,13 +47,11 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
-# Swarm
 if ! docker info 2>/dev/null | grep -q 'Swarm: active'; then
   echo "==> Inicializando Docker Swarm"
   docker swarm init || true
 fi
 
-# Rede Traefik
 if ! docker network inspect "$TRAEFIK_NET" >/dev/null 2>&1; then
   echo "==> Criando rede overlay $TRAEFIK_NET"
   docker network create --driver overlay --attachable "$TRAEFIK_NET" || true
@@ -53,13 +59,11 @@ else
   echo "==> Rede $TRAEFIK_NET ok"
 fi
 
-# Pastas + volume bind path (Swarm/Portainer costuma usar este path)
 echo "==> Criando pastas"
 mkdir -p /root/projects
 mkdir -p "$VOLUME_DATA"
 chmod 755 /var/lib/docker/volumes/tracking 2>/dev/null || true
 
-# Clone
 if [[ -d "$PROJECT_DIR/.git" ]]; then
   echo "==> Repo já existe em $PROJECT_DIR — fetch $BRANCH"
   git -C "$PROJECT_DIR" fetch origin
@@ -73,7 +77,6 @@ fi
 cd "$PROJECT_DIR"
 chmod +x deploy.sh bootstrap-vps.sh 2>/dev/null || true
 
-# Secrets
 gen_secret() {
   if command -v openssl >/dev/null 2>&1; then
     openssl rand -hex 32
@@ -82,18 +85,20 @@ gen_secret() {
   fi
 }
 
-DB_PASSWORD="$(gen_secret)"
+DB_PASSWORD="${ROYAL_TRACKING_PG_PASSWORD:-$(gen_secret)}"
 ENCRYPTION_KEY="$(gen_secret)"
 AUTH_SECRET="$(gen_secret)"
 ADMIN_PASSWORD="$(gen_secret | head -c 24)"
 
 if [[ -f "$PROJECT_DIR/.env" ]]; then
   echo "==> .env já existe — não sobrescrevo"
+  CREATED_ENV=0
 else
-  echo "==> Criando .env"
+  echo "==> Criando .env (aponta para Postgres externo @$PG_HOST)"
   cat > "$PROJECT_DIR/.env" <<EOF
 # Gerado por bootstrap-vps.sh — não commitar
-DATABASE_URL=postgresql://tracking:${DB_PASSWORD}@postgres:5432/tracking
+# Postgres = stack EXTERNA na rede ${TRAEFIK_NET}
+DATABASE_URL=postgresql://${PG_USER}:${DB_PASSWORD}@${PG_HOST}:5432/${PG_DB}
 ENCRYPTION_KEY=${ENCRYPTION_KEY}
 AUTH_SECRET=${AUTH_SECRET}
 NEXTAUTH_URL=https://${DOMAIN}
@@ -109,33 +114,11 @@ EOF
   CREATED_ENV=1
 fi
 
-# Stack com Postgres + app (volume)
 STACK_FILE="/tmp/${STACK_NAME}-bootstrap.yml"
-# shellcheck disable=SC2016
 cat > "$STACK_FILE" <<EOF
-version: "3.8"
+version: "3.7"
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: tracking
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: tracking
-    volumes:
-      - tracking_pg:/var/lib/postgresql/data
-    networks:
-      - internal
-    deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 512M
-
   tracking:
     image: node:22-alpine
     working_dir: /app
@@ -150,7 +133,6 @@ services:
     volumes:
       - ${VOLUME_DATA}:/app
     networks:
-      - internal
       - traefik_public
     environment:
       - TZ=America/Sao_Paulo
@@ -176,37 +158,24 @@ services:
         - traefik.http.routers.tracking.tls=true
 
 networks:
-  internal:
-    driver: overlay
   traefik_public:
     external: true
     name: ${TRAEFIK_NET}
-
-volumes:
-  tracking_pg:
 EOF
 
-# Se .env já existia, a senha do Postgres no stack pode não bater —
-# nesse caso só deployamos se o usuário confirmar via FORCE_STACK=1
-if [[ "${CREATED_ENV:-0}" -eq 1 ]] || [[ "${FORCE_STACK:-0}" -eq 1 ]]; then
-  echo "==> Deploy stack $STACK_NAME"
-  docker stack deploy -c "$STACK_FILE" "$STACK_NAME"
-else
-  echo "==> .env pré-existente: NÃO redeployei a stack (senha Postgres desconhecida)."
-  echo "    Ajuste o stack no Portainer ou rode FORCE_STACK=1 bash bootstrap-vps.sh"
-fi
+echo "==> Deploy stack $STACK_NAME (app only — sem Postgres)"
+docker stack deploy -c "$STACK_FILE" "$STACK_NAME"
 
-# Placeholder no volume para o service não crashar antes do 1º build
 if [[ ! -f "$VOLUME_DATA/server.js" ]]; then
   echo "==> Placeholder no volume (até o primeiro deploy.sh)"
   cat > "$VOLUME_DATA/server.js" <<'JS'
 console.log("Royal Tracking: rode /root/projects/tracking/deploy.sh para o primeiro build.");
 setInterval(() => {}, 60_000);
 JS
-  # .env no volume também (entrypoint carrega /app/.env)
-  if [[ -f "$PROJECT_DIR/.env" ]]; then
-    cp -f "$PROJECT_DIR/.env" "$VOLUME_DATA/.env"
-  fi
+fi
+
+if [[ -f "$PROJECT_DIR/.env" ]]; then
+  cp -f "$PROJECT_DIR/.env" "$VOLUME_DATA/.env"
 fi
 
 echo
@@ -216,11 +185,23 @@ echo "==> Primeiro build (pode demorar alguns minutos)"
 echo
 echo "=== Bootstrap OK ==="
 echo "URL:     https://${DOMAIN}"
+echo "Stack:   $STACK_NAME (somente app)"
+echo "Postgres externo: host=$PG_HOST db=$PG_DB user=$PG_USER"
 if [[ "${CREATED_ENV:-0}" -eq 1 ]]; then
+  echo
   echo "Admin:   admin@${DOMAIN}"
   echo "Senha:   ${ADMIN_PASSWORD}"
+  echo "PG pass: ${DB_PASSWORD}"
   echo
-  echo "Guarde a senha. Está também em $PROJECT_DIR/.env"
+  echo "Crie o role/DB no Postgres EXTERNO (se ainda não existir), ex.:"
+  echo "  CREATE USER ${PG_USER} WITH PASSWORD '${DB_PASSWORD}';"
+  echo "  CREATE DATABASE ${PG_DB} OWNER ${PG_USER};"
+  echo "  GRANT ALL PRIVILEGES ON DATABASE ${PG_DB} TO ${PG_USER};"
+  echo
+  echo "Confirme que o serviço Postgres está na rede ${TRAEFIK_NET}"
+  echo "e que o hostname DNS Swarm é exatamente: ${PG_HOST}"
+  echo
+  echo "Guarde as senhas. Estão em $PROJECT_DIR/.env"
 fi
 echo
 echo "Checagens:"
