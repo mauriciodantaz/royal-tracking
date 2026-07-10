@@ -10,9 +10,13 @@ Na **nova** VPS, como `root`:
 ```bash
 # 1) DNS já apontando tracking.royalserver.com.br → IP desta VPS (recomendado)
 
-# 2) Clone temporário só para pegar o script (ou copie bootstrap-vps.sh)
+# 2) Deploy key SSH (repo privado) — chave privada em ~/.ssh/tracking_deploy
+#    (pública já registrada no GitHub como "VPS RoyalServer")
+
+# 3) Clone + bootstrap
 mkdir -p /root/projects && cd /root/projects
-git clone -b feat/self-hosted-oss https://github.com/mauriciodantaz/tracking.git tracking
+GIT_SSH_COMMAND='ssh -i ~/.ssh/tracking_deploy -o IdentitiesOnly=yes' \
+  git clone -b feat/self-hosted-oss git@github.com:mauriciodantaz/tracking.git tracking
 cd tracking
 chmod +x bootstrap-vps.sh deploy.sh
 ./bootstrap-vps.sh

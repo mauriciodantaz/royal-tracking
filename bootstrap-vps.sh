@@ -10,7 +10,7 @@ PROJECT_DIR="${ROYAL_TRACKING_DIR:-/root/projects/tracking}"
 VOLUME_DATA="/var/lib/docker/volumes/tracking/_data"
 STACK_NAME="${ROYAL_TRACKING_STACK:-tracking}"
 TRAEFIK_NET="${ROYAL_TRACKING_NETWORK:-RoyalNet}"
-REPO_URL="${ROYAL_TRACKING_REPO:-https://github.com/mauriciodantaz/tracking.git}"
+REPO_URL="${ROYAL_TRACKING_REPO:-git@github.com:mauriciodantaz/tracking.git}"
 # Até o merge do self-hosted na main, use a feature branch:
 BRANCH="${ROYAL_TRACKING_BRANCH:-feat/self-hosted-oss}"
 SERVICE_NAME="${STACK_NAME}_tracking"

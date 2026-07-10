@@ -40,3 +40,6 @@ tracking_actions.pub
 
 tracking_royalserver_actions
 tracking_royalserver_actions.pub
+
+tracking_deploy_royalserver
+tracking_deploy_royalserver.pub
