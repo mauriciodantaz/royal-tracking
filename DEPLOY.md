@@ -19,7 +19,6 @@ chmod +x bootstrap-vps.sh deploy.sh
 ```
 
 > Até mergear `feat/self-hosted-oss` na `main`, o bootstrap e o `deploy.sh` usam essa branch (`ROYAL_TRACKING_BRANCH`). Depois do merge, mude para `main`.
-```
 
 O `bootstrap-vps.sh` faz:
 
