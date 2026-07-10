@@ -73,8 +73,8 @@ function Brand() {
         <BarChart3 className="size-4" />
       </span>
       <div className="leading-tight">
-        <p className="text-sm font-semibold tracking-tight">Fizzing</p>
-        <p className="text-xs text-muted-foreground">Advanced Tracking</p>
+        <p className="text-sm font-semibold tracking-tight">Royal Tracking</p>
+        <p className="text-xs text-muted-foreground">Server-side</p>
       </div>
     </Link>
   );

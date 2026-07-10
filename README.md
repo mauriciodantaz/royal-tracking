@@ -1,4 +1,4 @@
-# Fizzing Advanced Tracking
+# Royal Tracking
 
 Sistema de tracking server-side com painel (Meta CAPI + GA4 + webhook de compra).
 

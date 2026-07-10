@@ -1,4 +1,4 @@
-# Auditoria de segurança — Fizzing Advanced Tracking
+# Auditoria de segurança — Royal Tracking
 
 Checklist verificado no código (revisar de novo a cada release):
 

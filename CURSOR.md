@@ -1,4 +1,4 @@
-# Fizzing Advanced Tracking — CURSOR.md
+# Royal Tracking — CURSOR.md
 
 Documentação viva do sistema de tracking server-side. Atualizar ao fim de cada fase.
 

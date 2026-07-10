@@ -1,6 +1,6 @@
 version: "3.7"
 
-# Stack Portainer — Fizzing Advanced Tracking (Next.js standalone)
+# Stack Portainer — Royal Tracking (Next.js standalone)
 # Domínio: https://tracking.fizzing.marketing
 #
 # Pré-requisitos na VPS:
@@ -25,7 +25,7 @@ services:
     volumes:
       - /var/lib/docker/volumes/tracking/_data:/app
     networks:
-      - RoyalNet
+      - fizzing_net
     environment:
       - TZ=America/Sao_Paulo
       - NODE_ENV=production
@@ -51,6 +51,6 @@ services:
         - traefik.http.routers.tracking.tls=true
 
 networks:
-  RoyalNet:
+  fizzing_net:
     external: true
-    name: RoyalNet
+    name: fizzing_net

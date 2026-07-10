@@ -1,5 +1,5 @@
 /**
- * Fizzing Advanced Tracking — snippet para o site do cliente.
+ * Royal Tracking — snippet para o site do cliente.
  * Servido em: https://tracking.fizzing.marketing/snippet.js
  *
  * Uso mínimo:
