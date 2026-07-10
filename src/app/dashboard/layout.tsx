@@ -3,6 +3,9 @@ import {
   MobileHeader,
 } from "@/components/layout/app-shell";
 
+/** Painel lê Postgres em runtime — nunca prerender no build (sem host postgres). */
+export const dynamic = "force-dynamic";
+
 export default function DashboardLayout({
   children,
 }: {

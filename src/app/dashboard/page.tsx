@@ -45,7 +45,7 @@ export default async function DashboardPage() {
       {error ? (
         <Card className="glass border-destructive/40">
           <CardContent className="pt-6 text-sm text-destructive">
-            {error}. Aplique a migration e configure SERVICE_ROLE_KEY.
+            {error}. Verifique DATABASE_URL e se a migration foi aplicada.
           </CardContent>
         </Card>
       ) : null}
