@@ -1,7 +1,9 @@
 import "server-only";
 
 import { decryptSecret } from "@/lib/crypto/secrets";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { ensureDbReady } from "@/lib/db/boot";
+import { query } from "@/lib/db/pool";
+import type { Ga4AccountRow } from "@/lib/db/types";
 
 export type Ga4PurchaseInput = {
   clientId: string;
@@ -29,13 +31,17 @@ export type Ga4DestinationResult = {
 };
 
 async function loadActiveGa4() {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("ga4_accounts")
-    .select("id, label, measurement_id, api_secret_cipher, active")
-    .eq("active", true);
-  if (error) throw error;
-  return data ?? [];
+  await ensureDbReady();
+  const result = await query<
+    Pick<
+      Ga4AccountRow,
+      "id" | "label" | "measurement_id" | "api_secret_cipher" | "active"
+    >
+  >(
+    `select id, label, measurement_id, api_secret_cipher, active
+     from ga4_accounts where active = true`
+  );
+  return result.rows;
 }
 
 /**

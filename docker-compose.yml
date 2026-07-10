@@ -1,8 +1,35 @@
+version: "3.8"
+
+# Dev local — app + Postgres
 services:
-  tracking:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tracking
+      POSTGRES_PASSWORD: tracking
+      POSTGRES_DB: tracking
+    ports:
+      - "5432:5432"
+    volumes:
+      - royal_tracking_pg_dev:/var/lib/postgresql/data
+
+  app:
     build: .
     ports:
       - "3000:3000"
-    env_file:
-      - .env
-    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://tracking:tracking@postgres:5432/tracking
+      ENCRYPTION_KEY: local-dev-encryption-key-32chars
+      AUTH_SECRET: local-dev-auth-secret-change-me-32
+      NEXTAUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      ADMIN_EMAIL: admin@localhost
+      ADMIN_PASSWORD: admin123456
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+    depends_on:
+      - postgres
+
+volumes:
+  royal_tracking_pg_dev:

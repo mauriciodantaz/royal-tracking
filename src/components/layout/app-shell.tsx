@@ -6,6 +6,7 @@ import {
   BarChart3,
   Globe2,
   LayoutDashboard,
+  LogOut,
   Megaphone,
   Receipt,
   Settings,
@@ -13,6 +14,7 @@ import {
   Menu,
 } from "lucide-react";
 
+import { logoutAction } from "@/app/login/actions";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -86,9 +88,21 @@ export function AppSidebar() {
       <Brand />
       <Separator className="my-4" />
       <NavLinks />
-      <div className="mt-auto flex items-center justify-between pt-4">
-        <span className="text-xs text-muted-foreground">Tema</span>
-        <ThemeToggle />
+      <div className="mt-auto space-y-3 pt-4">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">Tema</span>
+          <ThemeToggle />
+        </div>
+        <form action={logoutAction}>
+          <Button
+            type="submit"
+            variant="ghost"
+            className="w-full justify-start gap-2 text-muted-foreground"
+          >
+            <LogOut className="size-4" />
+            Sair
+          </Button>
+        </form>
       </div>
     </aside>
   );

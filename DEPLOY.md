@@ -1,35 +1,38 @@
-# Deploy RoyalServer — Royal Tracking
+# Deploy — Royal Tracking (self-hosted)
 
-Domínio: **https://tracking.fizzing.marketing**
-
-Fluxo (igual aos seus outros projetos, adaptado para Next.js):
+## Modelo recomendado (OSS)
 
 ```txt
 git push main
-→ GitHub Actions (SSH)
-→ /root/projects/tracking/deploy.sh
-→ git pull + npm ci + build standalone
-→ copia para volume Docker
-→ docker service update --force tracking_tracking
-→ Traefik (Host tracking.fizzing.marketing → :3000)
+→ GitHub Actions (.github/workflows/docker-hub.yml)
+→ Docker Hub royalserver/royal-tracking:latest + :sha
+→ Na VPS: docker service update --image ...  OU  install.sh / Portainer stack
+→ Traefik → app:3000
+→ Postgres na mesma stack (rede interna)
 ```
 
-Diferença vs sites Vite: **não é Nginx/`dist`**. É Node 22 com `server.js` (standalone) na porta **3000**.
+Arquivos:
+- [`deploy/royal-tracking-stack.yml`](./deploy/royal-tracking-stack.yml) — referência Portainer
+- [`install.sh`](./install.sh) — wizard interativo
+- [`Dockerfile`](./Dockerfile) — multi-stage standalone
+- [docs/SELF-HOSTED.md](./docs/SELF-HOSTED.md)
 
-## Checklist
+### Secrets no GitHub Actions
 
-1. [x] DNS Cloudflare: `tracking` → IP da VPS (A)
-2. [x] Volume: `mkdir -p /var/lib/docker/volumes/tracking/_data`
-3. [x] Stack Portainer: colar `deploy/portainer-stack.yml` (nome stack: `tracking`)
-4. [x] Deploy key VPS no repo GitHub
-5. [x] Clone: `/root/projects/tracking`
-6. [x] `.env` na VPS em `/root/projects/tracking/.env`
-7. [x] `deploy.sh` + `chmod +x`
-8. [x] Teste manual `./deploy.sh` (service converged)
-9. [x] Secrets Actions: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`
-10. [ ] Push workflow → Actions verde
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
 
-Arquivos no repo:
-- [`deploy/portainer-stack.yml`](./deploy/portainer-stack.yml)
-- [`deploy.sh`](./deploy.sh)
-- [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml)
+### Env na stack (Portainer)
+
+Ver `.env.example`. Nunca colar secrets reais no YAML versionado — use placeholders e edite no Portainer.
+
+## Legado (build na VPS)
+
+O fluxo antigo (`deploy.sh` + volume + `deploy/portainer-stack.yml` + Actions SSH) ainda existe para a instância `tracking.fizzing.marketing` enquanto não houver cutover para a imagem Hub + Postgres local.
+
+```txt
+git push main
+→ Actions SSH → deploy.sh → build standalone no volume → service update --force
+```
+
+Prefira migrar para a imagem Hub assim que validar numa stack paralela.

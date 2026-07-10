@@ -1,8 +1,10 @@
 import "server-only";
 
 import { decryptSecret } from "@/lib/crypto/secrets";
+import { ensureDbReady } from "@/lib/db/boot";
+import { query } from "@/lib/db/pool";
+import type { MetaAdAccountRow } from "@/lib/db/types";
 import { META_GRAPH_BASE_URL } from "@/lib/meta/constants";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 type CacheEntry = { at: number; data: AdsInsightsResult };
 const cache = new Map<string, CacheEntry>();
@@ -120,27 +122,35 @@ export async function getAdsInsightsTree(opts: {
   accountId?: string | null;
   force?: boolean;
 }): Promise<AdsInsightsResult[]> {
-  const admin = createAdminClient();
-  let query = admin
-    .from("meta_ad_accounts")
-    .select("*")
-    .eq("active", true);
-  if (opts.accountId && opts.accountId !== "all") {
-    query = query.eq("id", opts.accountId);
-  }
-  const { data: accounts, error } = await query;
-  if (error) throw error;
+  await ensureDbReady();
+
+  const accountsResult =
+    opts.accountId && opts.accountId !== "all"
+      ? await query<MetaAdAccountRow>(
+          `select * from meta_ad_accounts where active = true and id = $1`,
+          [opts.accountId]
+        )
+      : await query<MetaAdAccountRow>(
+          `select * from meta_ad_accounts where active = true`
+        );
+  const accounts = accountsResult.rows;
 
   const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
   const until = new Date().toISOString().slice(0, 10);
 
-  const { data: purchases } = await admin
-    .from("purchases")
-    .select("value, utm_campaign, status, created_at")
-    .gte("created_at", `${since}T00:00:00Z`);
+  const purchasesResult = await query<{
+    value: number | null;
+    utm_campaign: string | null;
+    status: string | null;
+    created_at: string;
+  }>(
+    `select value, utm_campaign, status, created_at
+     from purchases where created_at >= $1`,
+    [`${since}T00:00:00Z`]
+  );
 
   const revenueByCampaign = new Map<string, { revenue: number; count: number }>();
-  for (const p of purchases ?? []) {
+  for (const p of purchasesResult.rows) {
     if (p.status && /refund|reembolso|chargeback/i.test(p.status)) continue;
     const key = (p.utm_campaign ?? "").toLowerCase();
     if (!key) continue;

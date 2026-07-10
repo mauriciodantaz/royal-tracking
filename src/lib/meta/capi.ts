@@ -1,8 +1,10 @@
 import "server-only";
 
-import { META_GRAPH_BASE_URL } from "@/lib/meta/constants";
 import { decryptSecret } from "@/lib/crypto/secrets";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { ensureDbReady } from "@/lib/db/boot";
+import { query, queryOne } from "@/lib/db/pool";
+import type { MetaPixelRow } from "@/lib/db/types";
+import { META_GRAPH_BASE_URL } from "@/lib/meta/constants";
 import { hashEmail, hashPhone, hashPii } from "@/lib/tracking/hash";
 
 export type MetaUserData = {
@@ -112,22 +114,24 @@ export function buildCapiPayload(input: MetaEventInput) {
 }
 
 async function loadActivePixels() {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("meta_pixels")
-    .select("id, label, pixel_id, capi_token_cipher, active")
-    .eq("active", true);
-  if (error) throw error;
-  return data ?? [];
+  await ensureDbReady();
+  const result = await query<
+    Pick<
+      MetaPixelRow,
+      "id" | "label" | "pixel_id" | "capi_token_cipher" | "active"
+    >
+  >(
+    `select id, label, pixel_id, capi_token_cipher, active
+     from meta_pixels where active = true`
+  );
+  return result.rows;
 }
 
 async function loadTestEventCode(): Promise<string | null> {
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("settings")
-    .select("test_event_code")
-    .eq("id", 1)
-    .maybeSingle();
+  await ensureDbReady();
+  const data = await queryOne<{ test_event_code: string | null }>(
+    `select test_event_code from settings where id = 1 limit 1`
+  );
   return data?.test_event_code ?? null;
 }
 

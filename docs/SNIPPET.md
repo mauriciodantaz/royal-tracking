@@ -1,11 +1,13 @@
 # Royal Tracking — snippet no site do cliente
 
+Use o domínio da **sua** instalação (uma stack por domínio). Exemplo de produção atual: `tracking.fizzing.marketing`.
+
 ## Código para colar
 
 No **`<head>`** (ou antes de `</body>`) de **todas** as páginas da landing/site:
 
 ```html
-<script src="https://tracking.fizzing.marketing/snippet.js" async></script>
+<script src="https://SEU_DOMINIO/snippet.js" async></script>
 ```
 
 Só isso já:
@@ -17,7 +19,7 @@ Só isso já:
 ## Eventos manuais (botões)
 
 ```html
-<script src="https://tracking.fizzing.marketing/snippet.js" async></script>
+<script src="https://SEU_DOMINIO/snippet.js" async></script>
 <script>
   document.getElementById("btn-comprar")?.addEventListener("click", function () {
     window.trck?.event("InitiateCheckout");
@@ -38,16 +40,10 @@ Só isso já:
 Na Hotmart/Kiwify/Eduzz:
 
 ```txt
-URL: https://tracking.fizzing.marketing/api/webhook/compra
+URL: https://SEU_DOMINIO/api/webhook/compra
 Header: x-webhook-token: <token em Configuração no painel>
 ```
 
 ## Depois do deploy
 
-O arquivo fica em:
-
-```txt
-https://tracking.fizzing.marketing/snippet.js
-```
-
-(precisa de um `git push` para publicar esta versão)
+O arquivo fica em `https://SEU_DOMINIO/snippet.js` (domínio da stack instalada).

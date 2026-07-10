@@ -1,54 +1,26 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useActionState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createClient } from "@/lib/supabase/browser";
+import { loginAction } from "./actions";
 
 export function LoginForm({ nextPath }: { nextPath: string }) {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      const supabase = createClient();
-      const { error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (authError) {
-        setError(authError.message);
-        return;
-      }
-      router.push(nextPath || "/dashboard");
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha no login");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [state, formAction, pending] = useActionState(loginAction, undefined);
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form action={formAction} className="space-y-4">
+      <input type="hidden" name="next" value={nextPath || "/dashboard"} />
       <div className="space-y-2">
         <Label htmlFor="email">E-mail</Label>
         <Input
           id="email"
+          name="email"
           type="email"
           autoComplete="email"
           required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
           placeholder="voce@empresa.com"
         />
       </div>
@@ -56,24 +28,22 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
         <Label htmlFor="password">Senha</Label>
         <Input
           id="password"
+          name="password"
           type="password"
           autoComplete="current-password"
           required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
         />
       </div>
-      {error ? (
+      {state?.error ? (
         <p className="text-sm text-destructive" role="alert">
-          {error}
+          {state.error}
         </p>
       ) : null}
-      <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? "Entrando…" : "Entrar"}
+      <Button type="submit" className="w-full" disabled={pending}>
+        {pending ? "Entrando…" : "Entrar"}
       </Button>
       <p className="text-xs text-muted-foreground">
-        Cadastro público desligado. Crie usuários no Dashboard Supabase →
-        Authentication.
+        Admin criado no primeiro boot via ADMIN_EMAIL / ADMIN_PASSWORD.
       </p>
     </form>
   );

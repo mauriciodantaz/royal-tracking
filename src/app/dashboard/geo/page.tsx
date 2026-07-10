@@ -1,20 +1,19 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GeoMap } from "@/components/dashboard/geo-map";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { ensureDbReady } from "@/lib/db/boot";
+import { query } from "@/lib/db/pool";
 
 export default async function GeoPage() {
   let points: Array<{ country: string; count: number }> = [];
   let error: string | null = null;
 
   try {
-    const admin = createAdminClient();
-    const { data, error: qErr } = await admin
-      .from("visitors")
-      .select("geo_country")
-      .not("geo_country", "is", null);
-    if (qErr) throw qErr;
+    await ensureDbReady();
+    const result = await query<{ geo_country: string | null }>(
+      `select geo_country from visitors where geo_country is not null`
+    );
     const map = new Map<string, number>();
-    for (const row of data ?? []) {
+    for (const row of result.rows) {
       const c = row.geo_country;
       if (!c) continue;
       map.set(c, (map.get(c) ?? 0) + 1);

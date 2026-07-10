@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { ensureDbReady } from "@/lib/db/boot";
+import { isUniqueViolation, queryOne } from "@/lib/db/pool";
+import type { VisitorRow } from "@/lib/db/types";
 import { rateLimit } from "@/lib/rate-limit/memory";
 import { lookupGeo } from "@/lib/tracking/geo";
 import {
@@ -47,49 +49,80 @@ export async function POST(request: NextRequest) {
   const geo = await lookupGeo(ip);
   const trckUserId = body.trck_user_id ?? newTrckUserId();
 
-  const row = {
-    trck_user_id: trckUserId,
-    email: body.email ?? null,
-    email_hash: hashEmail(body.email),
-    phone_hash: hashPhone(body.phone),
-    first_name_hash: hashPii(body.first_name),
-    last_name_hash: hashPii(body.last_name),
-    city_hash: hashPii(body.city),
-    state_hash: hashPii(body.state),
-    country_hash: hashPii(body.country),
-    external_id_hash: hashPii(trckUserId),
-    fbp: body.fbp ?? null,
-    fbc: body.fbc ?? null,
-    ga_client_id: body.ga_client_id ?? null,
-    ga_session_id: body.ga_session_id ?? null,
-    utm_source: body.utm_source ?? null,
-    utm_medium: body.utm_medium ?? null,
-    utm_campaign: body.utm_campaign ?? null,
-    utm_term: body.utm_term ?? null,
-    utm_content: body.utm_content ?? null,
-    referrer: body.referrer ?? null,
-    ip,
-    user_agent: userAgent,
-    geo_country: geo.geo_country,
-    geo_region: geo.geo_region,
-    geo_city: geo.geo_city,
-    pixel_id: body.pixel_id ?? null,
-    updated_at: new Date().toISOString(),
-  };
-
   try {
-    const admin = createAdminClient();
-    const { data, error } = await admin
-      .from("visitors")
-      .upsert(row, { onConflict: "trck_user_id" })
-      .select("trck_user_id, ga_client_id, ga_session_id")
-      .single();
+    await ensureDbReady();
+    const data = await queryOne<
+      Pick<VisitorRow, "trck_user_id" | "ga_client_id" | "ga_session_id">
+    >(
+      `insert into visitors (
+         trck_user_id, email, email_hash, phone_hash,
+         first_name_hash, last_name_hash, city_hash, state_hash, country_hash,
+         external_id_hash, fbp, fbc, ga_client_id, ga_session_id,
+         utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+         referrer, ip, user_agent, geo_country, geo_region, geo_city, pixel_id
+       ) values (
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26
+       )
+       on conflict (trck_user_id) do update set
+         email = coalesce(excluded.email, visitors.email),
+         email_hash = coalesce(excluded.email_hash, visitors.email_hash),
+         phone_hash = coalesce(excluded.phone_hash, visitors.phone_hash),
+         first_name_hash = coalesce(excluded.first_name_hash, visitors.first_name_hash),
+         last_name_hash = coalesce(excluded.last_name_hash, visitors.last_name_hash),
+         city_hash = coalesce(excluded.city_hash, visitors.city_hash),
+         state_hash = coalesce(excluded.state_hash, visitors.state_hash),
+         country_hash = coalesce(excluded.country_hash, visitors.country_hash),
+         external_id_hash = coalesce(excluded.external_id_hash, visitors.external_id_hash),
+         fbp = coalesce(excluded.fbp, visitors.fbp),
+         fbc = coalesce(excluded.fbc, visitors.fbc),
+         ga_client_id = coalesce(excluded.ga_client_id, visitors.ga_client_id),
+         ga_session_id = coalesce(excluded.ga_session_id, visitors.ga_session_id),
+         utm_source = coalesce(excluded.utm_source, visitors.utm_source),
+         utm_medium = coalesce(excluded.utm_medium, visitors.utm_medium),
+         utm_campaign = coalesce(excluded.utm_campaign, visitors.utm_campaign),
+         utm_term = coalesce(excluded.utm_term, visitors.utm_term),
+         utm_content = coalesce(excluded.utm_content, visitors.utm_content),
+         referrer = coalesce(excluded.referrer, visitors.referrer),
+         ip = coalesce(excluded.ip, visitors.ip),
+         user_agent = coalesce(excluded.user_agent, visitors.user_agent),
+         geo_country = coalesce(excluded.geo_country, visitors.geo_country),
+         geo_region = coalesce(excluded.geo_region, visitors.geo_region),
+         geo_city = coalesce(excluded.geo_city, visitors.geo_city),
+         pixel_id = coalesce(excluded.pixel_id, visitors.pixel_id),
+         updated_at = now()
+       returning trck_user_id, ga_client_id, ga_session_id`,
+      [
+        trckUserId,
+        body.email ?? null,
+        hashEmail(body.email),
+        hashPhone(body.phone),
+        hashPii(body.first_name),
+        hashPii(body.last_name),
+        hashPii(body.city),
+        hashPii(body.state),
+        hashPii(body.country),
+        hashPii(trckUserId),
+        body.fbp ?? null,
+        body.fbc ?? null,
+        body.ga_client_id ?? null,
+        body.ga_session_id ?? null,
+        body.utm_source ?? null,
+        body.utm_medium ?? null,
+        body.utm_campaign ?? null,
+        body.utm_term ?? null,
+        body.utm_content ?? null,
+        body.referrer ?? null,
+        ip,
+        userAgent,
+        geo.geo_country,
+        geo.geo_region,
+        geo.geo_city,
+        body.pixel_id ?? null,
+      ]
+    );
 
-    if (error) {
-      return NextResponse.json(
-        { error: "db_error", message: error.message },
-        { status: 500 }
-      );
+    if (!data) {
+      return NextResponse.json({ error: "db_error" }, { status: 500 });
     }
 
     return NextResponse.json({
@@ -99,6 +132,9 @@ export async function POST(request: NextRequest) {
       ga_session_id: data.ga_session_id,
     });
   } catch (err) {
+    if (isUniqueViolation(err)) {
+      // rare race — still ok
+    }
     return NextResponse.json(
       {
         error: "server_error",
