@@ -1,10 +1,7 @@
 version: "3.8"
 
-# Stack Portainer — Royal Tracking via imagem Hub (app only)
-# Domínio: https://tracking.royalserver.com.br
-# Rede: RoyalNet
-#
-# Postgres = stack EXTERNA. Ajuste DATABASE_URL (host = nome do serviço PG).
+# Template — imagem Hub, naming royaltracking_<SLUG>
+# Preferível: ROYAL_TRACKING_BUILD_ON_VPS=0 bash install.sh
 
 services:
   app:
@@ -14,11 +11,11 @@ services:
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
       TZ: America/Sao_Paulo
-      DATABASE_URL: postgresql://tracking:CHANGE_ME_DB_PASSWORD@postgres:5432/tracking
+      DATABASE_URL: postgresql://royaltracking_<SLUG>:CHANGE_ME@postgres:5432/royaltracking_<SLUG>
       ENCRYPTION_KEY: CHANGE_ME_ENCRYPTION_KEY_MIN_32_CHARS
       AUTH_SECRET: CHANGE_ME_AUTH_SECRET_MIN_32_CHARS
-      NEXTAUTH_URL: https://tracking.royalserver.com.br
-      NEXT_PUBLIC_APP_URL: https://tracking.royalserver.com.br
+      NEXTAUTH_URL: https://<DOMAIN>
+      NEXT_PUBLIC_APP_URL: https://<DOMAIN>
       ADMIN_EMAIL: admin@example.com
       ADMIN_PASSWORD: CHANGE_ME_ADMIN_PASSWORD
     networks:
@@ -35,12 +32,12 @@ services:
           memory: 1024M
       labels:
         - traefik.enable=true
-        - traefik.http.routers.royal-tracking.rule=Host(`tracking.royalserver.com.br`)
-        - traefik.http.services.royal-tracking.loadbalancer.server.port=3000
-        - traefik.http.routers.royal-tracking.service=royal-tracking
-        - traefik.http.routers.royal-tracking.tls.certresolver=letsencryptresolver
-        - traefik.http.routers.royal-tracking.entrypoints=websecure
-        - traefik.http.routers.royal-tracking.tls=true
+        - traefik.http.routers.royaltracking_<SLUG>.rule=Host(`<DOMAIN>`)
+        - traefik.http.services.royaltracking_<SLUG>.loadbalancer.server.port=3000
+        - traefik.http.routers.royaltracking_<SLUG>.service=royaltracking_<SLUG>
+        - traefik.http.routers.royaltracking_<SLUG>.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.royaltracking_<SLUG>.entrypoints=websecure
+        - traefik.http.routers.royaltracking_<SLUG>.tls=true
 
 networks:
   RoyalNet:

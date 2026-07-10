@@ -21,14 +21,13 @@ Abra http://localhost:3000 → login `admin@localhost` / `admin123456` (só no c
 ## Quickstart (VPS / Swarm + Traefik)
 
 ```bash
-# Na VPS (Docker Swarm + Traefik já rodando; rede RoyalNet)
-bash install.sh
+# Na VPS — naming automático royaltracking_<projeto>
+./install.sh
 ```
 
-O script pergunta domínio, senhas, gera secrets, sobe Postgres + app e imprime URL do snippet/webhook.
+O script pergunta o **nome da empresa/projeto** e cria stack, serviço, volume, DB e user como `royaltracking_<slug>`. Postgres fica na stack externa (`RoyalNet`).
 
-Produção RoyalServer (build na VPS via Actions): ver [DEPLOY.md](./DEPLOY.md).  
-Stack Hub de referência: [`deploy/royal-tracking-stack.yml`](./deploy/royal-tracking-stack.yml)
+Produção: ver [DEPLOY.md](./DEPLOY.md).
 
 ## Variáveis de ambiente
 

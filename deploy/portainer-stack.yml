@@ -1,22 +1,25 @@
 version: "3.7"
 
-# Stack Portainer — Royal Tracking (só o app)
-# Domínio: https://tracking.royalserver.com.br
-# Rede: RoyalNet (mesma do Traefik + Postgres externo)
+# Template Portainer — Royal Tracking
+# Naming: royaltracking_<projeto>
 #
-# Postgres NÃO fica nesta stack — use a stack Postgres da VPS (como o n8n).
-# No .env: DATABASE_URL=postgresql://USER:SENHA@HOST_DO_POSTGRES:5432/tracking
+# Substitua:
+#   <SLUG>     → slug do projeto (ex: royalserver, fizzing)
+#   <DOMAIN>   → tracking.royalserver.com.br
 #
-# Pré-requisitos:
-#   1) DB + user criados no Postgres externo
-#   2) mkdir -p /var/lib/docker/volumes/tracking/_data
-#   3) /root/projects/tracking/.env
-#   4) ./deploy.sh (preenche o volume com standalone + migrations)
+# Prefixo completo: royaltracking_<SLUG>
+# Stack name no Portainer: royaltracking_<SLUG>
+# Serviço Swarm: royaltracking_<SLUG>_app
+# Volume: /var/lib/docker/volumes/royaltracking_<SLUG>/_data
+# DB/user (Postgres externo): royaltracking_<SLUG>
 #
-# Swarm não usa env_file; o entrypoint carrega /app/.env do volume.
+# Preferível: bash install.sh (gera tudo sozinho).
+#
+# Postgres NÃO fica nesta stack — stack externa na RoyalNet.
+# .env no volume (deploy.sh) com DATABASE_URL apontando ao PG externo.
 
 services:
-  tracking:
+  app:
     image: node:22-alpine
     working_dir: /app
     command:
@@ -28,7 +31,7 @@ services:
         set +a
         exec node server.js
     volumes:
-      - /var/lib/docker/volumes/tracking/_data:/app
+      - /var/lib/docker/volumes/royaltracking_<SLUG>/_data:/app
     networks:
       - RoyalNet
     environment:
@@ -48,12 +51,12 @@ services:
           memory: 1024M
       labels:
         - traefik.enable=true
-        - traefik.http.routers.tracking.rule=Host(`tracking.royalserver.com.br`)
-        - traefik.http.services.tracking.loadbalancer.server.port=3000
-        - traefik.http.routers.tracking.service=tracking
-        - traefik.http.routers.tracking.tls.certresolver=letsencryptresolver
-        - traefik.http.routers.tracking.entrypoints=websecure
-        - traefik.http.routers.tracking.tls=true
+        - traefik.http.routers.royaltracking_<SLUG>.rule=Host(`<DOMAIN>`)
+        - traefik.http.services.royaltracking_<SLUG>.loadbalancer.server.port=3000
+        - traefik.http.routers.royaltracking_<SLUG>.service=royaltracking_<SLUG>
+        - traefik.http.routers.royaltracking_<SLUG>.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.royaltracking_<SLUG>.entrypoints=websecure
+        - traefik.http.routers.royaltracking_<SLUG>.tls=true
 
 networks:
   RoyalNet:

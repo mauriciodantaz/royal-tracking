@@ -38,8 +38,10 @@ tracking_actions.pub
 *_actions
 *_actions.pub
 
-tracking_royalserver_actions
-tracking_royalserver_actions.pub
+# Instância local na VPS (gerado por install.sh)
+.instance
+stack.deployed.yml
+
 
 tracking_deploy_royalserver
 tracking_deploy_royalserver.pub
