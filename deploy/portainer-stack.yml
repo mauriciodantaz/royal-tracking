@@ -1,17 +1,42 @@
-version: "3.7"
+version: "3.8"
 
-# Stack Portainer — Royal Tracking (Next.js standalone)
+# Stack Portainer — Royal Tracking (build na VPS + Postgres local)
 # Domínio: https://tracking.royalserver.com.br
-# VPS: RoyalServer (rede Traefik RoyalNet)
+# Rede Traefik: RoyalNet
 #
-# Pré-requisitos na VPS:
-#   mkdir -p /var/lib/docker/volumes/tracking/_data
-#   /root/projects/tracking/.env  (secrets — nunca no git)
+# Pré-requisitos:
+#   bash bootstrap-vps.sh   # cria pastas, volume, .env, stack, 1º build
+#   ou manualmente:
+#     mkdir -p /var/lib/docker/volumes/tracking/_data /root/projects/tracking
+#     # .env em /root/projects/tracking/.env
+#     # deploy.sh preenche o volume com o standalone
 #
-# O deploy.sh copia o build standalone + .env para o volume.
+# O deploy.sh copia build standalone + db/migrations + .env para o volume.
 # Swarm não usa env_file; o entrypoint carrega /app/.env.
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tracking
+      # Mesma senha usada em DATABASE_URL do .env da app
+      POSTGRES_PASSWORD: CHANGE_ME_DB_PASSWORD
+      POSTGRES_DB: tracking
+    volumes:
+      - tracking_pg:/var/lib/postgresql/data
+    networks:
+      - internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
   tracking:
     image: node:22-alpine
     working_dir: /app
@@ -26,6 +51,7 @@ services:
     volumes:
       - /var/lib/docker/volumes/tracking/_data:/app
     networks:
+      - internal
       - RoyalNet
     environment:
       - TZ=America/Sao_Paulo
@@ -52,6 +78,11 @@ services:
         - traefik.http.routers.tracking.tls=true
 
 networks:
+  internal:
+    driver: overlay
   RoyalNet:
     external: true
     name: RoyalNet
+
+volumes:
+  tracking_pg:

@@ -1,49 +1,77 @@
-# Deploy — Royal Tracking (RoyalServer)
+# Deploy — Royal Tracking (RoyalServer) do zero
 
 Domínio: **https://tracking.royalserver.com.br**  
-VPS: RoyalServer (rede Traefik `RoyalNet`)
+VPS: RoyalServer · rede Traefik **`RoyalNet`**
 
-## Fluxo atual (build na VPS)
+## Bootstrap (primeira vez na VPS)
+
+Na **nova** VPS, como `root`:
+
+```bash
+# 1) DNS já apontando tracking.royalserver.com.br → IP desta VPS (recomendado)
+
+# 2) Clone temporário só para pegar o script (ou copie bootstrap-vps.sh)
+mkdir -p /root/projects && cd /root/projects
+git clone -b feat/self-hosted-oss https://github.com/mauriciodantaz/tracking.git tracking
+cd tracking
+chmod +x bootstrap-vps.sh deploy.sh
+./bootstrap-vps.sh
+```
+
+> Até mergear `feat/self-hosted-oss` na `main`, o bootstrap e o `deploy.sh` usam essa branch (`ROYAL_TRACKING_BRANCH`). Depois do merge, mude para `main`.
+```
+
+O `bootstrap-vps.sh` faz:
+
+1. Garante Swarm + rede `RoyalNet`
+2. Cria `/var/lib/docker/volumes/tracking/_data`
+3. Clona/atualiza `/root/projects/tracking`
+4. Gera `.env` (Postgres, ENCRYPTION_KEY, AUTH_SECRET, admin)
+5. Sobe stack `tracking` (Postgres + app Node no volume)
+6. Roda o primeiro `deploy.sh` (build + publica no volume)
+
+Anote a senha do admin impressa no final.
+
+### Checagem
+
+```bash
+docker service ls | grep tracking
+docker service ps tracking_tracking --no-trunc
+curl -I https://tracking.royalserver.com.br
+```
+
+## Deploys seguintes (GitHub Actions)
 
 ```txt
 git push main
-→ GitHub Actions (.github/workflows/deploy.yml)
-→ SSH (secrets VPS_HOST / VPS_USER / VPS_SSH_KEY) → nova VPS RoyalServer
-→ /root/projects/tracking/deploy.sh
-→ git pull + npm ci + build standalone (container node:22-alpine)
-→ copia para volume Docker
+→ Actions SSH → /root/projects/tracking/deploy.sh
+→ build no container node:22-alpine
+→ copia standalone + db/ + .env → volume
 → docker service update --force tracking_tracking
-→ Traefik Host(tracking.royalserver.com.br) → :3000
 ```
 
-Arquivos:
-- [`deploy/portainer-stack.yml`](./deploy/portainer-stack.yml) — stack Node + Traefik
-- [`deploy.sh`](./deploy.sh)
-- [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml)
+Secrets no repo:
 
-## Checklist — nova VPS
+| Secret | Valor |
+|--------|--------|
+| `VPS_HOST` | IP da **nova** VPS |
+| `VPS_USER` | `root` |
+| `VPS_SSH_KEY` | chave privada cujo `.pub` está no `authorized_keys` desta VPS |
 
-1. [ ] DNS Cloudflare: `tracking.royalserver.com.br` → IP da **nova** VPS (A)
-2. [ ] Rede Swarm Traefik: `RoyalNet` (external)
-3. [ ] Volume: `mkdir -p /var/lib/docker/volumes/tracking/_data`
-4. [ ] Stack Portainer: colar `deploy/portainer-stack.yml` (nome stack: `tracking`)
-5. [ ] Clone: `/root/projects/tracking` + deploy key / acesso git
-6. [ ] `.env` em `/root/projects/tracking/.env` (ver `.env.example`)
-7. [ ] `chmod +x deploy.sh` e teste manual `./deploy.sh`
-8. [ ] Secrets Actions apontando para a **nova** VPS:
-   - `VPS_HOST` — IP público da nova VPS
-   - `VPS_USER` — `root` (ou o user com a chave)
-   - `VPS_SSH_KEY` — chave privada do Actions (`.pub` no `authorized_keys` da nova VPS)
-9. [ ] Push `main` ou *Run workflow* → Actions verde
-10. [ ] Abrir https://tracking.royalserver.com.br
+## Stack manual (Portainer)
 
-## Env mínimo no `.env` da VPS
+Arquivo de referência: [`deploy/portainer-stack.yml`](./deploy/portainer-stack.yml)
 
-Com self-hosted (branch OSS): `DATABASE_URL`, `ENCRYPTION_KEY`, `AUTH_SECRET`, `NEXTAUTH_URL=https://tracking.royalserver.com.br`, `NEXT_PUBLIC_APP_URL=...`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`.
+- Troque `CHANGE_ME_DB_PASSWORD` pela mesma senha do `DATABASE_URL` no `.env`
+- Volume app: `/var/lib/docker/volumes/tracking/_data`
+- Volume Postgres: `tracking_pg` (nome Swarm)
 
-Se ainda estiver no fluxo legado Supabase nesta VPS, use as vars Supabase do `.env` antigo até o cutover.
+## Env
 
-## Imagem Docker Hub (opcional / futuro)
+Ver [`.env.example`](./.env.example). O bootstrap gera um `.env` completo em `/root/projects/tracking/.env` (e copia para o volume).
 
-Workflow [`.github/workflows/docker-hub.yml`](./.github/workflows/docker-hub.yml) + stack [`deploy/royal-tracking-stack.yml`](./deploy/royal-tracking-stack.yml) + [`install.sh`](./install.sh).  
-Secrets: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`.
+`DATABASE_URL` usa host `postgres` (serviço na rede interna da stack).
+
+## Imagem Docker Hub (alternativa)
+
+Sem build na VPS: [`.github/workflows/docker-hub.yml`](./.github/workflows/docker-hub.yml) + [`deploy/royal-tracking-stack.yml`](./deploy/royal-tracking-stack.yml) + [`install.sh`](./install.sh).
