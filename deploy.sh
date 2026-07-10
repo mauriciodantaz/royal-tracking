@@ -33,9 +33,11 @@ fi
 
 echo "==> Git branch: $BRANCH (ROYAL_TRACKING_BRANCH=${ROYAL_TRACKING_BRANCH:-unset})"
 git fetch origin "$BRANCH"
-git checkout -B "$BRANCH" "origin/$BRANCH"
+# -f: ignora dirt local (chmod, CRLF) que impede troca de branch
+git checkout -f -B "$BRANCH" "origin/$BRANCH"
 git reset --hard "origin/$BRANCH"
 git clean -fd -e .env -e .instance -e node_modules -e .next -e stack.deployed.yml -e portainer-stack.generated.yml
+chmod +x deploy.sh install.sh bootstrap-vps.sh deploy/print-stack-yml.sh 2>/dev/null || true
 echo "==> HEAD: $(git rev-parse --short HEAD) — $(git log -1 --pretty=%s)"
 
 if [ ! -f .env ]; then
