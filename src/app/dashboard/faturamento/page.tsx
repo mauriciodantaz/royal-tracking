@@ -7,7 +7,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { ensureDbReady } from "@/lib/db/boot";
+import { query } from "@/lib/db/pool";
 
 function isRefund(status: string | null) {
   if (!status) return false;
@@ -31,16 +32,24 @@ export default async function FaturamentoPage() {
   let ticket = 0;
 
   try {
-    const admin = createAdminClient();
-    const { data, error: qErr } = await admin
-      .from("purchases")
-      .select(
-        "id, transaction_id, value, currency, status, product_name, match_reason, created_at"
-      )
-      .order("created_at", { ascending: false })
-      .limit(200);
-    if (qErr) throw qErr;
-    rows = data ?? [];
+    await ensureDbReady();
+    const result = await query<{
+      id: string;
+      transaction_id: string;
+      value: number | null;
+      currency: string | null;
+      status: string | null;
+      product_name: string | null;
+      match_reason: string | null;
+      created_at: string;
+    }>(
+      `select id, transaction_id, value, currency, status, product_name,
+              match_reason, created_at
+       from purchases
+       order by created_at desc
+       limit 200`
+    );
+    rows = result.rows;
     const paid = rows.filter((r) => !isRefund(r.status));
     const refunded = rows.filter((r) => isRefund(r.status));
     revenue = paid.reduce((s, r) => s + Number(r.value ?? 0), 0);

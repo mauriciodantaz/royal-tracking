@@ -1,35 +1,74 @@
-# Deploy RoyalServer — Fizzing Advanced Tracking
+# Deploy — Royal Tracking · padrão `royaltracking_<projeto>`
 
-Domínio: **https://tracking.fizzing.marketing**
+Domínio exemplo: **https://tracking.royalserver.com.br**  
+Rede: **`RoyalNet`** · Postgres: **stack externa**
 
-Fluxo (igual aos seus outros projetos, adaptado para Next.js):
+## Regra de ouro (env)
 
-```txt
-git push main
-→ GitHub Actions (SSH)
-→ /root/projects/tracking/deploy.sh
-→ git pull + npm ci + build standalone
-→ copia para volume Docker
-→ docker service update --force tracking_tracking
-→ Traefik (Host tracking.fizzing.marketing → :3000)
+**Secrets ficam no YAML da stack Portainer** (`environment:`), igual ao n8n.  
+O volume só tem o **build standalone** (`server.js`, `.next`, `public`, `db/`).  
+Não usar `.env` no volume / `env_file` no Swarm.
+
+| Onde | O quê |
+|------|--------|
+| Stack Portainer YAML | `DATABASE_URL`, `ENCRYPTION_KEY`, `AUTH_SECRET`, `NEXTAUTH_URL`, `ADMIN_*`, … |
+| Volume `_data` | artefatos do `deploy.sh` (código) |
+| `/root/projects/royaltracking_<slug>/.env` | backup local + input do `print-stack-yml.sh` (não é o que o container lê em produção) |
+
+Gerar YAML com secrets a partir do `.env` da instância:
+
+```bash
+cd /root/projects/royaltracking_<slug>
+bash deploy/print-stack-yml.sh
+# cole a saída no Portainer (Add stack / Editor)
 ```
 
-Diferença vs sites Vite: **não é Nginx/`dist`**. É Node 22 com `server.js` (standalone) na porta **3000**.
+## Naming (obrigatório)
 
-## Checklist
+| Recurso | Padrão |
+|---------|--------|
+| Prefixo | `royaltracking_<slug>` |
+| Stack Portainer/Swarm | `royaltracking_<slug>` |
+| Serviço | `royaltracking_<slug>_app` |
+| Volume | `/var/lib/docker/volumes/royaltracking_<slug>/_data` |
+| Pasta no host | `/root/projects/royaltracking_<slug>` |
+| DB + user Postgres | `royaltracking_<slug>` |
+| Traefik router | `royaltracking_<slug>` |
 
-1. [x] DNS Cloudflare: `tracking` → IP da VPS (A)
-2. [x] Volume: `mkdir -p /var/lib/docker/volumes/tracking/_data`
-3. [x] Stack Portainer: colar `deploy/portainer-stack.yml` (nome stack: `tracking`)
-4. [x] Deploy key VPS no repo GitHub
-5. [x] Clone: `/root/projects/tracking`
-6. [x] `.env` na VPS em `/root/projects/tracking/.env`
-7. [x] `deploy.sh` + `chmod +x`
-8. [x] Teste manual `./deploy.sh` (service converged)
-9. [x] Secrets Actions: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`
-10. [ ] Push workflow → Actions verde
+Ex.: projeto `dev` → stack `royaltracking_dev`.
 
-Arquivos no repo:
-- [`deploy/portainer-stack.yml`](./deploy/portainer-stack.yml)
-- [`deploy.sh`](./deploy.sh)
-- [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml)
+## Setup do zero
+
+```bash
+# clone fonte + deploy key
+cd /root/projects/tracking-src   # ou clone fresco
+./install.sh
+```
+
+O script cria DB/user, `.env`/`.instance`, sobe a stack e faz o 1º build.  
+Para editar no Portainer: remova a stack CLI (`docker stack rm …`) e recrie colando o YAML gerado (`print-stack-yml.sh`).
+
+## Deploys seguintes (código)
+
+```bash
+cd /root/projects/royaltracking_<slug>
+./deploy.sh
+```
+
+Atualiza só o volume + `docker service update --force`. Env continua no YAML.
+
+### GitHub Actions
+
+```yaml
+script: |
+  /root/projects/royaltracking_dev/deploy.sh
+```
+
+Ajuste o path se o slug for outro.
+
+## Checagem
+
+```bash
+docker service ps royaltracking_<slug>_app --no-trunc
+curl -I https://SEU_DOMINIO
+```

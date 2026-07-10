@@ -1,10 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 
-import { sendToAllMetaPixels } from "@/lib/meta/capi";
+import { ensureDbReady } from "@/lib/db/boot";
+import { query, queryOne } from "@/lib/db/pool";
+import type { PurchaseRow, SettingsRow } from "@/lib/db/types";
 import { sendPurchaseToAllGa4 } from "@/lib/ga4/mp";
+import { sendToAllMetaPixels } from "@/lib/meta/capi";
 import { rateLimit } from "@/lib/rate-limit/memory";
-import { createAdminClient } from "@/lib/supabase/admin";
 import {
   hashEmail,
   hashPhone,
@@ -42,12 +44,12 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const admin = createAdminClient();
-    const { data: settings } = await admin
-      .from("settings")
-      .select("webhook_token, currency, test_event_code")
-      .eq("id", 1)
-      .maybeSingle();
+    await ensureDbReady();
+    const settings = await queryOne<
+      Pick<SettingsRow, "webhook_token" | "currency" | "test_event_code">
+    >(
+      `select webhook_token, currency, test_event_code from settings where id = 1 limit 1`
+    );
 
     const expected = settings?.webhook_token;
     const provided = extractToken(request);
@@ -72,11 +74,10 @@ export async function POST(request: NextRequest) {
 
     const metaEventId = purchaseEventId(purchase.transaction_id);
 
-    const { data: existing } = await admin
-      .from("purchases")
-      .select("*")
-      .eq("transaction_id", purchase.transaction_id)
-      .maybeSingle();
+    const existing = await queryOne<PurchaseRow>(
+      `select * from purchases where transaction_id = $1 limit 1`,
+      [purchase.transaction_id]
+    );
 
     if (existing?.sent_meta_at && existing?.sent_ga4_at) {
       return NextResponse.json({
@@ -97,44 +98,75 @@ export async function POST(request: NextRequest) {
       purchase.trck_user_id ?? visitor?.trck_user_id ?? null;
     const currency = purchase.currency || settings?.currency || "BRL";
 
-    const row = {
-      transaction_id: purchase.transaction_id,
-      trck_user_id: trckUserId,
-      email: purchase.email ?? null,
-      email_hash: hashEmail(purchase.email),
-      phone_hash: hashPhone(purchase.phone),
-      product_name: purchase.product_name ?? null,
-      product_id: purchase.product_id ?? null,
-      value: purchase.value,
-      currency,
-      status: purchase.status,
-      utm_source: purchase.utm_source ?? visitor?.utm_source ?? null,
-      utm_medium: purchase.utm_medium ?? visitor?.utm_medium ?? null,
-      utm_campaign: purchase.utm_campaign ?? visitor?.utm_campaign ?? null,
-      utm_term: purchase.utm_term ?? visitor?.utm_term ?? null,
-      utm_content: purchase.utm_content ?? visitor?.utm_content ?? null,
-      fbp: visitor?.fbp ?? null,
-      fbc: visitor?.fbc ?? null,
-      geo_country: visitor?.geo_country ?? null,
-      geo_region: visitor?.geo_region ?? null,
-      geo_city: visitor?.geo_city ?? null,
-      match_status: match.match_status,
-      match_reason: match.match_reason,
-      meta_event_id: metaEventId,
-      ga_client_id: visitor?.ga_client_id ?? null,
-      webhook_raw: raw as object,
-      updated_at: new Date().toISOString(),
-    };
+    const saved = await queryOne<PurchaseRow>(
+      `insert into purchases (
+         transaction_id, trck_user_id, email, email_hash, phone_hash,
+         product_name, product_id, value, currency, status,
+         utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+         fbp, fbc, geo_country, geo_region, geo_city,
+         match_status, match_reason, meta_event_id, ga_client_id, webhook_raw
+       ) values (
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25::jsonb
+       )
+       on conflict (transaction_id) do update set
+         trck_user_id = coalesce(excluded.trck_user_id, purchases.trck_user_id),
+         email = coalesce(excluded.email, purchases.email),
+         email_hash = coalesce(excluded.email_hash, purchases.email_hash),
+         phone_hash = coalesce(excluded.phone_hash, purchases.phone_hash),
+         product_name = coalesce(excluded.product_name, purchases.product_name),
+         product_id = coalesce(excluded.product_id, purchases.product_id),
+         value = coalesce(excluded.value, purchases.value),
+         currency = coalesce(excluded.currency, purchases.currency),
+         status = coalesce(excluded.status, purchases.status),
+         utm_source = coalesce(excluded.utm_source, purchases.utm_source),
+         utm_medium = coalesce(excluded.utm_medium, purchases.utm_medium),
+         utm_campaign = coalesce(excluded.utm_campaign, purchases.utm_campaign),
+         utm_term = coalesce(excluded.utm_term, purchases.utm_term),
+         utm_content = coalesce(excluded.utm_content, purchases.utm_content),
+         fbp = coalesce(excluded.fbp, purchases.fbp),
+         fbc = coalesce(excluded.fbc, purchases.fbc),
+         geo_country = coalesce(excluded.geo_country, purchases.geo_country),
+         geo_region = coalesce(excluded.geo_region, purchases.geo_region),
+         geo_city = coalesce(excluded.geo_city, purchases.geo_city),
+         match_status = excluded.match_status,
+         match_reason = excluded.match_reason,
+         meta_event_id = coalesce(excluded.meta_event_id, purchases.meta_event_id),
+         ga_client_id = coalesce(excluded.ga_client_id, purchases.ga_client_id),
+         webhook_raw = coalesce(excluded.webhook_raw, purchases.webhook_raw),
+         updated_at = now()
+       returning *`,
+      [
+        purchase.transaction_id,
+        trckUserId,
+        purchase.email ?? null,
+        hashEmail(purchase.email),
+        hashPhone(purchase.phone),
+        purchase.product_name ?? null,
+        purchase.product_id ?? null,
+        purchase.value,
+        currency,
+        purchase.status,
+        purchase.utm_source ?? visitor?.utm_source ?? null,
+        purchase.utm_medium ?? visitor?.utm_medium ?? null,
+        purchase.utm_campaign ?? visitor?.utm_campaign ?? null,
+        purchase.utm_term ?? visitor?.utm_term ?? null,
+        purchase.utm_content ?? visitor?.utm_content ?? null,
+        visitor?.fbp ?? null,
+        visitor?.fbc ?? null,
+        visitor?.geo_country ?? null,
+        visitor?.geo_region ?? null,
+        visitor?.geo_city ?? null,
+        match.match_status,
+        match.match_reason,
+        metaEventId,
+        visitor?.ga_client_id ?? null,
+        JSON.stringify(raw),
+      ]
+    );
 
-    const { data: saved, error: upsertError } = await admin
-      .from("purchases")
-      .upsert(row, { onConflict: "transaction_id" })
-      .select("*")
-      .single();
-
-    if (upsertError) {
+    if (!saved) {
       return NextResponse.json(
-        { error: "db_error", message: upsertError.message },
+        { error: "db_error", message: "purchase upsert failed" },
         { status: 500 }
       );
     }
@@ -159,7 +191,9 @@ export async function POST(request: NextRequest) {
           stateHash: visitor?.state_hash,
           countryHash: visitor?.country_hash,
           externalId: trckUserId,
-          externalIdHash: visitor?.external_id_hash ?? (trckUserId ? hashPii(trckUserId) : null),
+          externalIdHash:
+            visitor?.external_id_hash ??
+            (trckUserId ? hashPii(trckUserId) : null),
           fbp: visitor?.fbp,
           fbc: visitor?.fbc,
           clientIpAddress: visitor?.ip,
@@ -209,39 +243,55 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await admin
-      .from("purchases")
-      .update({
-        payload_meta: metaResults as object,
-        response_meta: metaResults as object,
-        payload_ga4: ga4Results as object,
-        response_ga4: ga4Results as object,
-        sent_meta_at: sentMetaAt,
-        sent_ga4_at: sentGa4At,
-      })
-      .eq("transaction_id", purchase.transaction_id);
+    await query(
+      `update purchases set
+         payload_meta = $1::jsonb,
+         response_meta = $2::jsonb,
+         payload_ga4 = $3::jsonb,
+         response_ga4 = $4::jsonb,
+         sent_meta_at = $5,
+         sent_ga4_at = $6,
+         updated_at = now()
+       where transaction_id = $7`,
+      [
+        JSON.stringify(metaResults),
+        JSON.stringify(metaResults),
+        JSON.stringify(ga4Results),
+        JSON.stringify(ga4Results),
+        sentMetaAt,
+        sentGa4At,
+        purchase.transaction_id,
+      ]
+    );
 
-    // Also log as events_log Purchase for dashboard funnel
-    await admin.from("events_log").upsert(
-      {
-        trck_user_id: trckUserId,
-        event_name: "Purchase",
-        event_id: metaEventId,
-        utm_source: row.utm_source,
-        utm_medium: row.utm_medium,
-        utm_campaign: row.utm_campaign,
-        utm_term: row.utm_term,
-        utm_content: row.utm_content,
-        payload_meta: metaResults as object,
-        response_meta: metaResults as object,
-        payload_ga4: ga4Results as object,
-        response_ga4: ga4Results as object,
-        ip: visitor?.ip ?? null,
-        geo_country: visitor?.geo_country ?? null,
-        geo_region: visitor?.geo_region ?? null,
-        geo_city: visitor?.geo_city ?? null,
-      },
-      { onConflict: "event_id", ignoreDuplicates: true }
+    await query(
+      `insert into events_log (
+         trck_user_id, event_name, event_id,
+         utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+         payload_meta, response_meta, payload_ga4, response_ga4,
+         ip, geo_country, geo_region, geo_city
+       ) values (
+         $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13,$14,$15,$16
+       )
+       on conflict (event_id) do nothing`,
+      [
+        trckUserId,
+        "Purchase",
+        metaEventId,
+        purchase.utm_source ?? visitor?.utm_source ?? null,
+        purchase.utm_medium ?? visitor?.utm_medium ?? null,
+        purchase.utm_campaign ?? visitor?.utm_campaign ?? null,
+        purchase.utm_term ?? visitor?.utm_term ?? null,
+        purchase.utm_content ?? visitor?.utm_content ?? null,
+        JSON.stringify(metaResults),
+        JSON.stringify(metaResults),
+        JSON.stringify(ga4Results),
+        JSON.stringify(ga4Results),
+        visitor?.ip ?? null,
+        visitor?.geo_country ?? null,
+        visitor?.geo_region ?? null,
+        visitor?.geo_city ?? null,
+      ]
     );
 
     return NextResponse.json({

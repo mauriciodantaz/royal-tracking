@@ -37,3 +37,12 @@ tracking_actions
 tracking_actions.pub
 *_actions
 *_actions.pub
+
+# Instância local na VPS (gerado por install.sh)
+.instance
+stack.deployed.yml
+portainer-stack.generated.yml
+
+
+tracking_deploy_royalserver
+tracking_deploy_royalserver.pub

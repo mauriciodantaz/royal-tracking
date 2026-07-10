@@ -1,4 +1,8 @@
-name: Deploy Fizzing Advanced Tracking
+name: Deploy Royal Tracking
+
+# Alvo: VPS RoyalServer
+# Secrets: VPS_HOST, VPS_USER, VPS_SSH_KEY
+# Instância padrão: royaltracking_royalserver (ajuste se o slug for outro)
 
 on:
   push:
@@ -6,15 +10,21 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  # Pasta da instância na VPS (padrão naming royaltracking_<projeto>)
+  INSTANCE_DIR: /root/projects/royaltracking_dev
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy on VPS
+      - name: Deploy on RoyalServer VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            /root/projects/tracking/deploy.sh
+            set -euo pipefail
+            cd "${{ env.INSTANCE_DIR }}"
+            ./deploy.sh

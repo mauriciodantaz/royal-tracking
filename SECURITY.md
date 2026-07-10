@@ -1,4 +1,4 @@
-# Auditoria de segurança — Fizzing Advanced Tracking
+# Auditoria de segurança — Royal Tracking
 
 Checklist verificado no código (revisar de novo a cada release):
 
@@ -6,20 +6,18 @@ Checklist verificado no código (revisar de novo a cada release):
 
 - [x] `.env` no `.gitignore` — nunca commitado
 - [x] `.env.example` só com placeholders
-- [x] `SUPABASE_SERVICE_ROLE_KEY` e `ENCRYPTION_KEY` sem `NEXT_PUBLIC_`
-- [x] Tokens Meta/GA4/Ads no Postgres (pgcrypto), não em env
-- [x] `createAdminClient` em `server-only` (`src/lib/supabase/admin.ts`)
+- [x] `DATABASE_URL`, `ENCRYPTION_KEY`, `AUTH_SECRET`, `ADMIN_PASSWORD` sem `NEXT_PUBLIC_`
+- [x] Tokens Meta/GA4/Ads no Postgres (AES-GCM), não em env
+- [x] Pool Postgres e crypto em `server-only`
 - [x] Decrypt só no servidor (`src/lib/crypto/secrets.ts`)
 
-## Auth / RLS
+## Auth
 
-- [x] Policies SELECT para `authenticated` nas tabelas de leitura do painel
-- [x] `settings` **sem** SELECT autenticado (webhook_token só service_role); view `settings_public` sem o token
-- [x] Sem policies de INSERT/UPDATE/DELETE para anon/authenticated (escrita via service_role)
-- [x] `REVOKE` de anon/public nas tabelas de tracking
-- [ ] **Manual:** Dashboard Auth → desligar “Allow new users to sign up”
+- [x] Auth.js credentials + JWT session
+- [x] Admin seed só no primeiro boot (`ADMIN_EMAIL` / `ADMIN_PASSWORD`)
+- [x] Sem signup público na UI
 - [x] Proxy protege `/dashboard/*` (redirect login)
-- [x] UI de login sem signup
+- [x] Logout no painel
 
 ## Endpoints públicos
 
@@ -30,11 +28,12 @@ Checklist verificado no código (revisar de novo a cada release):
 
 ## Retenção
 
-- [x] `purge_old_event_payloads` + pg_cron diário (se extensão disponível)
+- [x] `purge_old_event_payloads` no schema (agendar via cron externo se desejado)
 
 ## Deploy
 
-- [x] Dockerfile multi-stage standalone
-- [x] GH Actions build/push + SSH deploy (secrets: REGISTRY_*, VPS_*)
+- [x] Dockerfile multi-stage standalone (+ `db/migrations`)
+- [x] GH Actions build/push Docker Hub
+- [x] Stack Portainer de referência sem secrets reais
 - [ ] Cadastrar URL do webhook na plataforma de venda:
   `https://SEU_DOMINIO/api/webhook/compra` + header `x-webhook-token`

@@ -1,6 +1,7 @@
 import "server-only";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { ensureDbReady } from "@/lib/db/boot";
+import { query, queryOne } from "@/lib/db/pool";
 
 export type OverviewMetrics = {
   uniqueVisitors: number;
@@ -26,20 +27,26 @@ const CHECKOUT_EVENTS = new Set([
 ]);
 
 export async function getOverviewMetrics(): Promise<OverviewMetrics> {
-  const admin = createAdminClient();
+  await ensureDbReady();
 
-  const [visitorsRes, eventsRes, purchasesRes] = await Promise.all([
-    admin.from("visitors").select("trck_user_id", { count: "exact", head: true }),
-    admin.from("events_log").select("event_name, trck_user_id"),
-    admin
-      .from("purchases")
-      .select("id", { count: "exact", head: true })
-      .not("status", "ilike", "%refund%"),
-  ]);
+  const [visitorsRes, eventsRes, purchasesRes, purchaseRowsRes] =
+    await Promise.all([
+      queryOne<{ count: string }>(`select count(*)::text as count from visitors`),
+      query<{ event_name: string; trck_user_id: string | null }>(
+        `select event_name, trck_user_id from events_log`
+      ),
+      queryOne<{ count: string }>(
+        `select count(*)::text as count from purchases
+         where status is null or status not ilike '%refund%'`
+      ),
+      query<{ trck_user_id: string | null }>(
+        `select trck_user_id from purchases where trck_user_id is not null`
+      ),
+    ]);
 
-  const uniqueVisitors = visitorsRes.count ?? 0;
-  const purchases = purchasesRes.count ?? 0;
-  const events = eventsRes.data ?? [];
+  const uniqueVisitors = Number(visitorsRes?.count ?? 0);
+  const purchases = Number(purchasesRes?.count ?? 0);
+  const events = eventsRes.rows;
 
   const byType = new Map<string, number>();
   const visitedUsers = new Set<string>();
@@ -59,12 +66,7 @@ export async function getOverviewMetrics(): Promise<OverviewMetrics> {
     }
   }
 
-  // Also count purchase table users
-  const { data: purchaseRows } = await admin
-    .from("purchases")
-    .select("trck_user_id")
-    .not("trck_user_id", "is", null);
-  for (const p of purchaseRows ?? []) {
+  for (const p of purchaseRowsRes.rows) {
     if (p.trck_user_id) purchaseUsers.add(p.trck_user_id);
   }
 

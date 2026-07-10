@@ -1,8 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { ensureDbReady } from "@/lib/db/boot";
+import { isUniqueViolation, query, queryOne } from "@/lib/db/pool";
+import type { VisitorRow } from "@/lib/db/types";
 import { sendToAllMetaPixels } from "@/lib/meta/capi";
 import { rateLimit } from "@/lib/rate-limit/memory";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { newEventId } from "@/lib/tracking/hash";
 import { getClientIp, getUserAgent } from "@/lib/tracking/request";
 import { eventSchema } from "@/lib/tracking/schemas";
@@ -42,12 +44,11 @@ export async function POST(request: NextRequest) {
   const userAgent = getUserAgent(request);
 
   try {
-    const admin = createAdminClient();
-    const { data: visitor } = await admin
-      .from("visitors")
-      .select("*")
-      .eq("trck_user_id", body.trck_user_id)
-      .maybeSingle();
+    await ensureDbReady();
+    const visitor = await queryOne<VisitorRow>(
+      `select * from visitors where trck_user_id = $1 limit 1`,
+      [body.trck_user_id]
+    );
 
     const customData =
       body.value !== undefined ||
@@ -86,37 +87,42 @@ export async function POST(request: NextRequest) {
       customData,
     });
 
-    const { error } = await admin.from("events_log").insert({
-      trck_user_id: body.trck_user_id,
-      event_name: body.event_name,
-      event_id: eventId,
-      utm_source: body.utm_source ?? visitor?.utm_source ?? null,
-      utm_medium: body.utm_medium ?? visitor?.utm_medium ?? null,
-      utm_campaign: body.utm_campaign ?? visitor?.utm_campaign ?? null,
-      utm_term: body.utm_term ?? visitor?.utm_term ?? null,
-      utm_content: body.utm_content ?? visitor?.utm_content ?? null,
-      payload_meta: metaResults.map((r) => r.payload),
-      response_meta: metaResults,
-      payload_ga4: null,
-      response_ga4: null,
-      ip: visitor?.ip ?? ip,
-      geo_country: visitor?.geo_country ?? null,
-      geo_region: visitor?.geo_region ?? null,
-      geo_city: visitor?.geo_city ?? null,
-    });
-
-    if (error) {
-      if (error.code === "23505") {
+    try {
+      await query(
+        `insert into events_log (
+           trck_user_id, event_name, event_id,
+           utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+           payload_meta, response_meta, payload_ga4, response_ga4,
+           ip, geo_country, geo_region, geo_city
+         ) values (
+           $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,null,null,$11,$12,$13,$14
+         )`,
+        [
+          body.trck_user_id,
+          body.event_name,
+          eventId,
+          body.utm_source ?? visitor?.utm_source ?? null,
+          body.utm_medium ?? visitor?.utm_medium ?? null,
+          body.utm_campaign ?? visitor?.utm_campaign ?? null,
+          body.utm_term ?? visitor?.utm_term ?? null,
+          body.utm_content ?? visitor?.utm_content ?? null,
+          JSON.stringify(metaResults.map((r) => r.payload)),
+          JSON.stringify(metaResults),
+          visitor?.ip ?? ip,
+          visitor?.geo_country ?? null,
+          visitor?.geo_region ?? null,
+          visitor?.geo_city ?? null,
+        ]
+      );
+    } catch (err) {
+      if (isUniqueViolation(err)) {
         return NextResponse.json({
           ok: true,
           event_id: eventId,
           deduped: true,
         });
       }
-      return NextResponse.json(
-        { error: "db_error", message: error.message },
-        { status: 500 }
-      );
+      throw err;
     }
 
     return NextResponse.json({

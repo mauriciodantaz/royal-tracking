@@ -1,13 +1,12 @@
 import "server-only";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { ensureDbReady } from "@/lib/db/boot";
+import { query, queryOne } from "@/lib/db/pool";
+import type { VisitorRow } from "@/lib/db/types";
 import { hashEmail, hashPhone } from "@/lib/tracking/hash";
-import type { Database } from "@/lib/supabase/database.types";
-
-type Visitor = Database["public"]["Tables"]["visitors"]["Row"];
 
 export type MatchResult = {
-  visitor: Visitor | null;
+  visitor: VisitorRow | null;
   match_status: "matched" | "unmatched";
   match_reason: string;
 };
@@ -17,14 +16,13 @@ export async function matchVisitor(input: {
   email?: string | null;
   phone?: string | null;
 }): Promise<MatchResult> {
-  const admin = createAdminClient();
+  await ensureDbReady();
 
   if (input.trck_user_id) {
-    const { data } = await admin
-      .from("visitors")
-      .select("*")
-      .eq("trck_user_id", input.trck_user_id)
-      .maybeSingle();
+    const data = await queryOne<VisitorRow>(
+      `select * from visitors where trck_user_id = $1 limit 1`,
+      [input.trck_user_id]
+    );
     if (data) {
       return {
         visitor: data,
@@ -36,13 +34,13 @@ export async function matchVisitor(input: {
 
   const emailHash = hashEmail(input.email);
   if (emailHash) {
-    const { data } = await admin
-      .from("visitors")
-      .select("*")
-      .eq("email_hash", emailHash)
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const data = await queryOne<VisitorRow>(
+      `select * from visitors
+       where email_hash = $1
+       order by updated_at desc
+       limit 1`,
+      [emailHash]
+    );
     if (data) {
       return {
         visitor: data,
@@ -54,13 +52,13 @@ export async function matchVisitor(input: {
 
   const phoneHash = hashPhone(input.phone);
   if (phoneHash) {
-    const { data } = await admin
-      .from("visitors")
-      .select("*")
-      .eq("phone_hash", phoneHash)
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const data = await queryOne<VisitorRow>(
+      `select * from visitors
+       where phone_hash = $1
+       order by updated_at desc
+       limit 1`,
+      [phoneHash]
+    );
     if (data) {
       return {
         visitor: data,

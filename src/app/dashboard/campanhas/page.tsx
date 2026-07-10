@@ -1,8 +1,9 @@
 import { Suspense } from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ensureDbReady } from "@/lib/db/boot";
+import { query } from "@/lib/db/pool";
 import { getAdsInsightsTree } from "@/lib/meta/ads-insights";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { CampaignsView } from "./campaigns-view";
 
 export default async function CampanhasPage({
@@ -16,12 +17,11 @@ export default async function CampanhasPage({
   let trees: Awaited<ReturnType<typeof getAdsInsightsTree>> = [];
 
   try {
-    const admin = createAdminClient();
-    const { data } = await admin
-      .from("meta_ad_accounts")
-      .select("id, label")
-      .eq("active", true);
-    accounts = data ?? [];
+    await ensureDbReady();
+    const result = await query<{ id: string; label: string }>(
+      `select id, label from meta_ad_accounts where active = true`
+    );
+    accounts = result.rows;
     trees = await getAdsInsightsTree({
       accountId: params.account,
       force: params.refresh === "1",
