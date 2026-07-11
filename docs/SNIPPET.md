@@ -13,10 +13,19 @@ No **`<head>`** (ou antes de `</body>`) de **todas** as páginas da landing/site
 Só isso já:
 - chama `/api/identify`
 - dispara `PageView` em `/api/event`
+- captura **submit de qualquer formulário** → `/api/lead` (email/telefone/campos + UTMs)
 - guarda `trck_user_id` (cookie + localStorage)
 - anexa `trck_user_id` em cliques de links Hotmart/Kiwify/Eduzz/WhatsApp/checkout
 
-As rotas `/api/identify` e `/api/event` respondem com CORS (`Access-Control-Allow-Origin: *`) para o snippet rodar em qualquer domínio do cliente.
+As rotas `/api/identify`, `/api/event` e `/api/lead` respondem com CORS (`Access-Control-Allow-Origin: *`).
+
+```js
+window.trck.event("InitiateCheckout");
+window.trck.identify({ email: "a@b.com", phone: "5511..." });
+window.trck.lead({ fields: { email: "a@b.com" }, form_label: "Newsletter" });
+```
+
+Para ignorar um form: `data-trck-ignore` no `<form>`.
 
 ## Eventos manuais (botões)
 

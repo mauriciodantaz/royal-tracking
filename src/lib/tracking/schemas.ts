@@ -41,3 +41,28 @@ export const eventSchema = z.object({
 
 export type IdentifyInput = z.infer<typeof identifySchema>;
 export type EventInput = z.infer<typeof eventSchema>;
+
+export const leadSchema = z.object({
+  trck_user_id: z.string().min(1).max(128).optional(),
+  form_fingerprint: z.string().min(1).max(128).optional(),
+  form_label: z.string().max(200).optional(),
+  form_action: z.string().max(2000).optional(),
+  page_url: z.string().max(2000).optional(),
+  email: z.string().email().optional(),
+  phone: z.string().min(5).max(32).optional(),
+  name: z.string().max(200).optional(),
+  fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+  consent: z.boolean().optional(),
+  fbp: z.string().max(256).optional(),
+  fbc: z.string().max(512).optional(),
+  ga_client_id: z.string().max(128).optional(),
+  utm_source: z.string().max(200).optional(),
+  utm_medium: z.string().max(200).optional(),
+  utm_campaign: z.string().max(200).optional(),
+  utm_term: z.string().max(200).optional(),
+  utm_content: z.string().max(200).optional(),
+  event_name: z.string().min(1).max(64).optional(),
+  event_id: z.string().min(1).max(128).optional(),
+});
+
+export type LeadInput = z.infer<typeof leadSchema>;

@@ -143,3 +143,90 @@ export type PurchaseRow = {
   created_at: string;
   updated_at: string;
 };
+
+export type IntegrationConnectionRow = {
+  id: string;
+  provider: string;
+  label: string;
+  auth_type: string;
+  direction: string;
+  access_token_cipher: string | null;
+  refresh_token_cipher: string | null;
+  expires_at: string | null;
+  webhook_secret_cipher: string | null;
+  account_external_id: string | null;
+  config: Json;
+  active: boolean;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type IntegrationEventMappingRow = {
+  id: string;
+  source_connection_id: string | null;
+  source_provider: string | null;
+  source_event: string;
+  dest_connection_id: string;
+  dest_event_name: string;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type IntegrationDeliveryLogRow = {
+  id: string;
+  event_id: string;
+  connection_id: string | null;
+  provider: string;
+  dest_event_name: string | null;
+  status: string;
+  http_status: number | null;
+  request_payload: Json | null;
+  response_payload: Json | null;
+  error: string | null;
+  created_at: string;
+};
+
+export type FormRow = {
+  id: string;
+  fingerprint: string;
+  label: string;
+  page_url: string | null;
+  field_names: Json;
+  default_event_name: string;
+  active: boolean;
+  submission_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FormLeadRow = {
+  id: string;
+  form_id: string | null;
+  trck_user_id: string | null;
+  email: string | null;
+  phone: string | null;
+  email_hash: string | null;
+  phone_hash: string | null;
+  name: string | null;
+  fields: Json;
+  page_url: string | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_term: string | null;
+  utm_content: string | null;
+  fbp: string | null;
+  fbc: string | null;
+  ga_client_id: string | null;
+  source_provider: string;
+  source_connection_id: string | null;
+  consent: boolean | null;
+  raw_payload: Json | null;
+  event_id: string | null;
+  match_status: string | null;
+  match_reason: string | null;
+  created_at: string;
+  updated_at: string;
+};

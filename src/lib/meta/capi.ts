@@ -115,6 +115,22 @@ export function buildCapiPayload(input: MetaEventInput) {
 
 async function loadActivePixels() {
   await ensureDbReady();
+  const fromHub = await query<{
+    id: string;
+    label: string;
+    pixel_id: string;
+    capi_token_cipher: string | null;
+    active: boolean;
+  }>(
+    `select id, label,
+            coalesce(config->>'pixel_id', account_external_id) as pixel_id,
+            access_token_cipher as capi_token_cipher,
+            active
+     from integration_connections
+     where provider = 'meta_pixel' and active = true`
+  );
+  if (fromHub.rows.length > 0) return fromHub.rows;
+
   const result = await query<
     Pick<
       MetaPixelRow,

@@ -127,13 +127,35 @@ export async function getAdsInsightsTree(opts: {
   const accountsResult =
     opts.accountId && opts.accountId !== "all"
       ? await query<MetaAdAccountRow>(
-          `select * from meta_ad_accounts where active = true and id = $1`,
+          `select id, label,
+                  coalesce(config->>'ad_account_id', account_external_id) as ad_account_id,
+                  access_token_cipher as ads_token_cipher,
+                  active, created_at, updated_at
+           from integration_connections
+           where provider = 'meta_ads' and active = true and id = $1`,
           [opts.accountId]
         )
       : await query<MetaAdAccountRow>(
-          `select * from meta_ad_accounts where active = true`
+          `select id, label,
+                  coalesce(config->>'ad_account_id', account_external_id) as ad_account_id,
+                  access_token_cipher as ads_token_cipher,
+                  active, created_at, updated_at
+           from integration_connections
+           where provider = 'meta_ads' and active = true`
         );
-  const accounts = accountsResult.rows;
+  let accounts = accountsResult.rows;
+  if (accounts.length === 0) {
+    const legacy =
+      opts.accountId && opts.accountId !== "all"
+        ? await query<MetaAdAccountRow>(
+            `select * from meta_ad_accounts where active = true and id = $1`,
+            [opts.accountId]
+          )
+        : await query<MetaAdAccountRow>(
+            `select * from meta_ad_accounts where active = true`
+          );
+    accounts = legacy.rows;
+  }
 
   const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
   const until = new Date().toISOString().slice(0, 10);

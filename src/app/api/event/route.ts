@@ -4,7 +4,8 @@ import { corsPreflight, jsonCors } from "@/lib/cors";
 import { ensureDbReady } from "@/lib/db/boot";
 import { isUniqueViolation, query, queryOne } from "@/lib/db/pool";
 import type { VisitorRow } from "@/lib/db/types";
-import { sendToAllMetaPixels } from "@/lib/meta/capi";
+import { getSnippetConnection } from "@/lib/integrations/connections";
+import { dispatchEvent } from "@/lib/integrations/dispatch";
 import { rateLimit } from "@/lib/rate-limit/memory";
 import { newEventId } from "@/lib/tracking/hash";
 import { getClientIp, getUserAgent } from "@/lib/tracking/request";
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
 
   try {
     await ensureDbReady();
+    const snippet = await getSnippetConnection();
     const visitor = await queryOne<VisitorRow>(
       `select * from visitors where trck_user_id = $1 limit 1`,
       [body.trck_user_id]
@@ -69,8 +71,10 @@ export async function POST(request: NextRequest) {
           }
         : undefined;
 
-    const metaResults = await sendToAllMetaPixels({
-      eventName: body.event_name,
+    const dispatch = await dispatchEvent({
+      sourceProvider: "snippet",
+      sourceConnectionId: snippet?.id,
+      sourceEvent: body.event_name,
       eventId,
       eventSourceUrl: body.event_source_url,
       userData: {
@@ -90,6 +94,8 @@ export async function POST(request: NextRequest) {
         clientUserAgent: visitor?.user_agent ?? userAgent,
       },
       customData,
+      gaClientId: visitor?.ga_client_id,
+      gaSessionId: visitor?.ga_session_id,
     });
 
     try {
@@ -100,7 +106,7 @@ export async function POST(request: NextRequest) {
            payload_meta, response_meta, payload_ga4, response_ga4,
            ip, geo_country, geo_region, geo_city
          ) values (
-           $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,null,null,$11,$12,$13,$14
+           $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13,$14,$15,$16
          )`,
         [
           body.trck_user_id,
@@ -111,8 +117,20 @@ export async function POST(request: NextRequest) {
           body.utm_campaign ?? visitor?.utm_campaign ?? null,
           body.utm_term ?? visitor?.utm_term ?? null,
           body.utm_content ?? visitor?.utm_content ?? null,
-          JSON.stringify(metaResults.map((r) => r.payload)),
-          JSON.stringify(metaResults),
+          JSON.stringify(
+            dispatch.results
+              .filter((r) => r.provider === "meta_pixel")
+              .map((r) => r.payload)
+          ),
+          JSON.stringify(
+            dispatch.results.filter((r) => r.provider === "meta_pixel")
+          ),
+          JSON.stringify(
+            dispatch.results
+              .filter((r) => r.provider === "ga4")
+              .map((r) => r.payload)
+          ),
+          JSON.stringify(dispatch.results.filter((r) => r.provider === "ga4")),
           visitor?.ip ?? ip,
           visitor?.geo_country ?? null,
           visitor?.geo_region ?? null,
@@ -133,12 +151,16 @@ export async function POST(request: NextRequest) {
     return jsonCors({
       ok: true,
       event_id: eventId,
-      meta: metaResults.map((r) => ({
-        pixel_id: r.pixel_id,
-        label: r.label,
-        ok: r.ok,
-        status: r.status,
-      })),
+      dispatch: {
+        targets: dispatch.targets,
+        results: dispatch.results.map((r) => ({
+          connection_id: r.connectionId,
+          provider: r.provider,
+          ok: r.ok,
+          status: r.status,
+          error: r.error,
+        })),
+      },
     });
   } catch (err) {
     return jsonCors(

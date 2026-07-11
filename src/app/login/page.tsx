@@ -15,7 +15,7 @@ export default async function LoginPage({
         <CardHeader>
           <CardTitle className="text-xl">Entrar</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Painel autenticado via Supabase Auth.
+            Painel autenticado (Auth.js).
           </p>
         </CardHeader>
         <CardContent>

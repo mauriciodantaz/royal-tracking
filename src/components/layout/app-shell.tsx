@@ -3,15 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Activity,
   BarChart3,
+  Cable,
+  FileText,
   Globe2,
   LayoutDashboard,
   LogOut,
   Megaphone,
   Receipt,
   Settings,
-  Activity,
   Menu,
+  Users,
 } from "lucide-react";
 
 import { logoutAction } from "@/app/login/actions";
@@ -29,6 +32,9 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/dashboard", label: "Visão geral", icon: LayoutDashboard },
+  { href: "/dashboard/integracoes", label: "Integrações", icon: Cable },
+  { href: "/dashboard/leads", label: "Leads", icon: Users },
+  { href: "/dashboard/formularios", label: "Formulários", icon: FileText },
   { href: "/dashboard/eventos", label: "Eventos", icon: Activity },
   { href: "/dashboard/faturamento", label: "Faturamento", icon: Receipt },
   { href: "/dashboard/campanhas", label: "Campanhas", icon: Megaphone },

@@ -171,6 +171,107 @@
     });
   }
 
+  function isSensitiveField(el) {
+    if (!el || !el.name) return true;
+    var type = (el.type || "").toLowerCase();
+    var name = String(el.name || el.id || "").toLowerCase();
+    if (
+      type === "password" ||
+      type === "hidden" ||
+      type === "file" ||
+      type === "submit" ||
+      type === "button" ||
+      type === "reset" ||
+      type === "image"
+    ) {
+      return true;
+    }
+    if (
+      name.indexOf("password") >= 0 ||
+      name.indexOf("senha") >= 0 ||
+      name.indexOf("card") >= 0 ||
+      name.indexOf("cvv") >= 0 ||
+      name.indexOf("cvc") >= 0 ||
+      name.indexOf("cc-") >= 0
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  function collectFormFields(form) {
+    var fields = {};
+    var els = form.querySelectorAll("input, select, textarea");
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (isSensitiveField(el)) continue;
+      var key = el.name || el.id;
+      if (!key) continue;
+      if (el.type === "checkbox" || el.type === "radio") {
+        if (!el.checked) continue;
+      }
+      fields[key] = el.value;
+    }
+    return fields;
+  }
+
+  function captureForms() {
+    document.addEventListener(
+      "submit",
+      function (ev) {
+        var form = ev.target;
+        if (!form || form.tagName !== "FORM") return;
+        if (form.getAttribute("data-trck-ignore") != null) return;
+
+        var fields = collectFormFields(form);
+        var keys = Object.keys(fields);
+        if (!keys.length) return;
+
+        var id = getTrckId() || window.TRCK_USER_ID;
+        var payload = {
+          trck_user_id: id || undefined,
+          form_label: form.getAttribute("name") || form.id || form.getAttribute("aria-label") || undefined,
+          form_action: form.getAttribute("action") || undefined,
+          page_url: window.location.href,
+          fields: fields,
+          fbp: getCookie("_fbp") || undefined,
+          fbc: getCookie("_fbc") || undefined,
+          ga_client_id: getGaClientId(),
+          utm_source: getQuery("utm_source"),
+          utm_medium: getQuery("utm_medium"),
+          utm_campaign: getQuery("utm_campaign"),
+          utm_term: getQuery("utm_term"),
+          utm_content: getQuery("utm_content"),
+          event_name: "Lead",
+          event_id: uuid(),
+          consent: true,
+        };
+
+        // Fire-and-forget; do not block native submit
+        post("/api/lead", payload).catch(function () {});
+        if (id) {
+          post("/api/identify", {
+            trck_user_id: id,
+            email: fields.email || fields.Email || undefined,
+            phone:
+              fields.phone ||
+              fields.telefone ||
+              fields.whatsapp ||
+              fields.tel ||
+              undefined,
+            fbp: payload.fbp,
+            fbc: payload.fbc,
+            ga_client_id: payload.ga_client_id,
+            utm_source: payload.utm_source,
+            utm_medium: payload.utm_medium,
+            utm_campaign: payload.utm_campaign,
+          }).catch(function () {});
+        }
+      },
+      true
+    );
+  }
+
   // API pública para o site do cliente
   window.trck = {
     event: function (name, extra) {
@@ -190,6 +291,39 @@
         )
       );
     },
+    identify: function (data) {
+      var id = getTrckId() || window.TRCK_USER_ID;
+      data = data || {};
+      return post(
+        "/api/identify",
+        Object.assign({ trck_user_id: id || undefined }, data)
+      ).then(function (res) {
+        if (res && res.trck_user_id) {
+          saveTrckId(res.trck_user_id);
+          window.TRCK_USER_ID = res.trck_user_id;
+        }
+        return res;
+      });
+    },
+    lead: function (data) {
+      var id = getTrckId() || window.TRCK_USER_ID;
+      data = data || {};
+      return post(
+        "/api/lead",
+        Object.assign(
+          {
+            trck_user_id: id || undefined,
+            page_url: window.location.href,
+            event_name: "Lead",
+            event_id: uuid(),
+            fbp: getCookie("_fbp") || undefined,
+            fbc: getCookie("_fbc") || undefined,
+            ga_client_id: getGaClientId(),
+          },
+          data
+        )
+      );
+    },
     getId: function () {
       return getTrckId() || window.TRCK_USER_ID || null;
     },
@@ -202,8 +336,10 @@
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
       identifyAndTrack().catch(function () {});
+      captureForms();
     });
   } else {
     identifyAndTrack().catch(function () {});
+    captureForms();
   }
 })();
