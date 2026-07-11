@@ -1,5 +1,3 @@
-import "server-only";
-
 export type IntegrationProvider =
   | "meta_pixel"
   | "meta_ads"

@@ -1,301 +1,196 @@
 "use client";
 
+import Link from "next/link";
 import { useTransition } from "react";
 import { toast } from "sonner";
+import { ArrowRight, Plug, Trash2 } from "lucide-react";
 
 import {
   deleteConnection,
-  deleteEventMapping,
   testConnection,
-  upsertConnection,
-  upsertEventMapping,
 } from "@/app/dashboard/integracoes/actions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import type { IntegrationModuleDef } from "@/lib/integrations/registry";
+import { getModule } from "@/lib/integrations/registry";
 
-type Conn = {
+export type ActiveConn = {
   id: string;
   provider: string;
   label: string;
   active: boolean;
-  auth_type: string;
   direction: string;
   account_external_id: string | null;
-  hasToken: boolean;
-  hasWebhookSecret: boolean;
-  config: Record<string, string>;
-  webhookUrl?: string;
 };
 
-type Mapping = {
-  id: string;
-  source_provider: string | null;
-  source_connection_id: string | null;
-  source_event: string;
-  dest_connection_id: string;
-  dest_event_name: string;
-  enabled: boolean;
-  dest_label?: string;
-};
+function directionLabel(d: string) {
+  switch (d) {
+    case "inbound":
+      return "Fonte";
+    case "outbound":
+      return "Destino";
+    case "both":
+      return "Fonte e destino";
+    default:
+      return d;
+  }
+}
 
-export function IntegrationsHub({
-  modules,
+export function ActiveIntegrationsList({
   connections,
-  mappings,
-  appUrl,
 }: {
-  modules: IntegrationModuleDef[];
-  connections: Conn[];
-  mappings: Mapping[];
-  appUrl: string;
+  connections: ActiveConn[];
 }) {
   const [pending, start] = useTransition();
 
-  function onUpsert(formData: FormData) {
-    start(async () => {
-      try {
-        await upsertConnection(formData);
-        toast.success("Conexão salva");
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Erro ao salvar");
-      }
-    });
+  if (connections.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-border/80 px-6 py-10 text-center">
+        <Plug className="mx-auto mb-3 size-8 text-muted-foreground/60" />
+        <p className="text-sm font-medium">Nenhuma integração conectada</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Escolha um módulo na galeria abaixo para começar.
+        </p>
+      </div>
+    );
   }
-
-  function onDelete(id: string) {
-    start(async () => {
-      try {
-        await deleteConnection(id);
-        toast.success("Conexão removida");
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Erro");
-      }
-    });
-  }
-
-  function onTest(id: string) {
-    start(async () => {
-      try {
-        const r = await testConnection(id);
-        if (r.ok) toast.success("Teste OK");
-        else toast.error("Teste falhou");
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Erro no teste");
-      }
-    });
-  }
-
-  function onMapping(formData: FormData) {
-    start(async () => {
-      try {
-        await upsertEventMapping(formData);
-        toast.success("Mapeamento salvo");
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Erro");
-      }
-    });
-  }
-
-  function onDeleteMapping(id: string) {
-    start(async () => {
-      try {
-        await deleteEventMapping(id);
-        toast.success("Mapeamento removido");
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Erro");
-      }
-    });
-  }
-
-  const outbound = connections.filter(
-    (c) => c.direction === "outbound" || c.direction === "both"
-  );
 
   return (
-    <div className="space-y-8">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {modules.map((mod) => {
-          const list = connections.filter((c) => c.provider === mod.provider);
-          const connectable = mod.authType !== "none" || mod.provider === "snippet";
-          return (
-            <Card key={mod.provider} className="glass">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">{mod.name}</CardTitle>
-                <p className="text-xs text-muted-foreground">{mod.description}</p>
-                <p className="text-xs text-muted-foreground">
-                  {list.length} conectada(s)
-                  {mod.phase > 1 ? ` · fase ${mod.phase}` : ""}
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {list.map((c) => (
-                  <div
-                    key={c.id}
-                    className="space-y-2 rounded-lg border border-border/60 p-3"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-medium">{c.label}</p>
-                        <p className="font-mono text-xs text-muted-foreground">
-                          {c.account_external_id || c.id.slice(0, 8)}
-                          {!c.active ? " · inativa" : ""}
-                        </p>
-                      </div>
-                      <div className="flex gap-1">
-                        {(mod.provider === "meta_pixel" ||
-                          mod.provider === "ga4" ||
-                          mod.provider === "meta_ads") && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={pending}
-                            onClick={() => onTest(c.id)}
-                          >
-                            Testar
-                          </Button>
-                        )}
-                        {mod.provider !== "snippet" && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            disabled={pending}
-                            onClick={() => onDelete(c.id)}
-                          >
-                            Remover
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                    {(c.direction === "inbound" || c.direction === "both") &&
-                      mod.authType === "webhook_secret" && (
-                        <p className="break-all font-mono text-[11px] text-muted-foreground">
-                          Webhook: {appUrl}/api/webhook/in/{c.id}
-                        </p>
-                      )}
-                  </div>
-                ))}
-
-                {connectable && mod.provider !== "snippet" && (
-                  <form action={onUpsert} className="space-y-2 border-t border-border/40 pt-3">
-                    <input type="hidden" name="provider" value={mod.provider} />
-                    <input type="hidden" name="active" value="true" />
-                    {mod.connectFields.map((f) => (
-                      <div key={f.key} className="space-y-1">
-                        <Label htmlFor={`${mod.provider}-${f.key}`}>{f.label}</Label>
-                        <Input
-                          id={`${mod.provider}-${f.key}`}
-                          name={f.key}
-                          type={f.secret ? "password" : "text"}
-                          required={f.required && !f.secret ? true : undefined}
-                          placeholder={f.placeholder}
-                          autoComplete="off"
-                        />
-                      </div>
-                    ))}
-                    {mod.authType === "oauth" && (
-                      <p className="text-xs text-muted-foreground">
-                        OAuth: configure CLIENT_ID/SECRET no Portainer e use
-                        /api/integrations/{mod.provider}/oauth/start
-                      </p>
-                    )}
-                    <Button type="submit" size="sm" disabled={pending} className="w-full">
-                      Conectar {mod.name}
-                    </Button>
-                  </form>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      <Card className="glass">
-        <CardHeader>
-          <CardTitle className="text-base">Mapeamento de eventos</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Fonte → destino (um evento pode ir para vários Meta/GA4).
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b text-muted-foreground">
-                  <th className="py-2 pr-2">Fonte</th>
-                  <th className="py-2 pr-2">Evento</th>
-                  <th className="py-2 pr-2">Destino</th>
-                  <th className="py-2 pr-2">Nome destino</th>
-                  <th className="py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {mappings.map((m) => (
-                  <tr key={m.id} className="border-b border-border/40">
-                    <td className="py-2 pr-2 font-mono text-xs">
-                      {m.source_provider ?? m.source_connection_id?.slice(0, 8)}
-                    </td>
-                    <td className="py-2 pr-2">{m.source_event}</td>
-                    <td className="py-2 pr-2">{m.dest_label ?? m.dest_connection_id.slice(0, 8)}</td>
-                    <td className="py-2 pr-2 font-mono text-xs">{m.dest_event_name}</td>
-                    <td className="py-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        disabled={pending}
-                        onClick={() => onDeleteMapping(m.id)}
-                      >
-                        Remover
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <form action={onMapping} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="space-y-1">
-              <Label>Provider fonte</Label>
-              <Input name="source_provider" placeholder="snippet / hotmart" required />
+    <ul className="divide-y divide-border/60 rounded-xl border border-border/60">
+      {connections.map((c) => {
+        const mod = getModule(c.provider);
+        return (
+          <li
+            key={c.id}
+            className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="truncate text-sm font-medium">{c.label}</p>
+                <span
+                  className={
+                    c.active
+                      ? "rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400"
+                      : "rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                  }
+                >
+                  {c.active ? "Operando" : "Inativa"}
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {mod?.name ?? c.provider} · {directionLabel(c.direction)}
+                {c.account_external_id
+                  ? ` · ${c.account_external_id}`
+                  : ""}
+              </p>
             </div>
-            <div className="space-y-1">
-              <Label>Evento fonte</Label>
-              <Input name="source_event" placeholder="Lead / Purchase" required />
-            </div>
-            <div className="space-y-1">
-              <Label>Destino</Label>
-              <select
-                name="dest_connection_id"
-                required
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                render={<Link href={`/dashboard/integracoes/${c.provider}`} />}
               >
-                <option value="">Selecione</option>
-                {outbound.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.label} ({c.provider})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <Label>Nome no destino</Label>
-              <Input name="dest_event_name" placeholder="Purchase / generate_lead" required />
-            </div>
-            <div className="flex items-end">
-              <input type="hidden" name="enabled" value="true" />
-              <Button type="submit" disabled={pending} className="w-full">
-                Adicionar
+                Gerenciar
               </Button>
+              {(c.provider === "meta_pixel" ||
+                c.provider === "ga4" ||
+                c.provider === "meta_ads") && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={pending}
+                  onClick={() =>
+                    start(async () => {
+                      try {
+                        const r = await testConnection(c.id);
+                        if (r.ok) toast.success("Teste OK");
+                        else toast.error("Teste falhou");
+                      } catch (e) {
+                        toast.error(
+                          e instanceof Error ? e.message : "Erro no teste"
+                        );
+                      }
+                    })
+                  }
+                >
+                  Testar
+                </Button>
+              )}
+              {c.provider !== "snippet" && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={pending}
+                  onClick={() =>
+                    start(async () => {
+                      try {
+                        await deleteConnection(c.id);
+                        toast.success("Integração removida");
+                      } catch (e) {
+                        toast.error(
+                          e instanceof Error ? e.message : "Erro ao remover"
+                        );
+                      }
+                    })
+                  }
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              )}
             </div>
-          </form>
-        </CardContent>
-      </Card>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+export function ModuleGallery({
+  modules,
+  connectedCounts,
+}: {
+  modules: Array<{
+    provider: string;
+    name: string;
+    description: string;
+    direction: string;
+  }>;
+  connectedCounts: Record<string, number>;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {modules.map((mod) => {
+        const count = connectedCounts[mod.provider] ?? 0;
+        return (
+          <div
+            key={mod.provider}
+            className="flex flex-col rounded-xl border border-border/60 p-4 transition-colors hover:border-border hover:bg-muted/30"
+          >
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold tracking-tight">
+                {mod.name}
+              </h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {directionLabel(mod.direction)}
+                {count > 0 ? ` · ${count} conectada(s)` : ""}
+              </p>
+            </div>
+            <p className="mb-4 flex-1 text-sm text-muted-foreground">
+              {mod.description}
+            </p>
+            <Button
+              className="w-full justify-between"
+              size="sm"
+              render={
+                <Link href={`/dashboard/integracoes/${mod.provider}`} />
+              }
+            >
+              Adicionar integração
+              <ArrowRight className="size-3.5" />
+            </Button>
+          </div>
+        );
+      })}
     </div>
   );
 }

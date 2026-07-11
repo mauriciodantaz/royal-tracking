@@ -27,8 +27,11 @@ async function requireUser() {
   return session.user;
 }
 
-function revalidateIntegrations() {
+function revalidateIntegrations(provider?: string) {
   revalidatePath("/dashboard/integracoes");
+  if (provider) {
+    revalidatePath(`/dashboard/integracoes/${provider}`);
+  }
   revalidatePath("/dashboard/config");
   revalidatePath("/dashboard/campanhas");
 }
@@ -139,7 +142,7 @@ export async function upsertConnection(formData: FormData) {
     if (row) await syncLegacyTable(provider, row.id);
   }
 
-  revalidateIntegrations();
+  revalidateIntegrations(provider);
   return { ok: true as const };
 }
 
@@ -210,7 +213,7 @@ export async function deleteConnection(id: string) {
   } else if (conn?.provider === "meta_ads") {
     await query(`delete from meta_ad_accounts where id = $1`, [id]);
   }
-  revalidateIntegrations();
+  revalidateIntegrations(conn?.provider);
   return { ok: true as const };
 }
 
@@ -270,7 +273,7 @@ export async function upsertEventMapping(formData: FormData) {
       ]
     );
   }
-  revalidateIntegrations();
+  revalidateIntegrations(source_provider ?? undefined);
   return { ok: true as const };
 }
 
