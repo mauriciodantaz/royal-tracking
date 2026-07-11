@@ -53,7 +53,7 @@ docker run --rm \
   -w /app \
   -e NEXT_TELEMETRY_DISABLED=1 \
   "$BUILD_IMAGE" \
-  sh -c "npm ci --legacy-peer-deps && npm run build"
+  sh -c "rm -rf node_modules .next && npm ci --legacy-peer-deps && npm run build"
 
 if [ ! -f .next/standalone/server.js ]; then
   echo "ERRO: build não gerou .next/standalone/server.js (next.config output: standalone?)"
