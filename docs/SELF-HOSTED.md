@@ -25,11 +25,13 @@ No site do cliente, o snippet usa o mesmo domínio (ou `window.TRCK_ENDPOINT`).
 
 ## Atualizar
 
+Produção atual: `deploy.sh` na VPS (git pull + npm build no volume).
+
+Quando a imagem Hub voltar:
+
 ```bash
 docker service update --image royalserver/royal-tracking:latest NOME_STACK_app
 ```
-
-Ou re-deploy da stack no Portainer com a tag nova.
 
 ## Migrar de Supabase (legado)
 

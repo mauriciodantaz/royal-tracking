@@ -3,7 +3,7 @@
 Sistema de tracking server-side self-hosted (Meta CAPI + GA4 + webhook de compra) com painel autenticado.
 
 **Produção:** https://tracking.royalserver.com.br  
-**Licença:** MIT · **Imagem:** [`royalserver/royal-tracking`](https://hub.docker.com/r/royalserver/royal-tracking)
+**Licença:** MIT · Deploy: build na VPS (imagem Docker Hub pausada por enquanto)
 
 Uma stack por domínio = um Postgres + um admin + um `ENCRYPTION_KEY` (modelo n8n).
 

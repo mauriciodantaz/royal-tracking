@@ -33,7 +33,7 @@ Checklist verificado no código (revisar de novo a cada release):
 ## Deploy
 
 - [x] Dockerfile multi-stage standalone (+ `db/migrations`)
-- [x] GH Actions build/push Docker Hub
+- [ ] GH Actions build/push Docker Hub (pausado — deploy atual é build na VPS)
 - [x] Stack Portainer de referência sem secrets reais
 - [ ] Cadastrar URL do webhook na plataforma de venda (Integrações):
   `https://SEU_DOMINIO/api/webhook/in/{connectionId}` + header `x-webhook-token`

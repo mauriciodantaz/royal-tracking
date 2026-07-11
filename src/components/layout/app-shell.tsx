@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
-  BarChart3,
   Cable,
   FileText,
   Globe2,
@@ -17,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { logoutAction } from "@/app/login/actions";
+import { BrandLogo } from "@/components/brand-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -74,14 +74,8 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 
 function Brand() {
   return (
-    <Link href="/dashboard" className="flex items-center gap-2.5 px-1">
-      <span className="flex size-8 items-center justify-center rounded-[var(--radius)] bg-primary/15 text-primary">
-        <BarChart3 className="size-4" />
-      </span>
-      <div className="leading-tight">
-        <p className="text-sm font-semibold tracking-tight">Royal Tracking</p>
-        <p className="text-xs text-muted-foreground">Server-side</p>
-      </div>
+    <Link href="/dashboard" className="px-1">
+      <BrandLogo />
     </Link>
   );
 }

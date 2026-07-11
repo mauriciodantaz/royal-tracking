@@ -7,7 +7,7 @@ Documentação viva do sistema de tracking server-side. Atualizar ao fim de cada
 - **Next.js** 16 (App Router) + React 19 + Tailwind v4 + shadcn/ui
 - **Postgres** local (Docker Swarm) via `DATABASE_URL` — single-tenant por stack
 - **Auth.js** (credentials) + seed `ADMIN_EMAIL` / `ADMIN_PASSWORD`
-- **Deploy:** imagem Docker Hub + Portainer/Swarm + Traefik (não Vercel)
+- **Deploy:** build na VPS (volume + Portainer/Swarm + Traefik); imagem Docker Hub pausada
 - **Meta Graph API:** constante `META_GRAPH_API_VERSION` em `src/lib/meta/constants.ts` (atual: `v25.0`)
 - **GA4:** gtag no browser; Measurement Protocol **somente** no webhook de compra
 
@@ -41,7 +41,7 @@ Quickstart Docker: [README.md](./README.md) · `./install.sh` · [DEPLOY.md](./D
 Domínio de produção: **https://tracking.royalserver.com.br** (VPS RoyalServer, rede `RoyalNet`)  
 Instância: `royaltracking_dev` · Postgres externo (host Swarm `postgres`)  
 **Env na stack Portainer** (YAML); volume = build only.  
-Imagem (opcional): `royalserver/royal-tracking`  
+Imagem Hub: pausada — produção usa build no volume da VPS.
 Guia: [DEPLOY.md](./DEPLOY.md)
 
 ### Webhook na plataforma de venda
