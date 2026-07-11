@@ -50,8 +50,10 @@ Docs: [docs/SNIPPET.md](./docs/SNIPPET.md)
 
 ## Webhook de compra
 
-`POST https://tracking.royalserver.com.br/api/webhook/compra`  
-Header: `x-webhook-token: <token do painel>`
+Por conexão em Integrações (Hotmart/Kiwify/Eduzz):
+
+`POST https://tracking.royalserver.com.br/api/webhook/in/{connectionId}`  
+Header: `x-webhook-token: <secret da conexão>`
 
 ## Dev local (sem Docker)
 

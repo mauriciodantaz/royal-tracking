@@ -12,7 +12,6 @@ import {
   LogOut,
   Megaphone,
   Receipt,
-  Settings,
   Menu,
   Users,
 } from "lucide-react";
@@ -39,7 +38,6 @@ const NAV = [
   { href: "/dashboard/faturamento", label: "Faturamento", icon: Receipt },
   { href: "/dashboard/campanhas", label: "Campanhas", icon: Megaphone },
   { href: "/dashboard/geo", label: "Geo", icon: Globe2 },
-  { href: "/dashboard/config", label: "Configuração", icon: Settings },
 ] as const;
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {

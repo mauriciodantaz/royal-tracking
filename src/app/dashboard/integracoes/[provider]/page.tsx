@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ProviderDetailClient } from "@/app/dashboard/integracoes/[provider]/provider-detail-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { ensureDbReady } from "@/lib/db/boot";
-import { query } from "@/lib/db/pool";
+import { query, queryOne } from "@/lib/db/pool";
 import type {
   IntegrationConnectionRow,
   IntegrationEventMappingRow,
@@ -29,12 +29,14 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
   let mappings: Array<IntegrationEventMappingRow & { dest_label?: string }> =
     [];
   let outbound: IntegrationConnectionRow[] = [];
+  let stackCurrency = "BRL";
+  let stackTestEventCode = "";
   let error: string | null = null;
   const appUrl = getAppUrl().replace(/\/$/, "");
 
   try {
     await ensureDbReady();
-    const [c, m, o] = await Promise.all([
+    const [c, m, o, s] = await Promise.all([
       query<IntegrationConnectionRow>(
         `select * from integration_connections
          where provider = $1
@@ -55,10 +57,17 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
            and provider in ('meta_pixel', 'ga4', 'google_ads')
          order by provider, label`
       ),
+      queryOne<{ currency: string; test_event_code: string | null }>(
+        `select currency, test_event_code from settings where id = 1 limit 1`
+      ),
     ]);
     connections = c.rows;
     mappings = m.rows;
     outbound = o.rows;
+    if (s) {
+      stackCurrency = s.currency || "BRL";
+      stackTestEventCode = s.test_event_code ?? "";
+    }
   } catch (e) {
     error = e instanceof Error ? e.message : "Erro ao carregar";
   }
@@ -101,6 +110,8 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
         label: c.label,
         provider: c.provider,
       }))}
+      stackCurrency={stackCurrency}
+      stackTestEventCode={stackTestEventCode}
     />
   );
 }

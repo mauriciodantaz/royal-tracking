@@ -36,7 +36,11 @@ export type OutboundResult = {
   error?: string;
 };
 
-async function loadTestEventCode(): Promise<string | null> {
+async function resolveTestEventCode(
+  conn: IntegrationConnectionRow
+): Promise<string | null> {
+  const fromConn = configString(conn, "test_event_code");
+  if (fromConn) return fromConn;
   await ensureDbReady();
   const data = await queryOne<{ test_event_code: string | null }>(
     `select test_event_code from settings where id = 1 limit 1`
@@ -51,7 +55,7 @@ export async function sendToMetaConnection(
   const pixelId =
     configString(conn, "pixel_id") ?? conn.account_external_id ?? "";
   const token = await decryptAccessToken(conn);
-  const testCode = await loadTestEventCode();
+  const testCode = await resolveTestEventCode(conn);
   const payload = buildCapiPayload({
     eventName: input.eventName,
     eventId: input.eventId,

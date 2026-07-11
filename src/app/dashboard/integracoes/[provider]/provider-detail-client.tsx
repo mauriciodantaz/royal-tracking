@@ -10,6 +10,8 @@ import {
   deleteConnection,
   deleteEventMapping,
   testConnection,
+  updateMetaTestEventCode,
+  updateStackCurrency,
   upsertConnection,
   upsertEventMapping,
 } from "@/app/dashboard/integracoes/actions";
@@ -49,12 +51,16 @@ export function ProviderDetailClient({
   mappings,
   outboundOptions,
   appUrl,
+  stackCurrency,
+  stackTestEventCode,
 }: {
   module: IntegrationModuleDef;
   connections: Conn[];
   mappings: Mapping[];
   outboundOptions: OutboundOption[];
   appUrl: string;
+  stackCurrency: string;
+  stackTestEventCode: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -170,6 +176,38 @@ export function ProviderDetailClient({
             PageView, forms (Lead) e eventos manuais entram automaticamente e
             seguem os mapeamentos configurados abaixo.
           </p>
+
+          <form
+            className="mt-6 grid max-w-xs gap-3 border-t border-border/50 pt-4"
+            action={(fd) =>
+              start(async () => {
+                try {
+                  await updateStackCurrency(fd);
+                  toast.success("Moeda salva");
+                  refresh();
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Erro");
+                }
+              })
+            }
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="currency">Moeda padrão (compras)</Label>
+              <Input
+                id="currency"
+                name="currency"
+                defaultValue={stackCurrency}
+                maxLength={3}
+                className="font-mono uppercase"
+              />
+              <p className="text-xs text-muted-foreground">
+                Usada quando Hotmart/Kiwify/etc. não enviam currency no webhook.
+              </p>
+            </div>
+            <Button type="submit" disabled={pending} className="w-fit">
+              Salvar moeda
+            </Button>
+          </form>
         </section>
       ) : (
         <section className="rounded-xl border border-border/60 p-5">
@@ -277,6 +315,44 @@ export function ProviderDetailClient({
           ) : null}
         </section>
       )}
+
+      {mod.provider === "meta_pixel" ? (
+        <section className="rounded-xl border border-border/60 p-5">
+          <h2 className="text-base font-medium">Teste Meta (Events Manager)</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Código padrão da stack. Cada pixel pode ter o próprio no formulário
+            de conexão; se vazio, usa este.
+          </p>
+          <form
+            className="mt-4 grid max-w-md gap-3"
+            action={(fd) =>
+              start(async () => {
+                try {
+                  await updateMetaTestEventCode(fd);
+                  toast.success("Test event code salvo");
+                  refresh();
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Erro");
+                }
+              })
+            }
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="test_event_code">test_event_code</Label>
+              <Input
+                id="test_event_code"
+                name="test_event_code"
+                defaultValue={stackTestEventCode}
+                className="font-mono"
+                placeholder="TEST12345"
+              />
+            </div>
+            <Button type="submit" disabled={pending} className="w-fit">
+              Salvar
+            </Button>
+          </form>
+        </section>
+      ) : null}
 
       <section className="space-y-3">
         <div>

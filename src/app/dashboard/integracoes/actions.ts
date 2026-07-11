@@ -32,7 +32,6 @@ function revalidateIntegrations(provider?: string) {
   if (provider) {
     revalidatePath(`/dashboard/integracoes/${provider}`);
   }
-  revalidatePath("/dashboard/config");
   revalidatePath("/dashboard/campanhas");
 }
 
@@ -366,4 +365,37 @@ export async function updateFormLabel(formData: FormData): Promise<void> {
     [label, default_event_name, id]
   );
   revalidatePath("/dashboard/formularios");
+}
+
+/** Moeda padrão da stack (compras sem currency no payload). */
+export async function updateStackCurrency(formData: FormData): Promise<void> {
+  await requireUser();
+  const currency =
+    String(formData.get("currency") ?? "BRL").trim().toUpperCase() || "BRL";
+  if (currency.length !== 3) throw new Error("currency_invalid");
+  await query(
+    `insert into settings (id, currency)
+     values (1, $1)
+     on conflict (id) do update set currency = excluded.currency, updated_at = now()`,
+    [currency]
+  );
+  revalidateIntegrations("snippet");
+}
+
+/** test_event_code padrão Meta (fallback se o pixel não tiver o próprio). */
+export async function updateMetaTestEventCode(
+  formData: FormData
+): Promise<void> {
+  await requireUser();
+  const test_event_code =
+    String(formData.get("test_event_code") ?? "").trim() || null;
+  await query(
+    `insert into settings (id, test_event_code)
+     values (1, $1)
+     on conflict (id) do update set
+       test_event_code = excluded.test_event_code,
+       updated_at = now()`,
+    [test_event_code]
+  );
+  revalidateIntegrations("meta_pixel");
 }

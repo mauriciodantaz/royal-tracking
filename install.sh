@@ -345,7 +345,7 @@ echo "DB:       ${PG_USER}@${PG_HOST}:5432/${PG_DB}"
 echo "Login:    ${ADMIN_EMAIL}"
 echo "Senha:    ${ADMIN_PASSWORD}"
 echo "Snippet:  <script src=\"https://${DOMAIN}/snippet.js\" async></script>"
-echo "Webhook:  https://${DOMAIN}/api/webhook/compra"
+echo "Webhook:  https://${DOMAIN}/api/webhook/in/{connectionId}  (Integrações)"
 echo
 echo "Arquivos: ${PROJECT_DIR}/.env  ${INSTANCE_FILE}"
 echo "YAML Portainer (env incluso): ${PROJECT_DIR}/portainer-stack.generated.yml"

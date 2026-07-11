@@ -46,8 +46,9 @@ Guia: [DEPLOY.md](./DEPLOY.md)
 
 ### Webhook na plataforma de venda
 
-URL: `https://SEU_DOMINIO/api/webhook/compra`  
-Header: `x-webhook-token: <valor em settings>` (ou `Authorization: Bearer …` / `?token=`)
+URL: `https://SEU_DOMINIO/api/webhook/in/{connectionId}`  
+Header: `x-webhook-token: <secret da conexão>` (ou `Authorization: Bearer …` / `?token=`)  
+Criar a conexão em Integrações → Hotmart/Kiwify/Eduzz.
 
 ### Snippet no site
 

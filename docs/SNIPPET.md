@@ -48,11 +48,11 @@ Para ignorar um form: `data-trck-ignore` no `<form>`.
 
 ## Webhook (NÃO vai no site)
 
-Na Hotmart/Kiwify/Eduzz:
+Na Hotmart/Kiwify/Eduzz — Integrações → plataforma → Adicionar integração:
 
 ```txt
-URL: https://SEU_DOMINIO/api/webhook/compra
-Header: x-webhook-token: <token em Configuração no painel>
+URL: https://SEU_DOMINIO/api/webhook/in/{connectionId}
+Header: x-webhook-token: <secret da conexão>
 ```
 
 ## Depois do deploy

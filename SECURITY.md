@@ -23,7 +23,7 @@ Checklist verificado no código (revisar de novo a cada release):
 
 - [x] `/api/identify` — Zod + rate limit por IP
 - [x] `/api/event` — Zod + rate limit; CAPI server-side
-- [x] `/api/webhook/compra` — token (`x-webhook-token` / Bearer / `?token=`) com comparação timing-safe
+- [x] `/api/webhook/in/[connectionId]` — secret por conexão (`x-webhook-token` / Bearer / `?token=`) com comparação timing-safe
 - [x] `/api/ga4/ids` — só measurement_ids públicos (sem api_secret)
 
 ## Retenção
@@ -35,5 +35,5 @@ Checklist verificado no código (revisar de novo a cada release):
 - [x] Dockerfile multi-stage standalone (+ `db/migrations`)
 - [x] GH Actions build/push Docker Hub
 - [x] Stack Portainer de referência sem secrets reais
-- [ ] Cadastrar URL do webhook na plataforma de venda:
-  `https://SEU_DOMINIO/api/webhook/compra` + header `x-webhook-token`
+- [ ] Cadastrar URL do webhook na plataforma de venda (Integrações):
+  `https://SEU_DOMINIO/api/webhook/in/{connectionId}` + header `x-webhook-token`

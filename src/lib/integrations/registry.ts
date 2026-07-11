@@ -56,6 +56,12 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
         secret: true,
         required: true,
       },
+      {
+        key: "test_event_code",
+        label: "Test event code (opcional)",
+        required: false,
+        placeholder: "TEST12345",
+      },
     ],
   },
   {

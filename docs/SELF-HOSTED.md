@@ -19,7 +19,7 @@ Substitua `SEU_DOMINIO` pelo host configurado no Traefik:
 | Snippet | `https://SEU_DOMINIO/snippet.js` |
 | Identify | `https://SEU_DOMINIO/api/identify` |
 | Event | `https://SEU_DOMINIO/api/event` |
-| Webhook compra | `https://SEU_DOMINIO/api/webhook/compra` |
+| Webhook (por conexão) | `https://SEU_DOMINIO/api/webhook/in/{connectionId}` |
 
 No site do cliente, o snippet usa o mesmo domínio (ou `window.TRCK_ENDPOINT`).
 
