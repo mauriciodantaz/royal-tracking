@@ -1,5 +1,6 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 
+import { corsPreflight, jsonCors } from "@/lib/cors";
 import { ensureDbReady } from "@/lib/db/boot";
 import { isUniqueViolation, query, queryOne } from "@/lib/db/pool";
 import type { VisitorRow } from "@/lib/db/types";
@@ -11,11 +12,15 @@ import { eventSchema } from "@/lib/tracking/schemas";
 
 export const runtime = "nodejs";
 
+export function OPTIONS() {
+  return corsPreflight();
+}
+
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request);
   const limited = rateLimit(`event:${ip}`, 120, 60_000);
   if (!limited.ok) {
-    return NextResponse.json(
+    return jsonCors(
       { error: "rate_limited" },
       {
         status: 429,
@@ -28,12 +33,12 @@ export async function POST(request: NextRequest) {
   try {
     json = await request.json();
   } catch {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+    return jsonCors({ error: "invalid_json" }, { status: 400 });
   }
 
   const parsed = eventSchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json(
+    return jsonCors(
       { error: "validation_error", details: parsed.error.flatten() },
       { status: 400 }
     );
@@ -116,7 +121,7 @@ export async function POST(request: NextRequest) {
       );
     } catch (err) {
       if (isUniqueViolation(err)) {
-        return NextResponse.json({
+        return jsonCors({
           ok: true,
           event_id: eventId,
           deduped: true,
@@ -125,7 +130,7 @@ export async function POST(request: NextRequest) {
       throw err;
     }
 
-    return NextResponse.json({
+    return jsonCors({
       ok: true,
       event_id: eventId,
       meta: metaResults.map((r) => ({
@@ -136,7 +141,7 @@ export async function POST(request: NextRequest) {
       })),
     });
   } catch (err) {
-    return NextResponse.json(
+    return jsonCors(
       {
         error: "server_error",
         message: err instanceof Error ? err.message : "unknown",

@@ -16,6 +16,8 @@ Só isso já:
 - guarda `trck_user_id` (cookie + localStorage)
 - anexa `trck_user_id` em cliques de links Hotmart/Kiwify/Eduzz/WhatsApp/checkout
 
+As rotas `/api/identify` e `/api/event` respondem com CORS (`Access-Control-Allow-Origin: *`) para o snippet rodar em qualquer domínio do cliente.
+
 ## Eventos manuais (botões)
 
 ```html
