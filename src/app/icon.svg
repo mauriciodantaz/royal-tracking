@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Royal Tracking">
+  <style>
+    .bg { fill: #e8f5ec; }
+    .fg { fill: #166534; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0f1a14; }
+      .fg { fill: #4ade80; }
+    }
+  </style>
+  <rect class="bg" width="32" height="32" rx="7"/>
+  <path class="fg" d="M8 22h3.2v-6.5H8V22zm6.4 0h3.2V10H14.4v12zm6.4 0H24V14h-3.2v8z"/>
+</svg>
