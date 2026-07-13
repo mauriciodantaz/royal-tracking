@@ -1,8 +1,4 @@
-name: Deploy Royal Tracking
-
-# Alvo: VPS RoyalServer — https://tracking.royalserver.com.br
-# Secrets: VPS_HOST, VPS_USER, VPS_SSH_KEY
-# Instância: royaltracking_dev
+name: Deploy tracking
 
 on:
   push:
@@ -10,14 +6,16 @@ on:
       - main
   workflow_dispatch:
 
-env:
-  INSTANCE_DIR: /root/projects/royaltracking_dev
+concurrency:
+  group: deploy-tracking
+  cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Deploy on RoyalServer VPS
+      - name: Deploy on VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -26,11 +24,5 @@ jobs:
           command_timeout: 30m
           script: |
             set -euo pipefail
-            cd "${{ env.INSTANCE_DIR }}"
-            # Actions sempre publica main (VPS pode ter BRANCH legado).
-            export ROYAL_TRACKING_BRANCH=main
-            # Troca para main ANTES do deploy.sh (repo na VPS pode estar em branch antiga).
-            git fetch origin main
-            git reset --hard origin/main
-            git clean -fd -e .env -e .instance -e node_modules -e .next -e stack.deployed.yml -e portainer-stack.generated.yml || true
-            bash ./deploy.sh
+            chmod +x /root/projects/tracking/ops/deploy.sh
+            /root/projects/tracking/ops/deploy.sh

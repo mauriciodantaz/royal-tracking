@@ -1,0 +1,43 @@
+project:
+  repository: "mauriciodantaz/tracking"
+  slug: "tracking"
+  branch: "main"
+  framework: "nextjs"
+  application_type: "node-ssr-standalone"
+
+build:
+  package_manager: "npm"
+  install_command: "npm ci --legacy-peer-deps"
+  build_command: "npm run build"
+  output_directory: ".next/standalone"
+  start_command: "node server.js"
+
+vps:
+  os: "debian-11"
+  project_directory: "/root/projects/tracking"
+  deploy_script: "/root/projects/tracking/ops/deploy.sh"
+  git_ssh_host_alias: "github.com-tracking"
+  git_origin: "git@github.com-tracking:mauriciodantaz/tracking.git"
+  deploy_key_file: "~/.ssh/id_ed25519_tracking"
+  shell: "bash"
+
+deployment:
+  strategy: "docker-swarm-volume-node"
+  runtime: "node"
+  port: "3000"
+  healthcheck: "none"
+  build_mode: "docker"
+  node_image: "node:22-alpine"
+  # Env keys from .env.example → Portainer stack environment: (not a VPS .env file)
+  environment_source: "portainer-stack-environment"
+
+docker:
+  stack_name: "tracking"
+  service_name: "app"
+  full_service_name: "auto-detect:^tracking_"
+  volume_name: "tracking"
+  volume_directory: "/var/lib/docker/volumes/tracking/_data"
+  network: "RoyalNet"
+
+domain:
+  hostname: "tracking.royalserver.com.br"

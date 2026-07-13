@@ -1,0 +1,51 @@
+# Create this stack ONLY in Portainer Web UI (Stacks → Add stack → Web editor).
+# Do NOT create the stack via SSH CLI (Portainer UI edits break on CLI-created stacks).
+# Git copy uses placeholders for secrets. For Portainer, paste the filled YAML from the delivery guide.
+# Stack name in Portainer: tracking  → service auto-detect: tracking_app
+# network name and Traefik Host follow the target VPS reference YAML.
+version: "3.7"
+
+services:
+  app:
+    image: node:22-alpine
+    working_dir: /app
+    command: ["node", "server.js"]
+    volumes:
+      - /var/lib/docker/volumes/tracking/_data:/app
+    networks:
+      - RoyalNet
+    environment:
+      TZ: America/Sao_Paulo
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      DATABASE_URL: postgresql://royaltracking_dev:CHANGE_ME_DB_PASSWORD@postgres:5432/royaltracking_dev
+      ENCRYPTION_KEY: CHANGE_ME_ENCRYPTION_KEY
+      AUTH_SECRET: CHANGE_ME_AUTH_SECRET
+      NEXTAUTH_URL: https://tracking.royalserver.com.br
+      NEXT_PUBLIC_APP_URL: https://tracking.royalserver.com.br
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: CHANGE_ME_ADMIN_PASSWORD
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1024M
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.tracking.rule=Host(`tracking.royalserver.com.br`)
+        - traefik.http.services.tracking.loadbalancer.server.port=3000
+        - traefik.http.routers.tracking.service=tracking
+        - traefik.http.routers.tracking.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.tracking.entrypoints=websecure
+        - traefik.http.routers.tracking.tls=true
+
+networks:
+  RoyalNet:
+    external: true
+    name: RoyalNet
