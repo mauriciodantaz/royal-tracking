@@ -31,10 +31,12 @@ if git remote get-url origin >/dev/null 2>&1; then
   fi
 fi
 
-log "Updating repository (${BRANCH}) with --ff-only"
+log "Updating repository (${BRANCH})"
+# chmod/+x e CRLF sujam o working tree na VPS e bloqueiam pull --ff-only
+git config core.fileMode false
 git fetch origin "${BRANCH}"
-git checkout "${BRANCH}"
-git pull --ff-only origin "${BRANCH}"
+git checkout -f "${BRANCH}"
+git reset --hard "origin/${BRANCH}"
 log "HEAD: $(git rev-parse --short HEAD) — $(git log -1 --pretty=%s)"
 
 log "Building with Docker (${NODE_IMAGE}) — host npm/node NOT required"

@@ -24,5 +24,4 @@ jobs:
           command_timeout: 30m
           script: |
             set -euo pipefail
-            chmod +x /root/projects/tracking/ops/deploy.sh
-            /root/projects/tracking/ops/deploy.sh
+            bash /root/projects/tracking/ops/deploy.sh

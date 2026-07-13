@@ -1,6 +1,7 @@
 # Deploy checklist — tracking
 
 Strategy: docker-swarm-volume-node | Framework: nextjs | Build mode: docker
+<!-- smoke: Actions → ops/deploy.sh (2026-07-13) -->
 
 ## Pós-geração
 
