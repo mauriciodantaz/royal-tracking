@@ -52,6 +52,7 @@ export async function GET(request: NextRequest, context: Ctx) {
 
   let clientId: string;
   let authorizeUrl: string;
+  let authorizeQuery: Record<string, string> | undefined;
 
   if (provider === "rdstation_crm" || provider === "rdstation_mkt") {
     const conn = connectionId ? await getConnection(connectionId) : null;
@@ -74,6 +75,7 @@ export async function GET(request: NextRequest, context: Ctx) {
     }
     clientId = creds.clientId;
     authorizeUrl = creds.authorizeUrl;
+    authorizeQuery = creds.authorizeQuery;
   } else if (provider === "google_ads") {
     const env = googleOAuthEnv();
     if (!env) {
@@ -102,6 +104,11 @@ export async function GET(request: NextRequest, context: Ctx) {
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("state", state);
+  if (authorizeQuery) {
+    for (const [key, value] of Object.entries(authorizeQuery)) {
+      url.searchParams.set(key, value);
+    }
+  }
   if (provider === "google_ads") {
     url.searchParams.set(
       "scope",

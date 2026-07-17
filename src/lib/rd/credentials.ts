@@ -11,16 +11,21 @@ export type RdOAuthCredentials = {
   clientSecret: string;
   authorizeUrl: string;
   tokenUrl: string;
-  /** CRM uses form-urlencoded; Marketing uses JSON. */
+  /** CRM uses form-urlencoded; Marketing uses JSON (n8n: Authentication body). */
   tokenBodyFormat: RdTokenBodyFormat;
+  /** Extra query params on authorize (CRM: scope=read write). */
+  authorizeQuery?: Record<string, string>;
   source: "connection" | "env";
 };
 
-/** Marketing App Store OAuth */
+/**
+ * Same split as n8n OAuth2 credentials:
+ * - CRM: accounts.rdstation.com/oauth/authorize + api.rd.services/oauth2/token (form)
+ * - MKT: api.rd.services/auth/dialog + api.rd.services/auth/token (JSON body)
+ */
 const MKT_AUTHORIZE = "https://api.rd.services/auth/dialog";
 const MKT_TOKEN = "https://api.rd.services/auth/token";
 
-/** CRM v2 OAuth (product-specific credentials) */
 const CRM_AUTHORIZE = "https://accounts.rdstation.com/oauth/authorize";
 const CRM_TOKEN = "https://api.rd.services/oauth2/token";
 
@@ -28,12 +33,14 @@ function endpointsForProvider(provider: string): {
   authorizeUrl: string;
   tokenUrl: string;
   tokenBodyFormat: RdTokenBodyFormat;
+  authorizeQuery?: Record<string, string>;
 } {
   if (provider === "rdstation_crm") {
     return {
       authorizeUrl: CRM_AUTHORIZE,
       tokenUrl: CRM_TOKEN,
       tokenBodyFormat: "form",
+      authorizeQuery: { scope: "read write" },
     };
   }
   return {

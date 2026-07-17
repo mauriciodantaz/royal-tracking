@@ -32,11 +32,16 @@ Env Portainer (`RDSTATION_CRM_CLIENT_ID` / `SECRET`) fica só como fallback lega
 
 ## App na RD App Store
 
-O app precisa ser do produto **RD Station CRM** (credenciais de Marketing não autenticam a CRM API v2).
+O app precisa ser do produto **RD Station CRM** (credenciais de Marketing não autenticam a CRM API v2). Mesmo split do n8n:
 
-OAuth CRM usa:
-- Authorize: `https://accounts.rdstation.com/oauth/authorize`
-- Token: `https://api.rd.services/oauth2/token`
+| Campo | Valor |
+|---|---|
+| Authorization URL | `https://accounts.rdstation.com/oauth/authorize` |
+| Access Token URL | `https://api.rd.services/oauth2/token` |
+| Scope / Auth URI params | `scope=read write` |
+| Token body | `application/x-www-form-urlencoded` |
+
+Callback no app RD = a URL mostrada no painel (`…/oauth/callback`), não a do n8n.
 
 ## Como conectar
 

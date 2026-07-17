@@ -8,9 +8,18 @@ Conecte o **RD Station Marketing** via OAuth. Em vez de funis custom dinâmicos,
 - App na [RD App Store](https://appstore.rdstation.com/) com Client ID + Client Secret
 - Destinos **Meta Pixel (CAPI)** e/ou **GA4** já conectados
 
+## OAuth (igual n8n)
+
+| Campo | Valor |
+|---|---|
+| Authorization URL | `https://api.rd.services/auth/dialog` |
+| Access Token URL | `https://api.rd.services/auth/token` |
+| Auth URI Query Parameters | *(vazio)* |
+| Token body | JSON (`client_id` / `client_secret` no body) |
+
 ## URL de callback
 
-Cadastre no app RD:
+Cadastre no app RD (não use a callback do n8n):
 
 ```text
 {NEXTAUTH_URL}/api/integrations/rdstation_mkt/oauth/callback
