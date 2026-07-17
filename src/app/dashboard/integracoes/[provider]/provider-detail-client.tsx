@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, ArrowRight, Trash2 } from "lucide-react";
 
@@ -17,7 +17,104 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { IntegrationModuleDef } from "@/lib/integrations/registry";
+
+type OutboundOption = {
+  id: string;
+  label: string;
+  provider: string;
+};
+
+function MappingForm({
+  provider,
+  defaultSourceEvent,
+  outboundOptions,
+  pending,
+  start,
+  onSaved,
+}: {
+  provider: string;
+  defaultSourceEvent: string;
+  outboundOptions: OutboundOption[];
+  pending: boolean;
+  start: ReturnType<typeof useTransition>[1];
+  onSaved: () => void;
+}) {
+  const [destId, setDestId] = useState("");
+
+  return (
+    <form
+      className="grid gap-3 rounded-xl border border-border/60 p-4 sm:grid-cols-2 lg:grid-cols-4"
+      action={(fd) =>
+        start(async () => {
+          if (!destId) {
+            toast.error("Selecione um destino (pixel / GA4).");
+            return;
+          }
+          fd.set("dest_connection_id", destId);
+          try {
+            await upsertEventMapping(fd);
+            toast.success("Mapeamento salvo");
+            setDestId("");
+            onSaved();
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Erro");
+          }
+        })
+      }
+    >
+      <input type="hidden" name="source_provider" value={provider} />
+      <input type="hidden" name="enabled" value="true" />
+      <input type="hidden" name="dest_connection_id" value={destId} />
+      <div className="space-y-1.5">
+        <Label>Evento fonte</Label>
+        <Input
+          name="source_event"
+          placeholder={defaultSourceEvent}
+          required
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label>Destino</Label>
+        <Select
+          value={destId || undefined}
+          onValueChange={(value) => setDestId(String(value ?? ""))}
+        >
+          <SelectTrigger className="w-full min-w-0">
+            <SelectValue placeholder="Selecione" />
+          </SelectTrigger>
+          <SelectContent align="start" className="min-w-[var(--anchor-width)]">
+            {outboundOptions.map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {o.label} ({o.provider})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1.5">
+        <Label>Nome no destino</Label>
+        <Input
+          name="dest_event_name"
+          placeholder="Purchase / generate_lead"
+          required
+        />
+      </div>
+      <div className="flex items-end">
+        <Button type="submit" disabled={pending} className="w-full">
+          Adicionar mapeamento
+        </Button>
+      </div>
+    </form>
+  );
+}
 
 function DocsHelpLink({ provider }: { provider: string }) {
   return (
@@ -64,12 +161,6 @@ type Mapping = {
   dest_connection_id: string;
   dest_event_name: string;
   dest_label?: string;
-};
-
-type OutboundOption = {
-  id: string;
-  label: string;
-  provider: string;
 };
 
 export function ProviderDetailClient({
@@ -180,7 +271,10 @@ export function ProviderDetailClient({
                           const r = await upsertConnection(fd);
                           if (r.ok) {
                             toast.success("Alterações validadas e salvas");
-                            refresh();
+                            await new Promise((resolve) =>
+                              setTimeout(resolve, 900)
+                            );
+                            router.push("/dashboard/integracoes");
                           } else {
                             toast.error(r.error);
                           }
@@ -313,7 +407,10 @@ export function ProviderDetailClient({
                     const r = await upsertConnection(fd);
                     if (r.ok) {
                       toast.success("Conexão validada e integração salva");
-                      refresh();
+                      await new Promise((resolve) =>
+                        setTimeout(resolve, 900)
+                      );
+                      router.push("/dashboard/integracoes");
                     } else {
                       toast.error(r.error);
                     }
@@ -358,7 +455,10 @@ export function ProviderDetailClient({
                     const r = await upsertConnection(fd);
                     if (r.ok) {
                       toast.success("Conexão validada e integração salva");
-                      refresh();
+                      await new Promise((resolve) =>
+                        setTimeout(resolve, 900)
+                      );
+                      router.push("/dashboard/integracoes");
                     } else {
                       toast.error(r.error);
                     }
@@ -496,62 +596,14 @@ export function ProviderDetailClient({
         )}
 
         {outboundOptions.length > 0 ? (
-          <form
-            className="grid gap-3 rounded-xl border border-border/60 p-4 sm:grid-cols-2 lg:grid-cols-4"
-            action={(fd) =>
-              start(async () => {
-                try {
-                  await upsertEventMapping(fd);
-                  toast.success("Mapeamento salvo");
-                  refresh();
-                } catch (e) {
-                  toast.error(e instanceof Error ? e.message : "Erro");
-                }
-              })
-            }
-          >
-            <input type="hidden" name="source_provider" value={mod.provider} />
-            <input type="hidden" name="enabled" value="true" />
-            <div className="space-y-1.5">
-              <Label>Evento fonte</Label>
-              <Input
-                name="source_event"
-                placeholder={mod.defaultSourceEvents?.[0] ?? "Lead"}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Destino</Label>
-              <select
-                name="dest_connection_id"
-                required
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
-                defaultValue=""
-              >
-                <option value="" disabled>
-                  Selecione
-                </option>
-                {outboundOptions.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.label} ({o.provider})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Nome no destino</Label>
-              <Input
-                name="dest_event_name"
-                placeholder="Purchase / generate_lead"
-                required
-              />
-            </div>
-            <div className="flex items-end">
-              <Button type="submit" disabled={pending} className="w-full">
-                Adicionar mapeamento
-              </Button>
-            </div>
-          </form>
+          <MappingForm
+            provider={mod.provider}
+            defaultSourceEvent={mod.defaultSourceEvents?.[0] ?? "Lead"}
+            outboundOptions={outboundOptions}
+            pending={pending}
+            start={start}
+            onSaved={refresh}
+          />
         ) : null}
       </section>
     </div>
