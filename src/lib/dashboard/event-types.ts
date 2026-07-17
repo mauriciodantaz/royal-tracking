@@ -1,0 +1,21 @@
+export type EventRow = {
+  id: string;
+  event_name: string;
+  event_id: string;
+  trck_user_id: string | null;
+  utm_source: string | null;
+  utm_campaign: string | null;
+  geo_country: string | null;
+  geo_city: string | null;
+  created_at: string;
+  payload_meta: unknown;
+  response_meta: unknown;
+  payload_ga4: unknown;
+  response_ga4: unknown;
+  ingest_path?: string | null;
+  channel_class?: string | null;
+  web_meta?: boolean | null;
+  web_ga4?: boolean | null;
+  server_meta?: boolean | null;
+  server_ga4?: boolean | null;
+};
