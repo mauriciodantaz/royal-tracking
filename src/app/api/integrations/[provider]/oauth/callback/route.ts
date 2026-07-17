@@ -138,8 +138,14 @@ export async function GET(request: NextRequest, context: Ctx) {
   const refreshCipher = tokenJson.refresh_token
     ? await encryptSecret(tokenJson.refresh_token)
     : null;
-  const expiresAt = tokenJson.expires_in
-    ? new Date(Date.now() + tokenJson.expires_in * 1000).toISOString()
+  const ttlSec =
+    typeof tokenJson.expires_in === "number" && tokenJson.expires_in > 0
+      ? tokenJson.expires_in
+      : provider === "rdstation_crm" || provider === "rdstation_mkt"
+        ? 86_400
+        : null;
+  const expiresAt = ttlSec
+    ? new Date(Date.now() + ttlSec * 1000).toISOString()
     : null;
 
   let id = connectionId;

@@ -86,8 +86,11 @@ export async function resolveRdCredentials(
             source: "connection",
           };
         }
-      } catch {
-        /* fall through to env */
+      } catch (err) {
+        console.error(
+          "[rd] client_secret decrypt failed — falling back to env",
+          { connectionId: conn.id, provider, err }
+        );
       }
     }
   }

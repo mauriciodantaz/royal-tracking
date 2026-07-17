@@ -22,14 +22,22 @@ export async function getValidAccessToken(
   conn: IntegrationConnectionRow
 ): Promise<{ token: string; conn: IntegrationConnectionRow }> {
   const refreshed = await refreshConnectionIfNeeded(conn);
-  const meta = metadataRecord(refreshed.metadata);
-  if (meta.needs_reauth === true) {
-    throw new RdAuthError("RD Station precisa de reautorização OAuth");
-  }
   const token = await decryptAccessToken(refreshed);
   if (!token) {
     throw new RdAuthError("RD Station sem access token — conecte com OAuth");
   }
+
+  const meta = metadataRecord(refreshed.metadata);
+  if (meta.needs_reauth === true) {
+    // Sticky flag from a lost refresh race must not block a still-valid access token.
+    const exp = refreshed.expires_at
+      ? new Date(refreshed.expires_at).getTime()
+      : NaN;
+    if (!Number.isFinite(exp) || exp <= Date.now()) {
+      throw new RdAuthError("RD Station precisa de reautorização OAuth");
+    }
+  }
+
   return { token, conn: refreshed };
 }
 
