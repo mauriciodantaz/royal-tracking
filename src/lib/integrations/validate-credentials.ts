@@ -374,9 +374,15 @@ export async function validateIntegrationCredentials(input: {
     }
     case "snippet":
     case "google_ads":
-    case "rdstation_crm":
-    case "rdstation_mkt":
       return { ok: true };
+    case "rdstation_crm":
+    case "rdstation_mkt": {
+      const clientId = cfg.client_id?.trim() || "";
+      if (!clientId) {
+        return { ok: false, error: "Informe o Client ID do app RD App Store." };
+      }
+      return { ok: true };
+    }
     default:
       return { ok: true };
   }

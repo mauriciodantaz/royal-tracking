@@ -14,6 +14,8 @@ import {
   getModule,
   isIntegrationProvider,
 } from "@/lib/integrations/registry";
+import { metadataRecord } from "@/lib/rd/credentials";
+import { MKT_LIFECYCLE_SLOTS } from "@/lib/rd/mkt";
 
 export const dynamic = "force-dynamic";
 
@@ -34,10 +36,24 @@ function configRecord(
   if (!config || typeof config !== "object" || Array.isArray(config)) return {};
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(config as Record<string, unknown>)) {
-    if (v != null && v !== "") out[k] = String(v);
+    if (v != null && v !== "" && k !== "client_secret_cipher") {
+      out[k] = String(v);
+    }
   }
   return out;
 }
+
+type StageMapRow = {
+  id: string;
+  connection_id: string;
+  stage_external_id: string | null;
+  mkt_lifecycle: string | null;
+  meta_event_name: string | null;
+  ga4_event_name: string | null;
+  stage_name: string | null;
+  pipeline_name: string | null;
+  stage_order: number | null;
+};
 
 export default async function ProviderIntegracaoPage({ params }: Props) {
   const { provider } = await params;
@@ -50,10 +66,14 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
   let mappings: Array<IntegrationEventMappingRow & { dest_label?: string }> =
     [];
   let outbound: IntegrationConnectionRow[] = [];
+  let stageMaps: StageMapRow[] = [];
   let stackCurrency = "BRL";
   let stackTestEventCode = "";
   let error: string | null = null;
   const appUrl = getAppUrl().replace(/\/$/, "");
+
+  const isRd =
+    provider === "rdstation_crm" || provider === "rdstation_mkt";
 
   try {
     await ensureDbReady();
@@ -89,6 +109,44 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
       stackCurrency = s.currency || "BRL";
       stackTestEventCode = s.test_event_code ?? "";
     }
+
+    if (isRd && connections.length > 0) {
+      const ids = connections.map((x) => x.id);
+      const maps = await query<StageMapRow>(
+        `select
+           m.id,
+           m.connection_id,
+           m.stage_external_id,
+           m.mkt_lifecycle,
+           m.meta_event_name,
+           m.ga4_event_name,
+           s.name as stage_name,
+           p.name as pipeline_name,
+           s.stage_order
+         from rd_stage_event_maps m
+         left join rd_stages s
+           on s.connection_id = m.connection_id
+          and s.external_id = m.stage_external_id
+         left join rd_pipelines p on p.id = s.pipeline_id
+         where m.connection_id = any($1::uuid[])
+         order by m.connection_id, p.name nulls last, s.stage_order nulls last, m.mkt_lifecycle`,
+        [ids]
+      );
+      stageMaps = maps.rows;
+
+      if (provider === "rdstation_mkt") {
+        const labels = Object.fromEntries(
+          MKT_LIFECYCLE_SLOTS.map((x) => [x.key, x.label])
+        );
+        stageMaps = stageMaps.map((row) => ({
+          ...row,
+          stage_name: row.mkt_lifecycle
+            ? labels[row.mkt_lifecycle] || row.mkt_lifecycle
+            : row.stage_name,
+          pipeline_name: row.mkt_lifecycle ? "Lifecycle MKT" : row.pipeline_name,
+        }));
+      }
+    }
   } catch (e) {
     error = e instanceof Error ? e.message : "Erro ao carregar";
   }
@@ -106,6 +164,20 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
       const cfg = configRecord(c.config);
       const accessToken = await safeDecrypt(c.access_token_cipher);
       const webhookSecret = await safeDecrypt(c.webhook_secret_cipher);
+      const secretCipher =
+        c.config &&
+        typeof c.config === "object" &&
+        !Array.isArray(c.config) &&
+        typeof (c.config as Record<string, unknown>).client_secret_cipher ===
+          "string"
+          ? String(
+              (c.config as Record<string, unknown>).client_secret_cipher
+            )
+          : null;
+      if (secretCipher) {
+        cfg.client_secret = await safeDecrypt(secretCipher);
+      }
+      const meta = metadataRecord(c.metadata);
       return {
         id: c.id,
         label: c.label,
@@ -114,13 +186,38 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
         accessToken,
         webhookSecret,
         config: cfg,
+        oauthConnected: Boolean(c.access_token_cipher),
+        needsReauth: meta.needs_reauth === true,
         webhookUrl:
           (c.direction === "inbound" || c.direction === "both") &&
-          (mod.authType === "webhook_secret" || c.webhook_secret_cipher)
+          (mod.authType === "webhook_secret" ||
+            c.webhook_secret_cipher ||
+            isRd)
             ? `${appUrl}/api/webhook/in/${c.id}`
             : null,
       };
     })
+  );
+
+  const stageMapsByConnection = Object.fromEntries(
+    connectionsForClient.map((c) => [
+      c.id,
+      stageMaps
+        .filter((m) => m.connection_id === c.id)
+        .map((m) => ({
+          id: m.id,
+          stage_external_id: m.stage_external_id,
+          mkt_lifecycle: m.mkt_lifecycle,
+          meta_event_name: m.meta_event_name ?? "",
+          ga4_event_name: m.ga4_event_name ?? "",
+          label:
+            m.stage_name ||
+            m.mkt_lifecycle ||
+            m.stage_external_id ||
+            "Estágio",
+          pipeline: m.pipeline_name || "",
+        })),
+    ])
   );
 
   return (
@@ -143,6 +240,12 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
       }))}
       stackCurrency={stackCurrency}
       stackTestEventCode={stackTestEventCode}
+      stageMapsByConnection={stageMapsByConnection}
+      oauthCallbackUrl={
+        isRd
+          ? `${appUrl}/api/integrations/${provider}/oauth/callback`
+          : null
+      }
     />
   );
 }

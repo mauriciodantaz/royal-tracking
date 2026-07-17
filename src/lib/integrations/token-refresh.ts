@@ -4,10 +4,14 @@ import { encryptSecret, decryptSecret } from "@/lib/crypto/secrets";
 import { ensureDbReady } from "@/lib/db/boot";
 import { query, queryOne } from "@/lib/db/pool";
 import type { IntegrationConnectionRow } from "@/lib/db/types";
+import {
+  metadataRecord,
+  resolveRdCredentials,
+} from "@/lib/rd/credentials";
 
 /**
  * Lazy OAuth refresh — call before using access token.
- * Supports RD Station token endpoint shape.
+ * RD: credentials from connection config (UI), env as legacy fallback.
  */
 export async function refreshConnectionIfNeeded(
   conn: IntegrationConnectionRow
@@ -24,12 +28,17 @@ export async function refreshConnectionIfNeeded(
   let clientSecret: string | undefined;
   let tokenUrl = "https://api.rd.services/auth/token";
 
-  if (conn.provider === "rdstation_crm") {
-    clientId = process.env.RDSTATION_CRM_CLIENT_ID;
-    clientSecret = process.env.RDSTATION_CRM_CLIENT_SECRET;
-  } else if (conn.provider === "rdstation_mkt") {
-    clientId = process.env.RDSTATION_MKT_CLIENT_ID;
-    clientSecret = process.env.RDSTATION_MKT_CLIENT_SECRET;
+  if (
+    conn.provider === "rdstation_crm" ||
+    conn.provider === "rdstation_mkt"
+  ) {
+    const creds = await resolveRdCredentials(conn, conn.provider);
+    if (!creds) {
+      return markNeedsReauth(conn, "missing_oauth_app_credentials");
+    }
+    clientId = creds.clientId;
+    clientSecret = creds.clientSecret;
+    tokenUrl = creds.tokenUrl;
   } else if (conn.provider === "google_ads") {
     clientId = process.env.GOOGLE_ADS_CLIENT_ID;
     clientSecret = process.env.GOOGLE_ADS_CLIENT_SECRET;
@@ -54,7 +63,10 @@ export async function refreshConnectionIfNeeded(
     refresh_token?: string;
     expires_in?: number;
   } | null;
-  if (!res.ok || !json?.access_token) return conn;
+
+  if (!res.ok || !json?.access_token) {
+    return markNeedsReauth(conn, "refresh_failed");
+  }
 
   await ensureDbReady();
   const accessCipher = await encryptSecret(json.access_token);
@@ -65,14 +77,26 @@ export async function refreshConnectionIfNeeded(
     ? new Date(Date.now() + json.expires_in * 1000).toISOString()
     : null;
 
+  const meta = metadataRecord(conn.metadata);
+  delete meta.needs_reauth;
+  delete meta.reauth_reason;
+  meta.last_refresh_at = new Date().toISOString();
+
   await query(
     `update integration_connections set
        access_token_cipher = $1,
        refresh_token_cipher = $2,
        expires_at = $3,
+       metadata = $4::jsonb,
        updated_at = now()
-     where id = $4`,
-    [accessCipher, refreshCipher, expiresAt, conn.id]
+     where id = $5`,
+    [
+      accessCipher,
+      refreshCipher,
+      expiresAt,
+      JSON.stringify(meta),
+      conn.id,
+    ]
   );
 
   const updated = await queryOne<IntegrationConnectionRow>(
@@ -80,4 +104,31 @@ export async function refreshConnectionIfNeeded(
     [conn.id]
   );
   return updated ?? conn;
+}
+
+async function markNeedsReauth(
+  conn: IntegrationConnectionRow,
+  reason: string
+): Promise<IntegrationConnectionRow> {
+  await ensureDbReady();
+  const meta = metadataRecord(conn.metadata);
+  meta.needs_reauth = true;
+  meta.reauth_reason = reason;
+  await query(
+    `update integration_connections set
+       metadata = $1::jsonb,
+       updated_at = now()
+     where id = $2`,
+    [JSON.stringify(meta), conn.id]
+  );
+  const updated = await queryOne<IntegrationConnectionRow>(
+    `select * from integration_connections where id = $1`,
+    [conn.id]
+  );
+  return (
+    updated ?? {
+      ...conn,
+      metadata: meta as IntegrationConnectionRow["metadata"],
+    }
+  );
 }

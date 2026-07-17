@@ -1,6 +1,6 @@
 # Credenciais e configuração de integrações
 
-Guias no estilo “como preencher estes campos” para cada integração **não-OAuth** do Royal Tracking.
+Guias no estilo “como preencher estes campos” para cada integração do Royal Tracking.
 
 No painel: **Integrações → [plataforma] → Precisa de ajuda com estes campos?**  
 URL: `/dashboard/integracoes/{provider}/docs`
@@ -13,8 +13,10 @@ URL: `/dashboard/integracoes/{provider}/docs`
 | Hotmart | [hotmart.md](./hotmart.md) | `hotmart` |
 | Kiwify | [kiwify.md](./kiwify.md) | `kiwify` |
 | Eduzz | [eduzz.md](./eduzz.md) | `eduzz` |
+| RD Station CRM | [rdstation-crm.md](./rdstation-crm.md) | `rdstation_crm` |
+| RD Station Marketing | [rdstation-mkt.md](./rdstation-mkt.md) | `rdstation_mkt` |
 | RD Conversas | [rdstation-conversas.md](./rdstation-conversas.md) | `rdstation_conversas` |
 | Pipedrive | [pipedrive.md](./pipedrive.md) | `pipedrive` |
 | Site / Forms | [snippet.md](./snippet.md) | `snippet` |
 
-Integrações OAuth (Google Ads, RD CRM, RD Marketing) usam CLIENT_ID/SECRET no Portainer — ver [INTEGRATIONS.md](../INTEGRATIONS.md).
+RD CRM/MKT: Client ID/Secret na UI (Portainer só como fallback). Google Ads OAuth ainda usa env — ver [INTEGRATIONS.md](../INTEGRATIONS.md).

@@ -15,6 +15,11 @@ import {
   isIntegrationProvider,
 } from "@/lib/integrations/registry";
 import { validateIntegrationCredentials } from "@/lib/integrations/validate-credentials";
+import {
+  cleanupRdWebhooks,
+  ensureRdWebhooks,
+  syncRdFunnels,
+} from "@/lib/rd/sync";
 
 async function requireUser() {
   const session = await auth();
@@ -57,6 +62,10 @@ export async function upsertConnection(formData: FormData): Promise<
     if (v) config[field.key] = v;
   }
 
+  const clientSecret = String(formData.get("client_secret") ?? "").trim();
+  const isRdOAuth =
+    provider === "rdstation_crm" || provider === "rdstation_mkt";
+
   const accountExternalId =
     config.pixel_id ||
     config.measurement_id ||
@@ -79,8 +88,9 @@ export async function upsertConnection(formData: FormData): Promise<
 
   let tokenForValidation = accessToken;
   let webhookForValidation = webhookSecret;
+  let existingClientSecretCipher: string | null = null;
 
-  if (id && (!tokenForValidation || !webhookForValidation)) {
+  if (id) {
     const existing = await queryOne<IntegrationConnectionRow>(
       `select * from integration_connections where id = $1`,
       [id]
@@ -119,6 +129,36 @@ export async function upsertConnection(formData: FormData): Promise<
       ) {
         config.ad_account_id = existing.account_external_id;
       }
+      if (isRdOAuth) {
+        const cfg =
+          existing.config &&
+          typeof existing.config === "object" &&
+          !Array.isArray(existing.config)
+            ? (existing.config as Record<string, unknown>)
+            : {};
+        if (!config.client_id && typeof cfg.client_id === "string") {
+          config.client_id = cfg.client_id;
+        }
+        if (typeof cfg.client_secret_cipher === "string") {
+          existingClientSecretCipher = cfg.client_secret_cipher;
+        }
+      }
+    }
+  }
+
+  if (isRdOAuth) {
+    if (clientSecret) {
+      config.client_secret_cipher = await encryptSecret(clientSecret);
+    } else if (existingClientSecretCipher) {
+      config.client_secret_cipher = existingClientSecretCipher;
+    } else {
+      return {
+        ok: false,
+        error: "Informe o Client Secret do app RD App Store.",
+      };
+    }
+    if (!config.client_id?.trim()) {
+      return { ok: false, error: "Informe o Client ID do app RD App Store." };
     }
   }
 
@@ -271,6 +311,16 @@ export async function deleteConnection(id: string) {
     `select * from integration_connections where id = $1`,
     [id]
   );
+  if (
+    conn &&
+    (conn.provider === "rdstation_crm" || conn.provider === "rdstation_mkt")
+  ) {
+    try {
+      await cleanupRdWebhooks(conn);
+    } catch {
+      /* best-effort */
+    }
+  }
   await query(`delete from integration_connections where id = $1`, [id]);
   if (conn?.provider === "meta_pixel") {
     await query(`delete from meta_pixels where id = $1`, [id]);
@@ -281,6 +331,111 @@ export async function deleteConnection(id: string) {
   }
   revalidateIntegrations(conn?.provider);
   return { ok: true as const };
+}
+
+export async function syncRdFunnelsAction(
+  connectionId: string
+): Promise<{ ok: true; pipelines: number; stages: number } | { ok: false; error: string }> {
+  await requireUser();
+  try {
+    const result = await syncRdFunnels(connectionId);
+    try {
+      await ensureRdWebhooks(connectionId);
+    } catch (err) {
+      console.error("[rd] ensureRdWebhooks", err);
+    }
+    const conn = await queryOne<IntegrationConnectionRow>(
+      `select provider from integration_connections where id = $1`,
+      [connectionId]
+    );
+    revalidateIntegrations(conn?.provider);
+    return { ok: true, ...result };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Falha ao sincronizar funis",
+    };
+  }
+}
+
+export async function saveRdStageMapsAction(
+  formData: FormData
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireUser();
+  const connectionId = String(formData.get("connection_id") ?? "").trim();
+  if (!connectionId) {
+    return { ok: false, error: "connection_id obrigatório" };
+  }
+
+  const conn = await queryOne<IntegrationConnectionRow>(
+    `select * from integration_connections where id = $1`,
+    [connectionId]
+  );
+  if (
+    !conn ||
+    (conn.provider !== "rdstation_crm" && conn.provider !== "rdstation_mkt")
+  ) {
+    return { ok: false, error: "Conexão RD inválida" };
+  }
+
+  const mapsJson = String(formData.get("maps") ?? "").trim();
+  let maps: Array<{
+    id?: string;
+    stage_external_id?: string | null;
+    mkt_lifecycle?: string | null;
+    meta_event_name?: string | null;
+    ga4_event_name?: string | null;
+  }> = [];
+  try {
+    maps = JSON.parse(mapsJson) as typeof maps;
+  } catch {
+    return { ok: false, error: "JSON de mapeamentos inválido" };
+  }
+
+  for (const m of maps) {
+    const meta =
+      m.meta_event_name != null && String(m.meta_event_name).trim()
+        ? String(m.meta_event_name).trim()
+        : null;
+    const ga4 =
+      m.ga4_event_name != null && String(m.ga4_event_name).trim()
+        ? String(m.ga4_event_name).trim()
+        : null;
+
+    if (m.id) {
+      await query(
+        `update rd_stage_event_maps set
+           meta_event_name = $1,
+           ga4_event_name = $2,
+           updated_at = now()
+         where id = $3 and connection_id = $4`,
+        [meta, ga4, m.id, connectionId]
+      );
+    } else if (m.stage_external_id) {
+      await query(
+        `insert into rd_stage_event_maps (
+           connection_id, stage_external_id, meta_event_name, ga4_event_name, updated_at
+         ) values ($1,$2,$3,$4, now())`,
+        [connectionId, m.stage_external_id, meta, ga4]
+      );
+    } else if (m.mkt_lifecycle) {
+      await query(
+        `insert into rd_stage_event_maps (
+           connection_id, mkt_lifecycle, meta_event_name, ga4_event_name, updated_at
+         ) values ($1,$2,$3,$4, now())`,
+        [connectionId, m.mkt_lifecycle, meta, ga4]
+      );
+    }
+  }
+
+  try {
+    await ensureRdWebhooks(connectionId);
+  } catch (err) {
+    console.error("[rd] ensureRdWebhooks after maps", err);
+  }
+
+  revalidateIntegrations(conn.provider);
+  return { ok: true };
 }
 
 export async function upsertEventMapping(formData: FormData) {

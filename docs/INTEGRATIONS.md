@@ -29,17 +29,19 @@ Header: x-webhook-token: <secret da conexão>
 
 ## OAuth
 
-Env no Portainer:
+**RD CRM / RD Marketing:** Client ID e Client Secret na UI (por conexão), cifrados em `integration_connections.config`. Callback visível em Integrações. Env Portainer (`RDSTATION_*_CLIENT_ID/SECRET`) só como fallback legado.
 
-- `RDSTATION_CRM_CLIENT_ID` / `RDSTATION_CRM_CLIENT_SECRET`
-- `RDSTATION_MKT_CLIENT_ID` / `RDSTATION_MKT_CLIENT_SECRET`
+**Google Ads:** ainda via Portainer:
+
 - `GOOGLE_ADS_CLIENT_ID` / `GOOGLE_ADS_CLIENT_SECRET`
 
-Start: `/api/integrations/{provider}/oauth/start`  
+Start: `/api/integrations/{provider}/oauth/start?connection_id=…`  
 Callback: `/api/integrations/{provider}/oauth/callback`
 
-Tokens ficam cifrados em `integration_connections`. Refresh lazy em `token-refresh.ts`.
+Tokens e refresh ficam cifrados. `refreshConnectionIfNeeded` / `getValidAccessToken` renovam antes de cada chamada RD.
+
+Funis/maps: migration `004_rd_funnels.sql`. Webhooks inbound: `/api/webhook/in/{connectionId}`.
 
 ## Schema
 
-Migration `db/migrations/002_integrations_hub.sql` — aplica no boot.
+Migrations `db/migrations/*.sql` — aplicadas no boot.

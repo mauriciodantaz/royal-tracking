@@ -9,6 +9,8 @@ import { ArrowLeft, ArrowRight, Trash2 } from "lucide-react";
 import {
   deleteConnection,
   deleteEventMapping,
+  saveRdStageMapsAction,
+  syncRdFunnelsAction,
   updateMetaTestEventCode,
   updateStackCurrency,
   upsertConnection,
@@ -25,6 +27,27 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { IntegrationModuleDef } from "@/lib/integrations/registry";
+
+const META_EVENT_OPTIONS = [
+  "",
+  "Lead",
+  "CompleteRegistration",
+  "Contact",
+  "InitiateCheckout",
+  "AddPaymentInfo",
+  "Purchase",
+  "Subscribe",
+];
+
+const GA4_EVENT_OPTIONS = [
+  "",
+  "generate_lead",
+  "sign_up",
+  "begin_checkout",
+  "add_payment_info",
+  "purchase",
+  "subscribe",
+];
 
 type OutboundOption = {
   id: string;
@@ -139,6 +162,18 @@ type Conn = {
   webhookSecret: string;
   config: Record<string, string>;
   webhookUrl: string | null;
+  oauthConnected?: boolean;
+  needsReauth?: boolean;
+};
+
+type StageMapItem = {
+  id: string;
+  stage_external_id: string | null;
+  mkt_lifecycle: string | null;
+  meta_event_name: string;
+  ga4_event_name: string;
+  label: string;
+  pipeline: string;
 };
 
 function fieldDefaultValue(
@@ -148,10 +183,157 @@ function fieldDefaultValue(
   if (key === "label") return conn.label;
   if (key === "access_token") return conn.accessToken;
   if (key === "webhook_secret") return conn.webhookSecret;
+  if (key === "client_secret") return conn.config.client_secret || "";
   if (key === "account_external_id") {
     return conn.config.account_external_id || conn.account_external_id || "";
   }
   return conn.config[key] || "";
+}
+
+function isRdProvider(provider: string): boolean {
+  return provider === "rdstation_crm" || provider === "rdstation_mkt";
+}
+
+function RdStageMapsSection({
+  connectionId,
+  maps,
+  pending,
+  start,
+  onSaved,
+}: {
+  connectionId: string;
+  maps: StageMapItem[];
+  pending: boolean;
+  start: ReturnType<typeof useTransition>[1];
+  onSaved: () => void;
+}) {
+  const [rows, setRows] = useState(maps);
+
+  if (maps.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Nenhum estágio sincronizado ainda. Conecte com OAuth ou clique em
+        Sincronizar funis.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3 border-t border-border/50 pt-3">
+      <div>
+        <h3 className="text-sm font-medium">Mapeamento estágio → Meta / GA4</h3>
+        <p className="text-xs text-muted-foreground">
+          Vazio = não enviar para aquele destino. Dedup por estágio da
+          negociação.
+        </p>
+      </div>
+      <div className="space-y-2">
+        {rows.map((row, idx) => (
+          <div
+            key={row.id}
+            className="grid gap-2 rounded-lg border border-border/40 p-2 sm:grid-cols-[1.2fr_1fr_1fr]"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{row.label}</p>
+              {row.pipeline ? (
+                <p className="truncate text-[11px] text-muted-foreground">
+                  {row.pipeline}
+                </p>
+              ) : null}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px]">Meta</Label>
+              <Select
+                value={row.meta_event_name || "__none__"}
+                onValueChange={(value) => {
+                  const v = value === "__none__" ? "" : String(value ?? "");
+                  setRows((prev) =>
+                    prev.map((r, i) =>
+                      i === idx ? { ...r, meta_event_name: v } : r
+                    )
+                  );
+                }}
+              >
+                <SelectTrigger className="w-full min-w-0">
+                  <SelectValue placeholder="Não enviar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {META_EVENT_OPTIONS.map((opt) => (
+                    <SelectItem
+                      key={opt || "none"}
+                      value={opt || "__none__"}
+                    >
+                      {opt || "Não enviar"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px]">GA4</Label>
+              <Select
+                value={row.ga4_event_name || "__none__"}
+                onValueChange={(value) => {
+                  const v = value === "__none__" ? "" : String(value ?? "");
+                  setRows((prev) =>
+                    prev.map((r, i) =>
+                      i === idx ? { ...r, ga4_event_name: v } : r
+                    )
+                  );
+                }}
+              >
+                <SelectTrigger className="w-full min-w-0">
+                  <SelectValue placeholder="Não enviar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {GA4_EVENT_OPTIONS.map((opt) => (
+                    <SelectItem
+                      key={opt || "none"}
+                      value={opt || "__none__"}
+                    >
+                      {opt || "Não enviar"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        ))}
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        disabled={pending}
+        onClick={() =>
+          start(async () => {
+            const fd = new FormData();
+            fd.set("connection_id", connectionId);
+            fd.set(
+              "maps",
+              JSON.stringify(
+                rows.map((r) => ({
+                  id: r.id,
+                  stage_external_id: r.stage_external_id,
+                  mkt_lifecycle: r.mkt_lifecycle,
+                  meta_event_name: r.meta_event_name || null,
+                  ga4_event_name: r.ga4_event_name || null,
+                }))
+              )
+            );
+            const r = await saveRdStageMapsAction(fd);
+            if (r.ok) {
+              toast.success("Mapeamentos salvos");
+              onSaved();
+            } else {
+              toast.error(r.error);
+            }
+          })
+        }
+      >
+        Salvar mapeamentos
+      </Button>
+    </div>
+  );
 }
 
 type Mapping = {
@@ -171,6 +353,8 @@ export function ProviderDetailClient({
   appUrl,
   stackCurrency,
   stackTestEventCode,
+  stageMapsByConnection = {},
+  oauthCallbackUrl = null,
 }: {
   module: IntegrationModuleDef;
   connections: Conn[];
@@ -179,9 +363,12 @@ export function ProviderDetailClient({
   appUrl: string;
   stackCurrency: string;
   stackTestEventCode: string;
+  stageMapsByConnection?: Record<string, StageMapItem[]>;
+  oauthCallbackUrl?: string | null;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const rd = isRdProvider(mod.provider);
 
   function refresh() {
     router.refresh();
@@ -208,7 +395,45 @@ export function ProviderDetailClient({
             Modo: web + server (deduplicação por event_id)
           </p>
         )}
+        {rd && (
+          <p className="mt-2 inline-flex rounded-md border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
+            Fonte server-side → Meta CAPI + GA4 (destinos em modo web+server)
+          </p>
+        )}
       </div>
+
+      {oauthCallbackUrl ? (
+        <section className="rounded-xl border border-border/60 p-4">
+          <h2 className="text-sm font-medium">URL de callback OAuth</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Cadastre esta URL no app da RD App Store (redirect URI).
+          </p>
+          <p className="mt-2 break-all rounded-lg bg-muted/50 px-3 py-2 font-mono text-[11px]">
+            {oauthCallbackUrl}
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="mt-2"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(oauthCallbackUrl);
+                toast.success("Callback copiada");
+              } catch {
+                toast.error("Não foi possível copiar");
+              }
+            }}
+          >
+            Copiar URL
+          </Button>
+          {mod.docsSlug ? (
+            <div className="mt-3">
+              <DocsHelpLink provider={mod.provider} />
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       {connections.length > 0 && mod.provider !== "snippet" ? (
         <section className="space-y-3">
@@ -231,7 +456,14 @@ export function ProviderDetailClient({
                     <p className="font-mono text-xs text-muted-foreground">
                       {c.account_external_id || c.id.slice(0, 8)}
                       {c.active ? " · ativa" : " · inativa"}
+                      {rd && c.oauthConnected ? " · OAuth OK" : null}
+                      {rd && !c.oauthConnected ? " · aguardando OAuth" : null}
                     </p>
+                    {c.needsReauth ? (
+                      <p className="mt-1 text-xs text-destructive">
+                        Refresh OAuth falhou — reconecte com OAuth.
+                      </p>
+                    ) : null}
                   </div>
                   <Button
                     type="button"
@@ -262,7 +494,8 @@ export function ProviderDetailClient({
                   </p>
                 ) : null}
 
-                {mod.connectFields.length > 0 && mod.authType !== "oauth" ? (
+                {mod.connectFields.length > 0 &&
+                (mod.authType !== "oauth" || rd) ? (
                   <form
                     className="grid max-w-lg gap-3 border-t border-border/50 pt-3"
                     action={(fd) =>
@@ -270,11 +503,19 @@ export function ProviderDetailClient({
                         try {
                           const r = await upsertConnection(fd);
                           if (r.ok) {
-                            toast.success("Alterações validadas e salvas");
-                            await new Promise((resolve) =>
-                              setTimeout(resolve, 900)
+                            toast.success(
+                              rd
+                                ? "Credenciais salvas"
+                                : "Alterações validadas e salvas"
                             );
-                            router.push("/dashboard/integracoes");
+                            if (!rd) {
+                              await new Promise((resolve) =>
+                                setTimeout(resolve, 900)
+                              );
+                              router.push("/dashboard/integracoes");
+                            } else {
+                              refresh();
+                            }
                           } else {
                             toast.error(r.error);
                           }
@@ -300,8 +541,16 @@ export function ProviderDetailClient({
                           id={`edit-${c.id}-${f.key}`}
                           name={f.key}
                           type="text"
-                          required={Boolean(f.required)}
-                          placeholder={f.placeholder}
+                          required={
+                            f.key === "client_secret"
+                              ? false
+                              : Boolean(f.required)
+                          }
+                          placeholder={
+                            f.key === "client_secret"
+                              ? "Deixe em branco para manter"
+                              : f.placeholder
+                          }
                           defaultValue={fieldDefaultValue(c, f.key)}
                           autoComplete="off"
                           className={f.secret ? "font-mono text-xs" : undefined}
@@ -309,9 +558,61 @@ export function ProviderDetailClient({
                       </div>
                     ))}
                     <Button type="submit" disabled={pending} className="w-fit">
-                      {pending ? "Validando…" : "Salvar alterações"}
+                      {pending ? "Salvando…" : "Salvar alterações"}
                     </Button>
                   </form>
+                ) : null}
+
+                {rd ? (
+                  <div className="flex flex-wrap gap-2 border-t border-border/50 pt-3">
+                    <Button
+                      size="sm"
+                      disabled={pending || !c.config.client_id}
+                      render={
+                        <a
+                          href={`/api/integrations/${mod.provider}/oauth/start?connection_id=${c.id}`}
+                        />
+                      }
+                    >
+                      {c.oauthConnected
+                        ? "Reconectar com OAuth"
+                        : "Conectar com OAuth"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pending || !c.oauthConnected}
+                      onClick={() =>
+                        start(async () => {
+                          const r = await syncRdFunnelsAction(c.id);
+                          if (r.ok) {
+                            toast.success(
+                              `Sincronizado: ${r.stages} estágios/slots`
+                            );
+                            refresh();
+                          } else {
+                            toast.error(r.error);
+                          }
+                        })
+                      }
+                    >
+                      Sincronizar funis
+                    </Button>
+                  </div>
+                ) : null}
+
+                {rd ? (
+                  <RdStageMapsSection
+                    key={`${c.id}-${(stageMapsByConnection[c.id] ?? [])
+                      .map((m) => m.id)
+                      .join(",")}`}
+                    connectionId={c.id}
+                    maps={stageMapsByConnection[c.id] ?? []}
+                    pending={pending}
+                    start={start}
+                    onSaved={refresh}
+                  />
                 ) : null}
               </li>
             ))}
@@ -376,13 +677,13 @@ export function ProviderDetailClient({
           <p className="mt-1 text-sm text-muted-foreground">
             Preencha as credenciais para conectar outra conta desta plataforma.
           </p>
-          {mod.docsSlug && mod.authType !== "oauth" ? (
+          {mod.docsSlug && !rd ? (
             <div className="mt-3">
               <DocsHelpLink provider={mod.provider} />
             </div>
           ) : null}
 
-          {mod.authType === "oauth" ? (
+          {mod.authType === "oauth" && !rd ? (
             <div className="mt-4 space-y-3">
               <p className="text-sm text-muted-foreground">
                 Esta plataforma usa OAuth. Configure CLIENT_ID/SECRET no
@@ -398,7 +699,8 @@ export function ProviderDetailClient({
             </div>
           ) : null}
 
-          {mod.connectFields.length > 0 && mod.authType !== "oauth" ? (
+          {mod.connectFields.length > 0 &&
+          (mod.authType !== "oauth" || rd) ? (
             <form
               className="mt-4 grid max-w-lg gap-3"
               action={(fd) =>
@@ -406,11 +708,19 @@ export function ProviderDetailClient({
                   try {
                     const r = await upsertConnection(fd);
                     if (r.ok) {
-                      toast.success("Conexão validada e integração salva");
-                      await new Promise((resolve) =>
-                        setTimeout(resolve, 900)
+                      toast.success(
+                        rd
+                          ? "Credenciais salvas — clique em Conectar com OAuth na conta"
+                          : "Conexão validada e integração salva"
                       );
-                      router.push("/dashboard/integracoes");
+                      if (rd) {
+                        refresh();
+                      } else {
+                        await new Promise((resolve) =>
+                          setTimeout(resolve, 900)
+                        );
+                        router.push("/dashboard/integracoes");
+                      }
                     } else {
                       toast.error(r.error);
                     }
@@ -437,67 +747,16 @@ export function ProviderDetailClient({
                 </div>
               ))}
               <p className="text-xs text-muted-foreground">
-                Tokens ficam visíveis neste painel. Ao salvar, validamos o
-                acesso na plataforma; se falhar, nada é gravado.
+                {rd
+                  ? "Salve Client ID/Secret e depois autorize com OAuth na conta criada."
+                  : "Tokens ficam visíveis neste painel. Ao salvar, validamos o acesso na plataforma; se falhar, nada é gravado."}
               </p>
               <Button type="submit" disabled={pending} className="w-fit">
-                {pending ? "Validando…" : "Adicionar integração"}
-              </Button>
-            </form>
-          ) : null}
-
-          {mod.authType === "oauth" && mod.connectFields.length > 1 ? (
-            <form
-              className="mt-6 grid max-w-lg gap-3 border-t border-border/50 pt-4"
-              action={(fd) =>
-                start(async () => {
-                  try {
-                    const r = await upsertConnection(fd);
-                    if (r.ok) {
-                      toast.success("Conexão validada e integração salva");
-                      await new Promise((resolve) =>
-                        setTimeout(resolve, 900)
-                      );
-                      router.push("/dashboard/integracoes");
-                    } else {
-                      toast.error(r.error);
-                    }
-                  } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Erro");
-                  }
-                })
-              }
-            >
-              <p className="text-xs text-muted-foreground">
-                Alternativa: colar token (se a plataforma permitir). Validamos o
-                acesso antes de salvar.
-              </p>
-              <input type="hidden" name="provider" value={mod.provider} />
-              <input type="hidden" name="active" value="true" />
-              {mod.connectFields.map((f) => (
-                <div key={f.key} className="space-y-1.5">
-                  <Label htmlFor={`oauth-field-${f.key}`}>{f.label}</Label>
-                  <Input
-                    id={`oauth-field-${f.key}`}
-                    name={f.key}
-                    type="text"
-                    autoComplete="off"
-                    className={f.secret ? "font-mono text-xs" : undefined}
-                  />
-                </div>
-              ))}
-              <div className="space-y-1.5">
-                <Label htmlFor="oauth-access-token">Access token</Label>
-                <Input
-                  id="oauth-access-token"
-                  name="access_token"
-                  type="text"
-                  autoComplete="off"
-                  className="font-mono text-xs"
-                />
-              </div>
-              <Button type="submit" disabled={pending} className="w-fit">
-                Adicionar com token
+                {pending
+                  ? "Salvando…"
+                  : rd
+                    ? "Salvar credenciais"
+                    : "Adicionar integração"}
               </Button>
             </form>
           ) : null}

@@ -4,50 +4,38 @@ import { randomBytes } from "node:crypto";
 import { auth } from "@/auth";
 import { ensureDbReady } from "@/lib/db/boot";
 import { getAppUrl } from "@/lib/env";
+import { getConnection } from "@/lib/integrations/connections";
 import { isIntegrationProvider } from "@/lib/integrations/registry";
+import {
+  oauthCallbackUrl,
+  resolveRdCredentials,
+} from "@/lib/rd/credentials";
 
 export const runtime = "nodejs";
 
-function oauthEnv(provider: string): { clientId: string; clientSecret: string; authorizeUrl: string; tokenUrl: string } | null {
-  switch (provider) {
-    case "rdstation_crm":
-      if (!process.env.RDSTATION_CRM_CLIENT_ID || !process.env.RDSTATION_CRM_CLIENT_SECRET) {
-        return null;
-      }
-      return {
-        clientId: process.env.RDSTATION_CRM_CLIENT_ID,
-        clientSecret: process.env.RDSTATION_CRM_CLIENT_SECRET,
-        authorizeUrl: "https://api.rd.services/auth/dialog",
-        tokenUrl: "https://api.rd.services/auth/token",
-      };
-    case "rdstation_mkt":
-      if (!process.env.RDSTATION_MKT_CLIENT_ID || !process.env.RDSTATION_MKT_CLIENT_SECRET) {
-        return null;
-      }
-      return {
-        clientId: process.env.RDSTATION_MKT_CLIENT_ID,
-        clientSecret: process.env.RDSTATION_MKT_CLIENT_SECRET,
-        authorizeUrl: "https://api.rd.services/auth/dialog",
-        tokenUrl: "https://api.rd.services/auth/token",
-      };
-    case "google_ads":
-      if (!process.env.GOOGLE_ADS_CLIENT_ID || !process.env.GOOGLE_ADS_CLIENT_SECRET) {
-        return null;
-      }
-      return {
-        clientId: process.env.GOOGLE_ADS_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_ADS_CLIENT_SECRET,
-        authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
-        tokenUrl: "https://oauth2.googleapis.com/token",
-      };
-    default:
-      return null;
+function googleOAuthEnv(): {
+  clientId: string;
+  clientSecret: string;
+  authorizeUrl: string;
+  tokenUrl: string;
+} | null {
+  if (
+    !process.env.GOOGLE_ADS_CLIENT_ID ||
+    !process.env.GOOGLE_ADS_CLIENT_SECRET
+  ) {
+    return null;
   }
+  return {
+    clientId: process.env.GOOGLE_ADS_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_ADS_CLIENT_SECRET,
+    authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+    tokenUrl: "https://oauth2.googleapis.com/token",
+  };
 }
 
 type Ctx = { params: Promise<{ provider: string }> };
 
-export async function GET(_request: NextRequest, context: Ctx) {
+export async function GET(request: NextRequest, context: Ctx) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.redirect(new URL("/login", getAppUrl()));
@@ -58,24 +46,59 @@ export async function GET(_request: NextRequest, context: Ctx) {
     return NextResponse.json({ error: "invalid_provider" }, { status: 400 });
   }
 
-  const env = oauthEnv(provider);
-  if (!env) {
+  await ensureDbReady();
+  const connectionId =
+    request.nextUrl.searchParams.get("connection_id")?.trim() || null;
+
+  let clientId: string;
+  let authorizeUrl: string;
+
+  if (provider === "rdstation_crm" || provider === "rdstation_mkt") {
+    const conn = connectionId ? await getConnection(connectionId) : null;
+    if (connectionId && (!conn || conn.provider !== provider)) {
+      return NextResponse.json(
+        { error: "connection_not_found" },
+        { status: 404 }
+      );
+    }
+    const creds = await resolveRdCredentials(conn, provider);
+    if (!creds) {
+      return NextResponse.json(
+        {
+          error: "oauth_not_configured",
+          message:
+            "Salve Client ID e Client Secret na conexão (ou defina no Portainer) antes de autorizar.",
+        },
+        { status: 501 }
+      );
+    }
+    clientId = creds.clientId;
+    authorizeUrl = creds.authorizeUrl;
+  } else if (provider === "google_ads") {
+    const env = googleOAuthEnv();
+    if (!env) {
+      return NextResponse.json(
+        {
+          error: "oauth_not_configured",
+          message: `Defina CLIENT_ID/SECRET no Portainer para ${provider}`,
+        },
+        { status: 501 }
+      );
+    }
+    clientId = env.clientId;
+    authorizeUrl = env.authorizeUrl;
+  } else {
     return NextResponse.json(
-      {
-        error: "oauth_not_configured",
-        message: `Defina CLIENT_ID/SECRET no Portainer para ${provider}`,
-      },
-      { status: 501 }
+      { error: "oauth_not_supported" },
+      { status: 400 }
     );
   }
 
-  await ensureDbReady();
   const state = randomBytes(16).toString("hex");
-  const redirectUri = `${getAppUrl().replace(/\/$/, "")}/api/integrations/${provider}/oauth/callback`;
+  const redirectUri = oauthCallbackUrl(provider, getAppUrl());
 
-  // Store state in cookie for CSRF
-  const url = new URL(env.authorizeUrl);
-  url.searchParams.set("client_id", env.clientId);
+  const url = new URL(authorizeUrl);
+  url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("state", state);
@@ -91,10 +114,21 @@ export async function GET(_request: NextRequest, context: Ctx) {
   const res = NextResponse.redirect(url.toString());
   res.cookies.set(`oauth_state_${provider}`, state, {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
     maxAge: 600,
   });
+  if (connectionId) {
+    res.cookies.set(`oauth_conn_${provider}`, connectionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 600,
+    });
+  } else {
+    res.cookies.delete(`oauth_conn_${provider}`);
+  }
   return res;
 }

@@ -6,6 +6,7 @@ import {
   getConnection,
 } from "@/lib/integrations/connections";
 import { processPurchaseEvent } from "@/lib/integrations/process-purchase";
+import { processRdWebhook } from "@/lib/rd/process-webhook";
 import { rateLimit } from "@/lib/rate-limit/memory";
 import { getClientIp } from "@/lib/tracking/request";
 import { parsePurchaseWebhook } from "@/lib/tracking/webhook-parse";
@@ -71,6 +72,20 @@ export async function POST(request: NextRequest, context: Ctx) {
         sourceProvider: conn.provider,
         sourceConnectionId: conn.id,
       });
+      if (!result.ok) {
+        return NextResponse.json(
+          { error: result.error },
+          { status: result.status }
+        );
+      }
+      return NextResponse.json(result);
+    }
+
+    if (
+      conn.provider === "rdstation_crm" ||
+      conn.provider === "rdstation_mkt"
+    ) {
+      const result = await processRdWebhook({ conn, raw });
       if (!result.ok) {
         return NextResponse.json(
           { error: result.error },

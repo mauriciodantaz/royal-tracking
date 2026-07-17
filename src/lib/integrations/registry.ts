@@ -166,22 +166,54 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
   {
     provider: "rdstation_crm",
     name: "RD Station CRM",
-    description: "OAuth — estágios e oportunidades.",
+    description:
+      "OAuth — funis/estágios via webhooks deal_created/updated → Meta CAPI e GA4 (server).",
     authType: "oauth",
     direction: "both",
     phase: 2,
-    connectFields: [{ key: "label", label: "Nome", required: true }],
-    defaultSourceEvents: ["Lead", "deal.won", "Contact"],
+    docsSlug: "rdstation-crm",
+    connectFields: [
+      { key: "label", label: "Nome", required: true },
+      {
+        key: "client_id",
+        label: "Client ID",
+        required: true,
+        placeholder: "App RD App Store",
+      },
+      {
+        key: "client_secret",
+        label: "Client Secret",
+        secret: true,
+        required: true,
+      },
+    ],
+    defaultSourceEvents: ["Lead", "InitiateCheckout", "Purchase"],
   },
   {
     provider: "rdstation_mkt",
     name: "RD Station Marketing",
-    description: "OAuth — conversões e leads.",
+    description:
+      "OAuth — conversões (WEBHOOK.CONVERTED) e lifecycle → Meta CAPI e GA4 (server).",
     authType: "oauth",
     direction: "both",
     phase: 2,
-    connectFields: [{ key: "label", label: "Nome", required: true }],
-    defaultSourceEvents: ["Lead", "Conversion"],
+    docsSlug: "rdstation-mkt",
+    connectFields: [
+      { key: "label", label: "Nome", required: true },
+      {
+        key: "client_id",
+        label: "Client ID",
+        required: true,
+        placeholder: "App RD App Store",
+      },
+      {
+        key: "client_secret",
+        label: "Client Secret",
+        secret: true,
+        required: true,
+      },
+    ],
+    defaultSourceEvents: ["Lead", "InitiateCheckout", "Purchase"],
   },
   {
     provider: "rdstation_conversas",
@@ -237,11 +269,10 @@ export function isIntegrationProvider(v: string): v is IntegrationProvider {
   return INTEGRATION_MODULES.some((m) => m.provider === v);
 }
 
-/** Docs slug for non-OAuth modules that have credential/setup guides. */
+/** Docs slug for modules that have credential/setup guides. */
 export function getIntegrationDocsSlug(
   provider: string
 ): string | undefined {
   const mod = getModule(provider);
-  if (!mod || mod.authType === "oauth") return undefined;
-  return mod.docsSlug;
+  return mod?.docsSlug;
 }
