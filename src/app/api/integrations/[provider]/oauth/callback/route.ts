@@ -11,7 +11,9 @@ import { getModule, isIntegrationProvider } from "@/lib/integrations/registry";
 import {
   metadataRecord,
   oauthCallbackUrl,
+  requestRdToken,
   resolveRdCredentials,
+  type RdTokenBodyFormat,
 } from "@/lib/rd/credentials";
 import { postOauthRdSetup } from "@/lib/rd/sync";
 
@@ -66,6 +68,7 @@ export async function GET(request: NextRequest, context: Ctx) {
   let clientId: string;
   let clientSecret: string;
   let tokenUrl: string;
+  let tokenBodyFormat: RdTokenBodyFormat = "json";
 
   if (provider === "rdstation_crm" || provider === "rdstation_mkt") {
     let conn: IntegrationConnectionRow | null = null;
@@ -84,6 +87,7 @@ export async function GET(request: NextRequest, context: Ctx) {
     clientId = creds.clientId;
     clientSecret = creds.clientSecret;
     tokenUrl = creds.tokenUrl;
+    tokenBodyFormat = creds.tokenBodyFormat;
   } else if (provider === "google_ads") {
     const env = googleTokenEnv();
     if (!env) {
@@ -94,6 +98,7 @@ export async function GET(request: NextRequest, context: Ctx) {
     clientId = env.clientId;
     clientSecret = env.clientSecret;
     tokenUrl = env.tokenUrl;
+    tokenBodyFormat = "form";
   } else {
     return NextResponse.redirect(
       new URL("/dashboard/integracoes?error=oauth_not_supported", base)
@@ -101,29 +106,27 @@ export async function GET(request: NextRequest, context: Ctx) {
   }
 
   const redirectUri = oauthCallbackUrl(provider, base);
-  const tokenRes = await fetch(tokenUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  const tokenExchange = await requestRdToken({
+    tokenUrl,
+    tokenBodyFormat,
+    body: {
       client_id: clientId,
       client_secret: clientSecret,
       code,
       redirect_uri: redirectUri,
       grant_type: "authorization_code",
-    }),
+    },
   });
+  const tokenJson = tokenExchange.json;
 
-  const tokenJson = (await tokenRes.json().catch(() => null)) as {
-    access_token?: string;
-    refresh_token?: string;
-    expires_in?: number;
-    error?: string;
-  } | null;
-
-  if (!tokenRes.ok || !tokenJson?.access_token) {
+  if (!tokenExchange.ok || !tokenJson?.access_token) {
+    const detail =
+      tokenJson?.error_description ||
+      tokenJson?.error ||
+      `http_${tokenExchange.status}`;
     return NextResponse.redirect(
       new URL(
-        `/dashboard/integracoes?error=oauth_token&detail=${encodeURIComponent(tokenJson?.error ?? "fail")}`,
+        `/dashboard/integracoes?error=oauth_token&detail=${encodeURIComponent(detail)}`,
         base
       )
     );

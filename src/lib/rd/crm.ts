@@ -20,7 +20,13 @@ export async function listCrmPipelines(
 ): Promise<RdPipeline[]> {
   const { res, json } = await rdCrmFetch(conn, "/pipelines");
   if (!res.ok) {
-    throw new Error(`CRM list pipelines HTTP ${res.status}`);
+    const detail =
+      json && typeof json === "object"
+        ? JSON.stringify(json).slice(0, 180)
+        : "";
+    throw new Error(
+      `CRM list pipelines HTTP ${res.status}${detail ? `: ${detail}` : ""}. Se acabou de conectar, reconecte com OAuth (app CRM, não Marketing).`
+    );
   }
   return unwrapDataList(json)
     .map((row) => ({

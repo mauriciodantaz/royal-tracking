@@ -6,12 +6,14 @@ import { query, queryOne } from "@/lib/db/pool";
 import type { IntegrationConnectionRow } from "@/lib/db/types";
 import {
   metadataRecord,
+  requestRdToken,
   resolveRdCredentials,
 } from "@/lib/rd/credentials";
 
 /**
  * Lazy OAuth refresh — call before using access token.
  * RD: credentials from connection config (UI), env as legacy fallback.
+ * CRM uses oauth2/token (form); Marketing uses auth/token (JSON).
  */
 export async function refreshConnectionIfNeeded(
   conn: IntegrationConnectionRow
@@ -27,6 +29,7 @@ export async function refreshConnectionIfNeeded(
   let clientId: string | undefined;
   let clientSecret: string | undefined;
   let tokenUrl = "https://api.rd.services/auth/token";
+  let tokenBodyFormat: "json" | "form" = "json";
 
   if (
     conn.provider === "rdstation_crm" ||
@@ -39,42 +42,73 @@ export async function refreshConnectionIfNeeded(
     clientId = creds.clientId;
     clientSecret = creds.clientSecret;
     tokenUrl = creds.tokenUrl;
+    tokenBodyFormat = creds.tokenBodyFormat;
   } else if (conn.provider === "google_ads") {
     clientId = process.env.GOOGLE_ADS_CLIENT_ID;
     clientSecret = process.env.GOOGLE_ADS_CLIENT_SECRET;
     tokenUrl = "https://oauth2.googleapis.com/token";
+    tokenBodyFormat = "form";
   }
 
   if (!clientId || !clientSecret) return conn;
 
   const refresh = await decryptSecret(conn.refresh_token_cipher);
-  const res = await fetch(tokenUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refresh,
-      grant_type: "refresh_token",
-    }),
-  });
-  const json = (await res.json().catch(() => null)) as {
-    access_token?: string;
-    refresh_token?: string;
-    expires_in?: number;
-  } | null;
 
-  if (!res.ok || !json?.access_token) {
-    return markNeedsReauth(conn, "refresh_failed");
+  let accessToken: string | undefined;
+  let newRefresh: string | undefined;
+  let expiresIn: number | undefined;
+
+  if (
+    conn.provider === "rdstation_crm" ||
+    conn.provider === "rdstation_mkt"
+  ) {
+    const { ok, json } = await requestRdToken({
+      tokenUrl,
+      tokenBodyFormat,
+      body: {
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refresh,
+        grant_type: "refresh_token",
+      },
+    });
+    if (!ok || !json?.access_token) {
+      return markNeedsReauth(conn, "refresh_failed");
+    }
+    accessToken = json.access_token;
+    newRefresh = json.refresh_token;
+    expiresIn = json.expires_in;
+  } else {
+    const res = await fetch(tokenUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refresh,
+        grant_type: "refresh_token",
+      }).toString(),
+    });
+    const json = (await res.json().catch(() => null)) as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+    } | null;
+    if (!res.ok || !json?.access_token) {
+      return markNeedsReauth(conn, "refresh_failed");
+    }
+    accessToken = json.access_token;
+    newRefresh = json.refresh_token;
+    expiresIn = json.expires_in;
   }
 
   await ensureDbReady();
-  const accessCipher = await encryptSecret(json.access_token);
-  const refreshCipher = json.refresh_token
-    ? await encryptSecret(json.refresh_token)
+  const accessCipher = await encryptSecret(accessToken);
+  const refreshCipher = newRefresh
+    ? await encryptSecret(newRefresh)
     : conn.refresh_token_cipher;
-  const expiresAt = json.expires_in
-    ? new Date(Date.now() + json.expires_in * 1000).toISOString()
+  const expiresAt = expiresIn
+    ? new Date(Date.now() + expiresIn * 1000).toISOString()
     : null;
 
   const meta = metadataRecord(conn.metadata);

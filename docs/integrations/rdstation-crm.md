@@ -30,11 +30,19 @@ A URL também aparece copiável na tela **Integrações → RD Station CRM**.
 
 Env Portainer (`RDSTATION_CRM_CLIENT_ID` / `SECRET`) fica só como fallback legado — prefira a UI.
 
+## App na RD App Store
+
+O app precisa ser do produto **RD Station CRM** (credenciais de Marketing não autenticam a CRM API v2).
+
+OAuth CRM usa:
+- Authorize: `https://accounts.rdstation.com/oauth/authorize`
+- Token: `https://api.rd.services/oauth2/token`
+
 ## Como conectar
 
 1. **Integrações → RD Station CRM**.
 2. Preencha Nome, Client ID e Client Secret → **Salvar**.
-3. Clique em **Conectar com OAuth** e autorize na RD.
+3. Clique em **Conectar com OAuth** e autorize na RD (conta CRM).
 4. Após o callback, o sistema:
    - sincroniza funis e estágios (CRM API v2);
    - cria webhooks apontando para `/api/webhook/in/{connectionId}` com header `x-webhook-token`;

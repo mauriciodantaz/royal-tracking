@@ -4,16 +4,44 @@ import { decryptSecret } from "@/lib/crypto/secrets";
 import type { IntegrationConnectionRow, Json } from "@/lib/db/types";
 import { configString } from "@/lib/integrations/connections";
 
+export type RdTokenBodyFormat = "json" | "form";
+
 export type RdOAuthCredentials = {
   clientId: string;
   clientSecret: string;
   authorizeUrl: string;
   tokenUrl: string;
+  /** CRM uses form-urlencoded; Marketing uses JSON. */
+  tokenBodyFormat: RdTokenBodyFormat;
   source: "connection" | "env";
 };
 
-const RD_AUTHORIZE = "https://api.rd.services/auth/dialog";
-const RD_TOKEN = "https://api.rd.services/auth/token";
+/** Marketing App Store OAuth */
+const MKT_AUTHORIZE = "https://api.rd.services/auth/dialog";
+const MKT_TOKEN = "https://api.rd.services/auth/token";
+
+/** CRM v2 OAuth (product-specific credentials) */
+const CRM_AUTHORIZE = "https://accounts.rdstation.com/oauth/authorize";
+const CRM_TOKEN = "https://api.rd.services/oauth2/token";
+
+function endpointsForProvider(provider: string): {
+  authorizeUrl: string;
+  tokenUrl: string;
+  tokenBodyFormat: RdTokenBodyFormat;
+} {
+  if (provider === "rdstation_crm") {
+    return {
+      authorizeUrl: CRM_AUTHORIZE,
+      tokenUrl: CRM_TOKEN,
+      tokenBodyFormat: "form",
+    };
+  }
+  return {
+    authorizeUrl: MKT_AUTHORIZE,
+    tokenUrl: MKT_TOKEN,
+    tokenBodyFormat: "json",
+  };
+}
 
 function envPair(
   provider: string
@@ -35,6 +63,8 @@ export async function resolveRdCredentials(
   conn: IntegrationConnectionRow | null,
   provider: string
 ): Promise<RdOAuthCredentials | null> {
+  const endpoints = endpointsForProvider(provider);
+
   if (conn) {
     const clientId = configString(conn, "client_id")?.trim();
     const cipher = configString(conn, "client_secret_cipher");
@@ -45,8 +75,7 @@ export async function resolveRdCredentials(
           return {
             clientId,
             clientSecret,
-            authorizeUrl: RD_AUTHORIZE,
-            tokenUrl: RD_TOKEN,
+            ...endpoints,
             source: "connection",
           };
         }
@@ -60,10 +89,42 @@ export async function resolveRdCredentials(
   if (!fromEnv) return null;
   return {
     ...fromEnv,
-    authorizeUrl: RD_AUTHORIZE,
-    tokenUrl: RD_TOKEN,
+    ...endpoints,
     source: "env",
   };
+}
+
+export type RdTokenResponse = {
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+  error?: string;
+  error_description?: string;
+};
+
+/** Exchange authorization code or refresh token with the correct CRM/MKT format. */
+export async function requestRdToken(opts: {
+  tokenUrl: string;
+  tokenBodyFormat: RdTokenBodyFormat;
+  body: Record<string, string>;
+}): Promise<{ ok: boolean; status: number; json: RdTokenResponse | null }> {
+  const headers: Record<string, string> = {};
+  let body: string;
+  if (opts.tokenBodyFormat === "form") {
+    headers["Content-Type"] = "application/x-www-form-urlencoded";
+    body = new URLSearchParams(opts.body).toString();
+  } else {
+    headers["Content-Type"] = "application/json";
+    body = JSON.stringify(opts.body);
+  }
+
+  const res = await fetch(opts.tokenUrl, {
+    method: "POST",
+    headers,
+    body,
+  });
+  const json = (await res.json().catch(() => null)) as RdTokenResponse | null;
+  return { ok: res.ok, status: res.status, json };
 }
 
 export function oauthCallbackUrl(provider: string, appUrl: string): string {
@@ -76,7 +137,9 @@ export function readConfigRecord(
 ): Record<string, string> {
   if (!config || typeof config !== "object" || Array.isArray(config)) return {};
   const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(config as Record<string, Json | undefined>)) {
+  for (const [k, v] of Object.entries(
+    config as Record<string, Json | undefined>
+  )) {
     if (v != null && v !== "") out[k] = String(v);
   }
   return out;
