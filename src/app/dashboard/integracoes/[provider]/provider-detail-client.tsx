@@ -9,7 +9,6 @@ import { ArrowLeft, ArrowRight, Trash2 } from "lucide-react";
 import {
   deleteConnection,
   deleteEventMapping,
-  testConnection,
   updateMetaTestEventCode,
   updateStackCurrency,
   upsertConnection,
@@ -121,31 +120,6 @@ export function ProviderDetailClient({
                     </p>
                   </div>
                   <div className="flex gap-1.5">
-                    {(mod.provider === "meta_pixel" ||
-                      mod.provider === "ga4" ||
-                      mod.provider === "meta_ads") && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={pending}
-                        onClick={() =>
-                          start(async () => {
-                            try {
-                              const r = await testConnection(c.id);
-                              if (r.ok) toast.success("Teste OK");
-                              else toast.error("Teste falhou");
-                            } catch (e) {
-                              toast.error(
-                                e instanceof Error ? e.message : "Erro"
-                              );
-                            }
-                          })
-                        }
-                      >
-                        Testar
-                      </Button>
-                    )}
                     {mod.provider !== "snippet" && (
                       <Button
                         type="button"
@@ -267,9 +241,13 @@ export function ProviderDetailClient({
               action={(fd) =>
                 start(async () => {
                   try {
-                    await upsertConnection(fd);
-                    toast.success("Integração adicionada");
-                    refresh();
+                    const r = await upsertConnection(fd);
+                    if (r.ok) {
+                      toast.success("Conexão validada e integração salva");
+                      refresh();
+                    } else {
+                      toast.error(r.error);
+                    }
                   } catch (e) {
                     toast.error(e instanceof Error ? e.message : "Erro");
                   }
@@ -291,8 +269,12 @@ export function ProviderDetailClient({
                   />
                 </div>
               ))}
+              <p className="text-xs text-muted-foreground">
+                Ao salvar, validamos o acesso na plataforma. Se falhar, nada é
+                gravado e o erro retornado é exibido.
+              </p>
               <Button type="submit" disabled={pending} className="w-fit">
-                Adicionar integração
+                {pending ? "Validando…" : "Adicionar integração"}
               </Button>
             </form>
           ) : null}
@@ -303,9 +285,13 @@ export function ProviderDetailClient({
               action={(fd) =>
                 start(async () => {
                   try {
-                    await upsertConnection(fd);
-                    toast.success("Integração adicionada");
-                    refresh();
+                    const r = await upsertConnection(fd);
+                    if (r.ok) {
+                      toast.success("Conexão validada e integração salva");
+                      refresh();
+                    } else {
+                      toast.error(r.error);
+                    }
                   } catch (e) {
                     toast.error(e instanceof Error ? e.message : "Erro");
                   }
@@ -313,7 +299,8 @@ export function ProviderDetailClient({
               }
             >
               <p className="text-xs text-muted-foreground">
-                Alternativa: colar token (se a plataforma permitir).
+                Alternativa: colar token (se a plataforma permitir). Validamos o
+                acesso antes de salvar.
               </p>
               <input type="hidden" name="provider" value={mod.provider} />
               <input type="hidden" name="active" value="true" />

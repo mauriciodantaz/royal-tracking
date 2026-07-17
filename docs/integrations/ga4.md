@@ -36,7 +36,7 @@ Use estas credenciais para o modo **web + server**: o snippet carrega `gtag` no 
 
 1. **Integrações → Google Analytics 4**.
 2. Preencha Nome, Measurement ID e API Secret.
-3. **Adicionar integração** → **Testar**.
+3. **Adicionar integração**.
 4. Confirme mapeamentos de eventos (PageView, Lead, Purchase, etc.).
 
 O snippet busca os IDs ativos em `/api/ga4/ids` (sem secrets) para carregar o `gtag` no site do cliente.

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { auth } from "@/auth";
-import { encryptSecret } from "@/lib/crypto/secrets";
+import { decryptSecret, encryptSecret } from "@/lib/crypto/secrets";
 import { ensureDbReady } from "@/lib/db/boot";
 import { query, queryOne } from "@/lib/db/pool";
 import type { IntegrationConnectionRow } from "@/lib/db/types";
@@ -14,11 +14,7 @@ import {
   getModule,
   isIntegrationProvider,
 } from "@/lib/integrations/registry";
-import { sendCapiToPixel } from "@/lib/meta/capi-single";
-import { sendPurchaseToAllGa4 } from "@/lib/ga4/mp";
-import { META_GRAPH_BASE_URL } from "@/lib/meta/constants";
-import { newEventId } from "@/lib/tracking/hash";
-import { decryptSecret } from "@/lib/crypto/secrets";
+import { validateIntegrationCredentials } from "@/lib/integrations/validate-credentials";
 
 async function requireUser() {
   const session = await auth();
@@ -35,11 +31,15 @@ function revalidateIntegrations(provider?: string) {
   revalidatePath("/dashboard/campanhas");
 }
 
-export async function upsertConnection(formData: FormData) {
+export async function upsertConnection(formData: FormData): Promise<
+  { ok: true } | { ok: false; error: string }
+> {
   await requireUser();
   const id = String(formData.get("id") ?? "").trim() || null;
   const provider = String(formData.get("provider") ?? "").trim();
-  if (!isIntegrationProvider(provider)) throw new Error("invalid_provider");
+  if (!isIntegrationProvider(provider)) {
+    return { ok: false, error: "Provedor de integração inválido." };
+  }
 
   const mod = getModule(provider)!;
   const label = String(formData.get("label") ?? "").trim() || mod.name;
@@ -77,6 +77,82 @@ export async function upsertConnection(formData: FormData) {
     refreshCipher = await encryptSecret(refreshToken);
   }
 
+  // Token/secret efetivo para validar (novo do form ou já salvo na conexão)
+  let tokenForValidation =
+    accessToken && !accessToken.startsWith("••••") ? accessToken : "";
+  let webhookForValidation =
+    webhookSecret && !webhookSecret.startsWith("••••") ? webhookSecret : "";
+
+  if (id && (!tokenForValidation || !webhookForValidation)) {
+    const existing = await queryOne<IntegrationConnectionRow>(
+      `select * from integration_connections where id = $1`,
+      [id]
+    );
+    if (existing) {
+      if (!tokenForValidation && existing.access_token_cipher) {
+        try {
+          tokenForValidation = await decryptSecret(existing.access_token_cipher);
+        } catch {
+          /* ignore */
+        }
+      }
+      if (!webhookForValidation && existing.webhook_secret_cipher) {
+        try {
+          webhookForValidation = await decryptSecret(
+            existing.webhook_secret_cipher
+          );
+        } catch {
+          /* ignore */
+        }
+      }
+      if (!config.pixel_id && existing.account_external_id && provider === "meta_pixel") {
+        config.pixel_id = existing.account_external_id;
+      }
+      if (
+        !config.measurement_id &&
+        existing.account_external_id &&
+        provider === "ga4"
+      ) {
+        config.measurement_id = existing.account_external_id;
+      }
+      if (
+        !config.ad_account_id &&
+        existing.account_external_id &&
+        provider === "meta_ads"
+      ) {
+        config.ad_account_id = existing.account_external_id;
+      }
+    }
+  }
+
+  if (mod.authType === "token" && !tokenForValidation && provider !== "snippet") {
+    return { ok: false, error: "Informe o token / API secret para validar o acesso." };
+  }
+  if (mod.authType === "webhook_secret" && !webhookForValidation) {
+    return { ok: false, error: "Informe o webhook token para salvar a integração." };
+  }
+
+  const validation = await validateIntegrationCredentials({
+    provider,
+    accessToken: tokenForValidation,
+    webhookSecret: webhookForValidation,
+    config: {
+      ...config,
+      ...(accountExternalId && !config.account_external_id
+        ? { account_external_id: accountExternalId }
+        : {}),
+    },
+  });
+
+  if (!validation.ok) {
+    return {
+      ok: false,
+      error:
+        validation.error ||
+        "Não foi possível validar o acesso na plataforma. Verifique as credenciais.",
+    };
+  }
+
   if (id) {
     const sets: string[] = [
       `label = $1`,
@@ -109,12 +185,6 @@ export async function upsertConnection(formData: FormData) {
     // Sync legacy tables for Meta/GA4
     await syncLegacyTable(provider, id);
   } else {
-    if (mod.authType === "token" && !accessCipher && provider !== "snippet") {
-      throw new Error("access_token required");
-    }
-    if (mod.authType === "webhook_secret" && !webhookCipher) {
-      throw new Error("webhook_secret required");
-    }
     const row = await queryOne<IntegrationConnectionRow>(
       `insert into integration_connections (
          provider, label, auth_type, direction,
@@ -281,76 +351,6 @@ export async function deleteEventMapping(id: string) {
   await query(`delete from integration_event_mappings where id = $1`, [id]);
   revalidateIntegrations();
   return { ok: true as const };
-}
-
-export async function testConnection(id: string) {
-  await requireUser();
-  const conn = await queryOne<IntegrationConnectionRow>(
-    `select * from integration_connections where id = $1`,
-    [id]
-  );
-  if (!conn) throw new Error("not_found");
-
-  if (conn.provider === "meta_pixel") {
-    if (!conn.access_token_cipher) throw new Error("missing_token");
-    const cfg =
-      conn.config && typeof conn.config === "object" && !Array.isArray(conn.config)
-        ? (conn.config as Record<string, unknown>)
-        : {};
-    const pixelId = String(cfg.pixel_id ?? conn.account_external_id ?? "");
-    const result = await sendCapiToPixel({
-      pixelId,
-      tokenCipher: conn.access_token_cipher,
-      input: {
-        eventName: "PageView",
-        eventId: newEventId(),
-        userData: {},
-      },
-    });
-    return { ok: result.ok, detail: result };
-  }
-
-  if (conn.provider === "ga4") {
-    const results = await sendPurchaseToAllGa4({
-      clientId: "test.client.id",
-      transactionId: `test_${Date.now()}`,
-      value: 1,
-      currency: "BRL",
-      items: [{ item_id: "test", item_name: "Test", price: 1, quantity: 1 }],
-      debug: true,
-    });
-    const mine = results.find(
-      (r) =>
-        r.measurement_id ===
-        (typeof conn.config === "object" &&
-        conn.config &&
-        !Array.isArray(conn.config)
-          ? String(
-              (conn.config as Record<string, unknown>).measurement_id ??
-                conn.account_external_id
-            )
-          : conn.account_external_id)
-    );
-    return { ok: mine?.ok ?? results.some((r) => r.ok), detail: mine ?? results };
-  }
-
-  if (conn.provider === "meta_ads") {
-    if (!conn.access_token_cipher) throw new Error("missing_token");
-    const token = await decryptSecret(conn.access_token_cipher);
-    const adId = String(
-      (typeof conn.config === "object" &&
-      conn.config &&
-      !Array.isArray(conn.config)
-        ? (conn.config as Record<string, unknown>).ad_account_id
-        : null) ?? conn.account_external_id ?? ""
-    ).replace(/^act_/, "");
-    const url = `${META_GRAPH_BASE_URL}/act_${adId}?fields=name,account_id&access_token=${encodeURIComponent(token)}`;
-    const res = await fetch(url);
-    const body = await res.json().catch(() => null);
-    return { ok: res.ok, detail: body };
-  }
-
-  return { ok: true, detail: { note: "no_test_for_provider", provider: conn.provider } };
 }
 
 export async function updateFormLabel(formData: FormData): Promise<void> {

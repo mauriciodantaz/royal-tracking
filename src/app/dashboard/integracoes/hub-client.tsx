@@ -5,10 +5,7 @@ import { useTransition } from "react";
 import { toast } from "sonner";
 import { ArrowRight, Plug, Trash2 } from "lucide-react";
 
-import {
-  deleteConnection,
-  testConnection,
-} from "@/app/dashboard/integracoes/actions";
+import { deleteConnection } from "@/app/dashboard/integracoes/actions";
 import { Button } from "@/components/ui/button";
 import { getModule } from "@/lib/integrations/registry";
 
@@ -90,31 +87,6 @@ export function ActiveIntegrationsList({
               >
                 Gerenciar
               </Button>
-              {(c.provider === "meta_pixel" ||
-                c.provider === "ga4" ||
-                c.provider === "meta_ads") && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={pending}
-                  onClick={() =>
-                    start(async () => {
-                      try {
-                        const r = await testConnection(c.id);
-                        if (r.ok) toast.success("Teste OK");
-                        else toast.error("Teste falhou");
-                      } catch (e) {
-                        toast.error(
-                          e instanceof Error ? e.message : "Erro no teste"
-                        );
-                      }
-                    })
-                  }
-                >
-                  Testar
-                </Button>
-              )}
               {c.provider !== "snippet" && (
                 <Button
                   type="button"

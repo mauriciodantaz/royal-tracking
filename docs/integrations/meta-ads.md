@@ -47,7 +47,7 @@ Opções comuns:
 
 1. **Integrações → Meta Ads**.
 2. Preencha Nome, Ad Account ID e Ads token.
-3. **Adicionar integração** → use **Testar**.
+3. **Adicionar integração**.
 4. A aba **Campanhas** do painel passa a usar essa conexão para insights.
 
 ## Links oficiais

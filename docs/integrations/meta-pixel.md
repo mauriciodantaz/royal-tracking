@@ -49,9 +49,9 @@ Remova o código quando for para produção real.
 
 1. Vá em **Integrações → Meta (CAPI / Pixel)**.
 2. Preencha Nome, Pixel ID e Token CAPI.
-3. Clique em **Adicionar integração**.
-4. Use **Testar** na conta criada.
-5. Confirme mapeamentos (ex.: `PageView`, `Lead`, `Purchase` → este pixel).
+3. Clique em **Adicionar integração** — a stack valida o Pixel/token na Meta antes de salvar. Se falhar, nada é gravado e o erro da Meta aparece no toast.
+4. Confirme mapeamentos (ex.: `PageView`, `Lead`, `Purchase` → este pixel).
+5. Valide no Meta Events Manager → **Eventos de teste** (tráfego real do site).
 
 ## Modo web + server
 
