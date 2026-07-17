@@ -210,6 +210,40 @@ export async function POST(request: NextRequest) {
       [trckUserId]
     );
 
+    const emailHash = hashEmail(email);
+    const phoneHash = hashPhone(phone);
+
+    // Soft-dedup: mesmo visitante + mesmo email/telefone em janela curta
+    // (snippet carregado 2x ou capture + trck.lead com event_ids diferentes).
+    if (emailHash || phoneHash) {
+      const recent = await queryOne<{ id: string; event_id: string | null }>(
+        `select id, event_id from form_leads
+         where trck_user_id = $1
+           and created_at > now() - interval '10 seconds'
+           and (
+             ($2::text is not null and email_hash = $2)
+             or ($2::text is null and $3::text is not null and phone_hash = $3)
+           )
+         order by created_at desc
+         limit 1`,
+        [trckUserId, emailHash, phoneHash]
+      );
+      if (recent) {
+        return jsonCors(
+          {
+            ok: true,
+            lead_id: recent.id,
+            form_id: form?.id ?? null,
+            trck_user_id: trckUserId,
+            event_id: recent.event_id ?? eventId,
+            deduped: true,
+          },
+          undefined,
+          request
+        );
+      }
+    }
+
     const provisionalClass = classifyChannel({
       webMeta,
       webGa4,
@@ -274,8 +308,8 @@ export async function POST(request: NextRequest) {
         trckUserId,
         email ?? null,
         phone ?? null,
-        hashEmail(email),
-        hashPhone(phone),
+        emailHash,
+        phoneHash,
         name ?? null,
         JSON.stringify(fields),
         body.page_url ?? null,

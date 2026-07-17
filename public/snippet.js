@@ -14,11 +14,16 @@
 (function () {
   "use strict";
 
+  // Evita listener/PageView duplicados se o script for injetado 2x (GTM + tema, etc.).
+  if (window.__TRCK_SNIPPET_LOADED) return;
+  window.__TRCK_SNIPPET_LOADED = true;
+
   var ENDPOINT = (
     window.TRCK_ENDPOINT || "https://tracking.royalgrowth.com.br"
   ).replace(/\/$/, "");
   var STORAGE_KEY = "trck_user_id";
   var COOKIE_DAYS = 365;
+  var LEAD_DEDUP_MS = 5000;
 
   var metaPixelIds = [];
   var ga4MeasurementIds = [];
@@ -354,8 +359,35 @@
     });
   }
 
+  function markLeadSent(form) {
+    window.__TRCK_LAST_LEAD_AT = Date.now();
+    if (form && form.setAttribute) {
+      form.setAttribute("data-trck-captured-at", String(Date.now()));
+    }
+  }
+
+  function wasLeadRecentlySent(form) {
+    var now = Date.now();
+    if (
+      window.__TRCK_LAST_LEAD_AT &&
+      now - window.__TRCK_LAST_LEAD_AT < LEAD_DEDUP_MS
+    ) {
+      return true;
+    }
+    if (form && form.getAttribute) {
+      var last = form.getAttribute("data-trck-captured-at");
+      if (last && now - Number(last) < LEAD_DEDUP_MS) return true;
+    }
+    return false;
+  }
+
   function sendLead(data) {
     data = data || {};
+    if (wasLeadRecentlySent(null)) {
+      return Promise.resolve({ ok: true, deduped: true });
+    }
+    markLeadSent(null);
+
     var id = getTrckId() || window.TRCK_USER_ID;
     var eventId = data.event_id || uuid();
     var eventName = data.event_name || "Lead";
@@ -470,16 +502,22 @@
   }
 
   function captureForms() {
+    if (window.__TRCK_FORMS_CAPTURED) return;
+    window.__TRCK_FORMS_CAPTURED = true;
+
     document.addEventListener(
       "submit",
       function (ev) {
         var form = ev.target;
         if (!form || form.tagName !== "FORM") return;
         if (form.getAttribute("data-trck-ignore") != null) return;
+        if (wasLeadRecentlySent(form)) return;
 
         var fields = collectFormFields(form);
         var keys = Object.keys(fields);
         if (!keys.length) return;
+
+        markLeadSent(form);
 
         var id = getTrckId() || window.TRCK_USER_ID;
         var eventId = uuid();
