@@ -1,6 +1,8 @@
 # Royal Tracking — snippet no site do cliente
 
-Use o domínio da **sua** instalação (uma stack por domínio). Produção RoyalServer: `tracking.royalserver.com.br`.
+Use o domínio da **sua** instalação (uma stack por domínio-raiz). Produção: `tracking.royalgrowth.com.br`.
+
+Com `ALLOWED_EVENT_DOMAINS=royalgrowth.com.br`, as APIs `/api/identify`, `/api/event`, `/api/lead` e `/api/ga4/ids` só aceitam pedidos cujo `Origin`/`Referer` seja esse apex ou um subdomínio (`www.`, `lp.`, `mkt.`, …).
 
 ## Código para colar
 
@@ -17,7 +19,7 @@ Só isso já:
 - guarda `trck_user_id` (cookie + localStorage)
 - anexa `trck_user_id` em cliques de links Hotmart/Kiwify/Eduzz/WhatsApp/checkout
 
-As rotas `/api/identify`, `/api/event` e `/api/lead` respondem com CORS (`Access-Control-Allow-Origin: *`).
+As rotas `/api/identify`, `/api/event` e `/api/lead` respondem com CORS: com allowlist, ecoam o `Origin` permitido; sem `ALLOWED_EVENT_DOMAINS`, usam `*`.
 
 ```js
 window.trck.event("InitiateCheckout");

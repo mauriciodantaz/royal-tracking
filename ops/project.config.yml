@@ -40,4 +40,5 @@ docker:
   network: "RoyalNet"
 
 domain:
-  hostname: "tracking.royalserver.com.br"
+  hostname: "tracking.royalgrowth.com.br"
+  allowed_event_domains: "royalgrowth.com.br"

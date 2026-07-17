@@ -21,10 +21,12 @@ Checklist verificado no código (revisar de novo a cada release):
 
 ## Endpoints públicos
 
-- [x] `/api/identify` — Zod + rate limit por IP
-- [x] `/api/event` — Zod + rate limit; CAPI server-side
+- [x] `/api/identify` — Zod + rate limit por IP + allowlist de Origin/Referer (`ALLOWED_EVENT_DOMAINS`)
+- [x] `/api/event` — Zod + rate limit + allowlist; CAPI server-side
+- [x] `/api/lead` — Zod + rate limit + allowlist
 - [x] `/api/webhook/in/[connectionId]` — secret por conexão (`x-webhook-token` / Bearer / `?token=`) com comparação timing-safe
-- [x] `/api/ga4/ids` — só measurement_ids públicos (sem api_secret)
+- [x] `/api/ga4/ids` — só measurement_ids públicos (sem api_secret) + allowlist
+- [x] Matching de apex: host exato ou `*.apex` (não aceita sufixo colado tipo `evilroyalgrowth.com.br`)
 
 ## Retenção
 

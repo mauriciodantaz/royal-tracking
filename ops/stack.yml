@@ -22,8 +22,9 @@ services:
       DATABASE_URL: postgresql://royaltracking_dev:CHANGE_ME_DB_PASSWORD@postgres:5432/royaltracking_dev
       ENCRYPTION_KEY: CHANGE_ME_ENCRYPTION_KEY
       AUTH_SECRET: CHANGE_ME_AUTH_SECRET
-      NEXTAUTH_URL: https://tracking.royalserver.com.br
-      NEXT_PUBLIC_APP_URL: https://tracking.royalserver.com.br
+      NEXTAUTH_URL: https://tracking.royalgrowth.com.br
+      NEXT_PUBLIC_APP_URL: https://tracking.royalgrowth.com.br
+      ALLOWED_EVENT_DOMAINS: royalgrowth.com.br
       ADMIN_EMAIL: admin@example.com
       ADMIN_PASSWORD: CHANGE_ME_ADMIN_PASSWORD
     deploy:
@@ -38,7 +39,7 @@ services:
           memory: 1024M
       labels:
         - traefik.enable=true
-        - traefik.http.routers.tracking.rule=Host(`tracking.royalserver.com.br`)
+        - traefik.http.routers.tracking.rule=Host(`tracking.royalgrowth.com.br`)
         - traefik.http.services.tracking.loadbalancer.server.port=3000
         - traefik.http.routers.tracking.service=tracking
         - traefik.http.routers.tracking.tls.certresolver=letsencryptresolver

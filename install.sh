@@ -36,12 +36,20 @@ fi
 
 royal_tracking_set_names "$PROJECT_LABEL"
 
-read -r -p "Domínio (ex: tracking.royalserver.com.br): " DOMAIN
+read -r -p "Domínio (ex: tracking.royalgrowth.com.br): " DOMAIN
 DOMAIN="${DOMAIN// /}"
 if [[ -z "$DOMAIN" ]]; then
   echo "Domínio obrigatório." >&2
   exit 1
 fi
+
+# Apex da marca (strip do primeiro label): tracking.royalgrowth.com.br → royalgrowth.com.br
+DEFAULT_APEX="${DOMAIN#*.}"
+if [[ "$DEFAULT_APEX" == "$DOMAIN" ]]; then
+  DEFAULT_APEX="$DOMAIN"
+fi
+read -r -p "Apex permitido p/ eventos (vírgula p/ vários) [${DEFAULT_APEX}]: " ALLOWED_EVENT_DOMAINS
+ALLOWED_EVENT_DOMAINS="${ALLOWED_EVENT_DOMAINS:-$DEFAULT_APEX}"
 
 read -r -p "E-mail do admin [admin@${DOMAIN}]: " ADMIN_EMAIL
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@${DOMAIN}}"
@@ -66,6 +74,7 @@ echo "  Volume:   ${VOLUME_DATA}"
 echo "  Projeto:  ${PROJECT_DIR}"
 echo "  DB/user:  ${PG_DB} / ${PG_USER}"
 echo "  Domínio:  ${DOMAIN}"
+echo "  Apex:     ${ALLOWED_EVENT_DOMAINS}"
 echo "  Rede:     ${TRAEFIK_NET}"
 echo
 read -r -p "Confirmar? [Y/n]: " CONFIRM
@@ -158,6 +167,7 @@ ENCRYPTION_KEY=${ENCRYPTION_KEY}
 AUTH_SECRET=${AUTH_SECRET}
 NEXTAUTH_URL=https://${DOMAIN}
 NEXT_PUBLIC_APP_URL=https://${DOMAIN}
+ALLOWED_EVENT_DOMAINS=${ALLOWED_EVENT_DOMAINS}
 ADMIN_EMAIL=${ADMIN_EMAIL}
 ADMIN_PASSWORD=${ADMIN_PASSWORD}
 NODE_ENV=production
@@ -250,6 +260,7 @@ services:
       AUTH_SECRET: "$(_yaml_escape "${AUTH_SECRET}")"
       NEXTAUTH_URL: "$(_yaml_escape "${_NEXTAUTH_URL}")"
       NEXT_PUBLIC_APP_URL: "$(_yaml_escape "${_NEXTAUTH_URL}")"
+      ALLOWED_EVENT_DOMAINS: "$(_yaml_escape "${ALLOWED_EVENT_DOMAINS}")"
       ADMIN_EMAIL: "$(_yaml_escape "${ADMIN_EMAIL}")"
       ADMIN_PASSWORD: "$(_yaml_escape "${ADMIN_PASSWORD}")"
     deploy:
@@ -292,6 +303,7 @@ services:
       AUTH_SECRET: "$(_yaml_escape "${AUTH_SECRET}")"
       NEXTAUTH_URL: "$(_yaml_escape "${_NEXTAUTH_URL}")"
       NEXT_PUBLIC_APP_URL: "$(_yaml_escape "${_NEXTAUTH_URL}")"
+      ALLOWED_EVENT_DOMAINS: "$(_yaml_escape "${ALLOWED_EVENT_DOMAINS}")"
       ADMIN_EMAIL: "$(_yaml_escape "${ADMIN_EMAIL}")"
       ADMIN_PASSWORD: "$(_yaml_escape "${ADMIN_PASSWORD}")"
     networks:

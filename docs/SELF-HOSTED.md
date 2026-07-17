@@ -1,12 +1,14 @@
-# Self-hosted — uma stack por domínio
+# Self-hosted — uma stack por domínio-raiz
 
-Royal Tracking é **single-tenant**: cada cliente/domínio sobe sua própria stack (app + Postgres + env). Não misture vários clientes no mesmo banco.
+Royal Tracking é **single-tenant**: cada marca/apex sobe sua própria stack (app + Postgres + env). Não misture várias marcas no mesmo banco.
+
+O host do painel/snippet costuma ser um subdomínio (`tracking.…`); a allowlist de eventos usa o **apex** da marca (`ALLOWED_EVENT_DOMAINS`), aceitando todos os subdomínios desse apex.
 
 ## Modelo
 
 ```txt
-domínio A  →  stack A  →  postgres A  +  ENCRYPTION_KEY A  +  admin A
-domínio B  →  stack B  →  postgres B  +  ENCRYPTION_KEY B  +  admin B
+apex A  →  stack A  →  postgres A  +  ENCRYPTION_KEY A  +  admin A  +  ALLOWED_EVENT_DOMAINS=A
+apex B  →  stack B  →  postgres B  +  ENCRYPTION_KEY B  +  admin B  +  ALLOWED_EVENT_DOMAINS=B
 ```
 
 ## URLs por instalação
@@ -41,5 +43,5 @@ docker service update --image royalserver/royal-tracking:latest NOME_STACK_app
 4. Apontar DNS / Traefik para a nova stack.
 5. Atualizar snippet e webhook nas plataformas de venda.
 
-Produção RoyalServer: `https://tracking.royalserver.com.br` (rede Traefik `RoyalNet`).  
+Produção: `https://tracking.royalgrowth.com.br` (rede Traefik `RoyalNet`), apex `royalgrowth.com.br`.  
 Postgres fica em **stack externa** na mesma rede; a stack do app só sobe o Node.

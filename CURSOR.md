@@ -15,14 +15,15 @@ Documentação viva do sistema de tracking server-side. Atualizar ao fim de cada
 
 - **NÃO usar** o MCP Supabase neste repo (conta errada / produto OSS não depende dele).
 - Env obrigatórios: `DATABASE_URL`, `ENCRYPTION_KEY`, `AUTH_SECRET`, `NEXTAUTH_URL`, `ADMIN_*`.
+- Env recomendado em produção: `ALLOWED_EVENT_DOMAINS` (apex da marca).
 - Schema: `db/migrations/*.sql` (aplicado no boot). Histórico antigo em `supabase/migrations/` só referência.
-- Uma stack por domínio = um Postgres + um admin + um `ENCRYPTION_KEY`.
+- Uma stack por domínio-raiz = um Postgres + um admin + um `ENCRYPTION_KEY` + allowlist desse apex.
 
 ## Segurança
 
 - Só o servidor Node fala com o DB (rede Docker interna).
 - Painel protegido por sessão Auth.js (`/dashboard/*`).
-- Endpoints públicos: validação + rate limit; webhook exige token.
+- Endpoints públicos do snippet: Zod + rate limit + Origin/Referer no apex (`ALLOWED_EVENT_DOMAINS`); webhook exige token.
 - Segredos de plataforma (tokens Meta/GA4) no Postgres, cifrados (AES-GCM em Node).
 - Checklist: [SECURITY.md](./SECURITY.md)
 
@@ -38,7 +39,9 @@ Quickstart Docker: [README.md](./README.md) · `./install.sh` · [DEPLOY.md](./D
 
 ### Deploy
 
-Domínio de produção: **https://tracking.royalserver.com.br** (VPS RoyalServer, rede `RoyalNet`)  
+Domínio de produção: **https://tracking.royalgrowth.com.br** (VPS, rede `RoyalNet`)  
+Apex de eventos: **royalgrowth.com.br** (`ALLOWED_EVENT_DOMAINS`)  
+
 Instância: `royaltracking_dev` · Postgres externo (host Swarm `postgres`)  
 **Env na stack Portainer** (YAML); volume = build only.  
 Imagem Hub: pausada — produção usa build no volume da VPS.

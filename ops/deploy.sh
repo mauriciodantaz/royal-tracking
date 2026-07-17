@@ -93,5 +93,5 @@ fi
 log "Updating Swarm service ${SERVICE_NAME} (auto-detected)"
 docker service update --force "${SERVICE_NAME}"
 
-log "Deploy completed successfully → https://tracking.royalserver.com.br"
+log "Deploy completed successfully → https://tracking.royalgrowth.com.br"
 log "Script path: ${PROJECT_DIR}/ops/deploy.sh — stack edits only in Portainer UI"

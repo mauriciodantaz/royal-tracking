@@ -63,6 +63,7 @@ services:
       AUTH_SECRET: "$(yq "${AUTH_SECRET}")"
       NEXTAUTH_URL: "$(yq "${NEXTAUTH_URL}")"
       NEXT_PUBLIC_APP_URL: "$(yq "${NEXT_PUBLIC_APP_URL:-$NEXTAUTH_URL}")"
+      ALLOWED_EVENT_DOMAINS: "$(yq "${ALLOWED_EVENT_DOMAINS:-}")"
       ADMIN_EMAIL: "$(yq "${ADMIN_EMAIL}")"
       ADMIN_PASSWORD: "$(yq "${ADMIN_PASSWORD}")"
     deploy:

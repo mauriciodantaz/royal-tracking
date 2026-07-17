@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { type NextRequest } from "next/server";
 
-import { corsPreflight, jsonCors } from "@/lib/cors";
+import { corsPreflight, guardPublicTrackingOrigin, jsonCors } from "@/lib/cors";
 import { ensureDbReady } from "@/lib/db/boot";
 import { query, queryOne } from "@/lib/db/pool";
 import type { FormRow, VisitorRow } from "@/lib/db/types";
@@ -21,8 +21,8 @@ import { leadSchema } from "@/lib/tracking/schemas";
 
 export const runtime = "nodejs";
 
-export function OPTIONS() {
-  return corsPreflight();
+export function OPTIONS(request: NextRequest) {
+  return corsPreflight(request);
 }
 
 function fingerprintForm(input: {
@@ -72,6 +72,9 @@ function pickEmailPhoneName(fields: Record<string, string>) {
 }
 
 export async function POST(request: NextRequest) {
+  const forbidden = guardPublicTrackingOrigin(request);
+  if (forbidden) return forbidden;
+
   const ip = getClientIp(request);
   const limited = rateLimit(`lead:${ip}`, 60, 60_000);
   if (!limited.ok) {
@@ -80,7 +83,8 @@ export async function POST(request: NextRequest) {
       {
         status: 429,
         headers: { "Retry-After": String(Math.ceil(limited.retryAfterMs / 1000)) },
-      }
+      },
+      request
     );
   }
 
@@ -88,14 +92,15 @@ export async function POST(request: NextRequest) {
   try {
     json = await request.json();
   } catch {
-    return jsonCors({ error: "invalid_json" }, { status: 400 });
+    return jsonCors({ error: "invalid_json" }, { status: 400 }, request);
   }
 
   const parsed = leadSchema.safeParse(json);
   if (!parsed.success) {
     return jsonCors(
       { error: "validation_error", details: parsed.error.flatten() },
-      { status: 400 }
+      { status: 400 },
+      request
     );
   }
 
@@ -282,30 +287,35 @@ export async function POST(request: NextRequest) {
       ]
     );
 
-    return jsonCors({
-      ok: true,
-      lead_id: lead?.id ?? null,
-      form_id: form?.id ?? null,
-      trck_user_id: trckUserId,
-      event_id: eventId,
-      dispatch: {
-        targets: dispatch.targets,
-        results: dispatch.results.map((r) => ({
-          connection_id: r.connectionId,
-          provider: r.provider,
-          ok: r.ok,
-          status: r.status,
-          error: r.error,
-        })),
+    return jsonCors(
+      {
+        ok: true,
+        lead_id: lead?.id ?? null,
+        form_id: form?.id ?? null,
+        trck_user_id: trckUserId,
+        event_id: eventId,
+        dispatch: {
+          targets: dispatch.targets,
+          results: dispatch.results.map((r) => ({
+            connection_id: r.connectionId,
+            provider: r.provider,
+            ok: r.ok,
+            status: r.status,
+            error: r.error,
+          })),
+        },
       },
-    });
+      undefined,
+      request
+    );
   } catch (err) {
     return jsonCors(
       {
         error: "server_error",
         message: err instanceof Error ? err.message : "unknown",
       },
-      { status: 500 }
+      { status: 500 },
+      request
     );
   }
 }

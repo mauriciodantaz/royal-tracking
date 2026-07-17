@@ -28,6 +28,7 @@ services:
       AUTH_SECRET: CHANGE_ME_AUTH_SECRET
       NEXTAUTH_URL: https://<DOMAIN>
       NEXT_PUBLIC_APP_URL: https://<DOMAIN>
+      ALLOWED_EVENT_DOMAINS: <APEX_DOMAIN>
       ADMIN_EMAIL: admin@example.com
       ADMIN_PASSWORD: CHANGE_ME_ADMIN_PASSWORD
     deploy:

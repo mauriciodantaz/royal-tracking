@@ -2,10 +2,10 @@
 
 Sistema de tracking server-side self-hosted (Meta CAPI + GA4 + webhook de compra) com painel autenticado.
 
-**Produção:** https://tracking.royalserver.com.br  
+**Produção:** https://tracking.royalgrowth.com.br  
 **Licença:** MIT · Deploy: build na VPS (imagem Docker Hub pausada por enquanto)
 
-Uma stack por domínio = um Postgres + um admin + um `ENCRYPTION_KEY` (modelo n8n).
+Uma stack por domínio-raiz (apex) = um Postgres + um admin + um `ENCRYPTION_KEY` + allowlist de eventos desse apex (modelo n8n).
 
 ## Quickstart (Docker Compose)
 
@@ -36,14 +36,15 @@ Produção: ver [DEPLOY.md](./DEPLOY.md).
 | `DATABASE_URL` | Postgres connection string |
 | `ENCRYPTION_KEY` | Chave AES-GCM (≥16 chars) para tokens no banco |
 | `AUTH_SECRET` | Secret Auth.js |
-| `NEXTAUTH_URL` | URL pública (https://tracking.royalserver.com.br) |
+| `NEXTAUTH_URL` | URL pública (https://tracking.royalgrowth.com.br) |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Seed do admin no primeiro boot |
 | `NEXT_PUBLIC_APP_URL` | URL pública (snippet / links) |
+| `ALLOWED_EVENT_DOMAINS` | Apex da marca (ex.: `royalgrowth.com.br`) — aceita esse host e qualquer subdomínio nas APIs do snippet |
 
 ## Snippet no site do cliente
 
 ```html
-<script src="https://tracking.royalserver.com.br/snippet.js" async></script>
+<script src="https://tracking.royalgrowth.com.br/snippet.js" async></script>
 ```
 
 Docs: [docs/SNIPPET.md](./docs/SNIPPET.md)
@@ -52,7 +53,7 @@ Docs: [docs/SNIPPET.md](./docs/SNIPPET.md)
 
 Por conexão em Integrações (Hotmart/Kiwify/Eduzz):
 
-`POST https://tracking.royalserver.com.br/api/webhook/in/{connectionId}`  
+`POST https://tracking.royalgrowth.com.br/api/webhook/in/{connectionId}`  
 Header: `x-webhook-token: <secret da conexão>`
 
 ## Dev local (sem Docker)

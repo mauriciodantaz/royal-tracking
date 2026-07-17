@@ -11,7 +11,8 @@ Strategy: docker-swarm-volume-node | Framework: nextjs | Build mode: docker
 - [x] Workflow path = `/root/projects/tracking/ops/deploy.sh`
 - [x] Service name auto-detect (`^tracking_`)
 - [x] Stack creation = Portainer only
-- [x] Traefik Host = `tracking.royalserver.com.br`
+- [x] Traefik Host = `tracking.royalgrowth.com.br`
+- [x] `ALLOWED_EVENT_DOMAINS` = `royalgrowth.com.br`
 - [x] Multi-repo: alias `github.com-tracking` + Deploy Key por slug
 - [x] Postgres externo preservado (DATABASE_URL do YAML de entrega; só o volume do app mudou)
 
@@ -21,7 +22,7 @@ Strategy: docker-swarm-volume-node | Framework: nextjs | Build mode: docker
 - [x] Slug: tracking
 - [x] Framework: Next.js standalone
 - [x] Estratégia: Swarm volume + `node server.js`
-- [x] URL pública: https://tracking.royalserver.com.br
+- [x] URL pública: https://tracking.royalgrowth.com.br
 
 ## Artefatos
 
@@ -54,7 +55,9 @@ Strategy: docker-swarm-volume-node | Framework: nextjs | Build mode: docker
 - [ ] `docker service ls | grep tracking`
 - [ ] Deploy manual OK
 - [ ] Actions OK
-- [ ] `curl -I https://tracking.royalserver.com.br`
+- [ ] `curl -I https://tracking.royalgrowth.com.br`
+- [ ] DNS `tracking.royalgrowth.com.br` → VPS
+- [ ] Snippet / webhooks / OAuth redirect no novo host
 
 ## Notas
 
