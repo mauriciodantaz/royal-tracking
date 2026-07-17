@@ -351,7 +351,7 @@ export function EventsTable({ events }: { events: EventRow[] }) {
         open={Boolean(selected)}
         onOpenChange={(o) => !o && setSelected(null)}
       >
-        <DialogContent className="flex max-h-[92vh] w-[min(96rem,calc(100%-2rem))] max-w-none flex-col gap-4 overflow-hidden p-6 sm:max-w-none">
+        <DialogContent className="flex h-[70vh] max-h-[900px] w-[70vw] max-w-[1200px] flex-col gap-4 overflow-hidden p-6 sm:max-w-[1200px]">
           <DialogHeader className="shrink-0 pr-8">
             <DialogTitle className="break-all font-mono text-base">
               {selected?.event_name} · {selected?.event_id}
