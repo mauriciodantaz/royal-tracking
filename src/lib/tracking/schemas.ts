@@ -22,6 +22,13 @@ export const identifySchema = z.object({
   pixel_id: z.string().max(64).optional(),
 });
 
+const clientWebSchema = z
+  .object({
+    meta: z.boolean().optional(),
+    ga4: z.boolean().optional(),
+  })
+  .optional();
+
 export const eventSchema = z.object({
   trck_user_id: z.string().min(1).max(128),
   event_name: z.string().min(1).max(64),
@@ -37,6 +44,7 @@ export const eventSchema = z.object({
   utm_campaign: z.string().max(200).optional(),
   utm_term: z.string().max(200).optional(),
   utm_content: z.string().max(200).optional(),
+  client_web: clientWebSchema,
 });
 
 export type IdentifyInput = z.infer<typeof identifySchema>;
@@ -63,6 +71,7 @@ export const leadSchema = z.object({
   utm_content: z.string().max(200).optional(),
   event_name: z.string().min(1).max(64).optional(),
   event_id: z.string().min(1).max(128).optional(),
+  client_web: clientWebSchema,
 });
 
 export type LeadInput = z.infer<typeof leadSchema>;

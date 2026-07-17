@@ -7,6 +7,9 @@
  *
  * Opcional (antes do script):
  *   <script>window.TRCK_ENDPOINT="https://tracking.royalgrowth.com.br";</script>
+ *
+ * Fluxo: gera um event_id → dispara Pixel/gtag (web) + POST API (server) em paralelo.
+ * Compras via webhook de marketplace são só server (sem pixel neste snippet).
  */
 (function () {
   "use strict";
@@ -16,6 +19,27 @@
   ).replace(/\/$/, "");
   var STORAGE_KEY = "trck_user_id";
   var COOKIE_DAYS = 365;
+
+  var metaPixelIds = [];
+  var ga4MeasurementIds = [];
+  var tagsReady = null;
+
+  var META_STANDARD = {
+    PageView: "PageView",
+    page_view: "PageView",
+    Lead: "Lead",
+    CompleteRegistration: "CompleteRegistration",
+    InitiateCheckout: "InitiateCheckout",
+    initiate_checkout: "InitiateCheckout",
+    AddToCart: "AddToCart",
+    add_to_cart: "AddToCart",
+    Purchase: "Purchase",
+    purchase: "Purchase",
+    ViewContent: "ViewContent",
+    view_content: "ViewContent",
+    Contact: "Contact",
+    Subscribe: "Subscribe",
+  };
 
   function uuid() {
     if (crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -70,14 +94,12 @@
   function getGaClientId() {
     var ga = getCookie("_ga");
     if (!ga) return undefined;
-    // _ga=GA1.1.123456789.1234567890 → client_id = 123456789.1234567890
     var parts = ga.split(".");
     if (parts.length >= 4) return parts[2] + "." + parts[3];
     return undefined;
   }
 
   function getGaSessionId() {
-    // Cookie _ga_<MEASUREMENT> is complex; leave undefined if unknown
     return undefined;
   }
 
@@ -87,6 +109,17 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
       keepalive: true,
+      credentials: "omit",
+    }).then(function (res) {
+      return res.json().catch(function () {
+        return {};
+      });
+    });
+  }
+
+  function getJson(path) {
+    return fetch(ENDPOINT + path, {
+      method: "GET",
       credentials: "omit",
     }).then(function (res) {
       return res.json().catch(function () {
@@ -114,7 +147,6 @@
         if (!a) return;
         var href = a.getAttribute("href");
         if (!href || href.charAt(0) === "#" || href.indexOf("javascript:") === 0) return;
-        // Checkout / WhatsApp / external buy links
         var lower = href.toLowerCase();
         var interesting =
           lower.indexOf("wa.me") >= 0 ||
@@ -133,6 +165,222 @@
     );
   }
 
+  function loadScript(src) {
+    return new Promise(function (resolve) {
+      var existing = document.querySelector('script[src="' + src + '"]');
+      if (existing) {
+        resolve(true);
+        return;
+      }
+      var s = document.createElement("script");
+      s.async = true;
+      s.src = src;
+      s.onload = function () {
+        resolve(true);
+      };
+      s.onerror = function () {
+        resolve(false);
+      };
+      document.head.appendChild(s);
+    });
+  }
+
+  function ensureFbqStub() {
+    if (window.fbq) return;
+    var n = (window.fbq = function () {
+      n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+    });
+    if (!window._fbq) window._fbq = n;
+    n.push = n;
+    n.loaded = true;
+    n.version = "2.0";
+    n.queue = [];
+  }
+
+  function ensureGtagStub() {
+    window.dataLayer = window.dataLayer || [];
+    if (typeof window.gtag !== "function") {
+      window.gtag = function () {
+        window.dataLayer.push(arguments);
+      };
+      window.gtag("js", new Date());
+    }
+  }
+
+  function initBrowserTags() {
+    if (tagsReady) return tagsReady;
+    tagsReady = Promise.all([
+      getJson("/api/meta/ids").catch(function () {
+        return {};
+      }),
+      getJson("/api/ga4/ids").catch(function () {
+        return {};
+      }),
+    ]).then(function (results) {
+      metaPixelIds = (results[0] && results[0].pixel_ids) || [];
+      ga4MeasurementIds = (results[1] && results[1].measurement_ids) || [];
+
+      var loads = [];
+      if (metaPixelIds.length) {
+        ensureFbqStub();
+        loads.push(
+          loadScript("https://connect.facebook.net/en_US/fbevents.js").then(
+            function (ok) {
+              if (!ok) return false;
+              try {
+                for (var i = 0; i < metaPixelIds.length; i++) {
+                  window.fbq("init", metaPixelIds[i]);
+                }
+                return true;
+              } catch (e) {
+                return false;
+              }
+            }
+          )
+        );
+      }
+      if (ga4MeasurementIds.length) {
+        ensureGtagStub();
+        loads.push(
+          loadScript(
+            "https://www.googletagmanager.com/gtag/js?id=" +
+              encodeURIComponent(ga4MeasurementIds[0])
+          ).then(function (ok) {
+            if (!ok) return false;
+            try {
+              for (var j = 0; j < ga4MeasurementIds.length; j++) {
+                window.gtag("config", ga4MeasurementIds[j], {
+                  send_page_view: false,
+                });
+              }
+              return true;
+            } catch (e) {
+              return false;
+            }
+          })
+        );
+      }
+      return Promise.all(loads);
+    });
+    return tagsReady;
+  }
+
+  function trackMeta(name, eventId, params) {
+    if (!metaPixelIds.length || typeof window.fbq !== "function") return false;
+    try {
+      var standard = META_STANDARD[name];
+      var data = params || {};
+      var opts = { eventID: eventId };
+      if (standard) {
+        window.fbq("track", standard, data, opts);
+      } else {
+        window.fbq("trackCustom", name, data, opts);
+      }
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function ga4EventName(name) {
+    if (name === "PageView" || name === "page_view") return "page_view";
+    if (name === "Lead") return "generate_lead";
+    if (name === "Purchase" || name === "purchase") return "purchase";
+    if (name === "InitiateCheckout" || name === "initiate_checkout") {
+      return "begin_checkout";
+    }
+    if (name === "AddToCart" || name === "add_to_cart") return "add_to_cart";
+    return String(name)
+      .replace(/([a-z])([A-Z])/g, "$1_$2")
+      .toLowerCase();
+  }
+
+  function trackGa4(name, eventId, params) {
+    if (!ga4MeasurementIds.length || typeof window.gtag !== "function") {
+      return false;
+    }
+    try {
+      var payload = Object.assign({}, params || {}, { event_id: eventId });
+      window.gtag("event", ga4EventName(name), payload);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /** Dispara tags web; retorna { meta, ga4 } para o server classificar canais. */
+  function trackBrowser(name, eventId, params) {
+    return initBrowserTags().then(function () {
+      return {
+        meta: trackMeta(name, eventId, params),
+        ga4: trackGa4(name, eventId, params),
+      };
+    }).catch(function () {
+      return { meta: false, ga4: false };
+    });
+  }
+
+  function browserParamsFromExtra(extra) {
+    var params = {};
+    if (!extra) return params;
+    if (extra.value != null) params.value = extra.value;
+    if (extra.currency) params.currency = extra.currency;
+    if (extra.content_name) params.content_name = extra.content_name;
+    if (extra.content_ids) params.content_ids = extra.content_ids;
+    return params;
+  }
+
+  function sendEvent(name, extra) {
+    var id = getTrckId() || window.TRCK_USER_ID;
+    if (!id) return Promise.resolve();
+    extra = extra || {};
+    var eventId = extra.event_id || uuid();
+    var params = browserParamsFromExtra(extra);
+
+    return trackBrowser(name, eventId, params).then(function (web) {
+      var body = Object.assign(
+        {
+          trck_user_id: id,
+          event_name: name,
+          event_id: eventId,
+          event_source_url: window.location.href,
+          client_web: web,
+        },
+        extra
+      );
+      body.event_id = eventId;
+      body.client_web = web;
+      return post("/api/event", body);
+    });
+  }
+
+  function sendLead(data) {
+    data = data || {};
+    var id = getTrckId() || window.TRCK_USER_ID;
+    var eventId = data.event_id || uuid();
+    var eventName = data.event_name || "Lead";
+
+    return trackBrowser(eventName, eventId, {}).then(function (web) {
+      return post(
+        "/api/lead",
+        Object.assign(
+          {
+            trck_user_id: id || undefined,
+            page_url: window.location.href,
+            event_name: eventName,
+            event_id: eventId,
+            fbp: getCookie("_fbp") || undefined,
+            fbc: getCookie("_fbc") || undefined,
+            ga_client_id: getGaClientId(),
+            client_web: web,
+          },
+          data,
+          { event_id: eventId, client_web: web }
+        )
+      );
+    });
+  }
+
   function identifyAndTrack() {
     var existing = getTrckId();
     var payload = {
@@ -149,24 +397,30 @@
       referrer: document.referrer || undefined,
     };
 
+    initBrowserTags().catch(function () {});
+
     return post("/api/identify", payload).then(function (data) {
       var id = (data && data.trck_user_id) || existing || "trck_" + uuid().replace(/-/g, "");
       saveTrckId(id);
       window.TRCK_USER_ID = id;
       patchLinks(id);
 
-      return post("/api/event", {
-        trck_user_id: id,
-        event_name: "PageView",
-        event_id: uuid(),
-        event_source_url: window.location.href,
-        utm_source: payload.utm_source,
-        utm_medium: payload.utm_medium,
-        utm_campaign: payload.utm_campaign,
-        utm_term: payload.utm_term,
-        utm_content: payload.utm_content,
-      }).then(function () {
-        return id;
+      var eventId = uuid();
+      return trackBrowser("PageView", eventId, {}).then(function (web) {
+        return post("/api/event", {
+          trck_user_id: id,
+          event_name: "PageView",
+          event_id: eventId,
+          event_source_url: window.location.href,
+          utm_source: payload.utm_source,
+          utm_medium: payload.utm_medium,
+          utm_campaign: payload.utm_campaign,
+          utm_term: payload.utm_term,
+          utm_content: payload.utm_content,
+          client_web: web,
+        }).then(function () {
+          return id;
+        });
       });
     });
   }
@@ -228,9 +482,14 @@
         if (!keys.length) return;
 
         var id = getTrckId() || window.TRCK_USER_ID;
+        var eventId = uuid();
         var payload = {
           trck_user_id: id || undefined,
-          form_label: form.getAttribute("name") || form.id || form.getAttribute("aria-label") || undefined,
+          form_label:
+            form.getAttribute("name") ||
+            form.id ||
+            form.getAttribute("aria-label") ||
+            undefined,
           form_action: form.getAttribute("action") || undefined,
           page_url: window.location.href,
           fields: fields,
@@ -243,12 +502,15 @@
           utm_term: getQuery("utm_term"),
           utm_content: getQuery("utm_content"),
           event_name: "Lead",
-          event_id: uuid(),
+          event_id: eventId,
           consent: true,
         };
 
-        // Fire-and-forget; do not block native submit
-        post("/api/lead", payload).catch(function () {});
+        trackBrowser("Lead", eventId, {}).then(function (web) {
+          payload.client_web = web;
+          post("/api/lead", payload).catch(function () {});
+        });
+
         if (id) {
           post("/api/identify", {
             trck_user_id: id,
@@ -272,24 +534,9 @@
     );
   }
 
-  // API pública para o site do cliente
   window.trck = {
     event: function (name, extra) {
-      var id = getTrckId() || window.TRCK_USER_ID;
-      if (!id) return Promise.resolve();
-      extra = extra || {};
-      return post(
-        "/api/event",
-        Object.assign(
-          {
-            trck_user_id: id,
-            event_name: name,
-            event_id: uuid(),
-            event_source_url: window.location.href,
-          },
-          extra
-        )
-      );
+      return sendEvent(name, extra);
     },
     identify: function (data) {
       var id = getTrckId() || window.TRCK_USER_ID;
@@ -306,23 +553,7 @@
       });
     },
     lead: function (data) {
-      var id = getTrckId() || window.TRCK_USER_ID;
-      data = data || {};
-      return post(
-        "/api/lead",
-        Object.assign(
-          {
-            trck_user_id: id || undefined,
-            page_url: window.location.href,
-            event_name: "Lead",
-            event_id: uuid(),
-            fbp: getCookie("_fbp") || undefined,
-            fbc: getCookie("_fbc") || undefined,
-            ga_client_id: getGaClientId(),
-          },
-          data
-        )
-      );
+      return sendLead(data);
     },
     getId: function () {
       return getTrckId() || window.TRCK_USER_ID || null;

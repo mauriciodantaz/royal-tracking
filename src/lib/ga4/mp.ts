@@ -177,6 +177,7 @@ export async function sendPurchaseToAllGa4(
     sessionId: input.sessionId,
     eventName: "purchase",
     params: {
+      event_id: input.transactionId,
       transaction_id: input.transactionId,
       value: input.value,
       currency: input.currency,

@@ -43,7 +43,8 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
   {
     provider: "meta_pixel",
     name: "Meta (CAPI / Pixel)",
-    description: "Dispara conversões server-side para um ou mais pixels.",
+    description:
+      "Modo web + server (deduplicação por event_id): Pixel no browser e CAPI no servidor em paralelo.",
     authType: "token",
     direction: "outbound",
     phase: 1,
@@ -80,7 +81,8 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
   {
     provider: "ga4",
     name: "Google Analytics 4",
-    description: "Measurement Protocol para eventos server-side.",
+    description:
+      "Modo web + server (deduplicação por event_id): gtag no browser e Measurement Protocol no servidor em paralelo.",
     authType: "token",
     direction: "outbound",
     phase: 1,

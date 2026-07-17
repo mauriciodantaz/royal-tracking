@@ -5,9 +5,10 @@ Aba **Integrações** (`/dashboard/integracoes`): catálogo multi-módulo e mult
 ## Conceito
 
 - **Fontes (inbound):** snippet/forms, Hotmart, Kiwify, Eduzz, RD CRM/MKT/Conversas, Pipedrive
-- **Destinos (outbound):** Meta CAPI, GA4 MP, Google Ads, Meta Ads (insights)
+- **Destinos (outbound):** Meta e GA4 em modo **web + server** (Pixel/gtag no browser + CAPI/MP no servidor, deduplicação por `event_id`); Google Ads / Meta Ads (insights)
 - **Mapeamentos:** `source_event` → N `dest_connection` + `dest_event_name`
 - **Dispatcher:** fan-out com `integration_delivery_log`
+- **Compras marketplace:** webhook = **só server** (`ingest_path=webhook`); não há Pixel no checkout Hotmart/Kiwify/Eduzz
 
 ## Preferências por módulo
 

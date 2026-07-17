@@ -4,11 +4,16 @@ import { type NextRequest } from "next/server";
 
 import { corsPreflight, guardPublicTrackingOrigin, jsonCors } from "@/lib/cors";
 import { ensureDbReady } from "@/lib/db/boot";
-import { query, queryOne } from "@/lib/db/pool";
+import { isUniqueViolation, query, queryOne } from "@/lib/db/pool";
 import type { FormRow, VisitorRow } from "@/lib/db/types";
 import { dispatchEvent } from "@/lib/integrations/dispatch";
 import { getSnippetConnection } from "@/lib/integrations/connections";
 import { rateLimit } from "@/lib/rate-limit/memory";
+import {
+  classifyChannel,
+  clientWebFromBody,
+  serverFlagsFromDispatch,
+} from "@/lib/tracking/channel";
 import {
   hashEmail,
   hashPhone,
@@ -127,6 +132,7 @@ export async function POST(request: NextRequest) {
   const eventId = body.event_id ?? newEventId();
   const trckUserId = body.trck_user_id ?? newTrckUserId();
   const userAgent = getUserAgent(request);
+  const { webMeta, webGa4 } = clientWebFromBody(body.client_web);
 
   try {
     await ensureDbReady();
@@ -158,7 +164,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Upsert visitor with PII
     await query(
       `insert into visitors (
          trck_user_id, email, email_hash, phone_hash, external_id_hash,
@@ -204,6 +209,53 @@ export async function POST(request: NextRequest) {
       `select * from visitors where trck_user_id = $1 limit 1`,
       [trckUserId]
     );
+
+    const provisionalClass = classifyChannel({
+      webMeta,
+      webGa4,
+      serverMeta: false,
+      serverGa4: false,
+    });
+
+    try {
+      await query(
+        `insert into events_log (
+           trck_user_id, event_name, event_id,
+           utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+           ip, ingest_path, web_meta, web_ga4, server_meta, server_ga4, channel_class
+         ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'snippet',$10,$11,false,false,$12)`,
+        [
+          trckUserId,
+          eventName,
+          eventId,
+          body.utm_source ?? visitor?.utm_source ?? null,
+          body.utm_medium ?? visitor?.utm_medium ?? null,
+          body.utm_campaign ?? visitor?.utm_campaign ?? null,
+          body.utm_term ?? visitor?.utm_term ?? null,
+          body.utm_content ?? visitor?.utm_content ?? null,
+          ip,
+          webMeta,
+          webGa4,
+          provisionalClass,
+        ]
+      );
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        return jsonCors(
+          {
+            ok: true,
+            lead_id: null,
+            form_id: form?.id ?? null,
+            trck_user_id: trckUserId,
+            event_id: eventId,
+            deduped: true,
+          },
+          undefined,
+          request
+        );
+      }
+      throw err;
+    }
 
     const lead = await queryOne<{ id: string }>(
       `insert into form_leads (
@@ -265,25 +317,43 @@ export async function POST(request: NextRequest) {
       gaSessionId: visitor?.ga_session_id,
     });
 
+    const { serverMeta, serverGa4 } = serverFlagsFromDispatch(dispatch.results);
+    const channelClass = classifyChannel({
+      webMeta,
+      webGa4,
+      serverMeta,
+      serverGa4,
+    });
+
     await query(
-      `insert into events_log (
-         trck_user_id, event_name, event_id,
-         utm_source, utm_medium, utm_campaign, utm_term, utm_content,
-         payload_meta, response_meta, payload_ga4, response_ga4, ip
-       ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,null,null,$11)
-       on conflict (event_id) do nothing`,
+      `update events_log set
+         payload_meta = $1::jsonb,
+         response_meta = $2::jsonb,
+         payload_ga4 = $3::jsonb,
+         response_ga4 = $4::jsonb,
+         server_meta = $5,
+         server_ga4 = $6,
+         channel_class = $7
+       where event_id = $8`,
       [
-        trckUserId,
-        eventName,
+        JSON.stringify(
+          dispatch.results
+            .filter((r) => r.provider === "meta_pixel")
+            .map((r) => r.payload)
+        ),
+        JSON.stringify(
+          dispatch.results.filter((r) => r.provider === "meta_pixel")
+        ),
+        JSON.stringify(
+          dispatch.results
+            .filter((r) => r.provider === "ga4")
+            .map((r) => r.payload)
+        ),
+        JSON.stringify(dispatch.results.filter((r) => r.provider === "ga4")),
+        serverMeta,
+        serverGa4,
+        channelClass,
         eventId,
-        body.utm_source ?? visitor?.utm_source ?? null,
-        body.utm_medium ?? visitor?.utm_medium ?? null,
-        body.utm_campaign ?? visitor?.utm_campaign ?? null,
-        body.utm_term ?? visitor?.utm_term ?? null,
-        body.utm_content ?? visitor?.utm_content ?? null,
-        JSON.stringify(dispatch.results.map((r) => r.payload)),
-        JSON.stringify(dispatch.results),
-        ip,
       ]
     );
 
@@ -294,6 +364,7 @@ export async function POST(request: NextRequest) {
         form_id: form?.id ?? null,
         trck_user_id: trckUserId,
         event_id: eventId,
+        channel_class: channelClass,
         dispatch: {
           targets: dispatch.targets,
           results: dispatch.results.map((r) => ({

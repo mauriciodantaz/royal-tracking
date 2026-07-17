@@ -5,6 +5,10 @@ import { query, queryOne } from "@/lib/db/pool";
 import type { PurchaseRow, SettingsRow } from "@/lib/db/types";
 import { dispatchEvent } from "@/lib/integrations/dispatch";
 import {
+  classifyChannel,
+  serverFlagsFromDispatch,
+} from "@/lib/tracking/channel";
+import {
   hashEmail,
   hashPhone,
   hashPii,
@@ -182,14 +186,24 @@ export async function processPurchaseEvent(opts: {
     ]
   );
 
+  const { serverMeta, serverGa4 } = serverFlagsFromDispatch(dispatch.results);
+  const channelClass = classifyChannel({
+    webMeta: false,
+    webGa4: false,
+    serverMeta,
+    serverGa4,
+  });
+
   await query(
     `insert into events_log (
        trck_user_id, event_name, event_id,
        utm_source, utm_medium, utm_campaign, utm_term, utm_content,
        payload_meta, response_meta, payload_ga4, response_ga4,
-       ip, geo_country, geo_region, geo_city
+       ip, geo_country, geo_region, geo_city,
+       ingest_path, web_meta, web_ga4, server_meta, server_ga4, channel_class
      ) values (
-       $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13,$14,$15,$16
+       $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13,$14,$15,$16,
+       'webhook', false, false, $17, $18, $19
      )
      on conflict (event_id) do nothing`,
     [
@@ -209,6 +223,9 @@ export async function processPurchaseEvent(opts: {
       visitor?.geo_country ?? null,
       visitor?.geo_region ?? null,
       visitor?.geo_city ?? null,
+      serverMeta,
+      serverGa4,
+      channelClass,
     ]
   );
 

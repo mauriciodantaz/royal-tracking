@@ -34,7 +34,28 @@ export type EventRow = {
   response_meta: unknown;
   payload_ga4: unknown;
   response_ga4: unknown;
+  ingest_path?: string | null;
+  channel_class?: string | null;
+  web_meta?: boolean | null;
+  web_ga4?: boolean | null;
+  server_meta?: boolean | null;
+  server_ga4?: boolean | null;
 };
+
+function channelLabel(c: string | null | undefined): string {
+  switch (c) {
+    case "web_server":
+      return "web+server";
+    case "server_only":
+      return "só server";
+    case "web_only":
+      return "só web";
+    case "none":
+      return "nenhum";
+    default:
+      return "legado";
+  }
+}
 
 export function EventsTable({ events }: { events: EventRow[] }) {
   const [q, setQ] = useState("");
@@ -49,7 +70,9 @@ export function EventsTable({ events }: { events: EventRow[] }) {
         e.event_id.toLowerCase().includes(term) ||
         (e.trck_user_id?.toLowerCase().includes(term) ?? false) ||
         (e.utm_source?.toLowerCase().includes(term) ?? false) ||
-        (e.utm_campaign?.toLowerCase().includes(term) ?? false)
+        (e.utm_campaign?.toLowerCase().includes(term) ?? false) ||
+        channelLabel(e.channel_class).includes(term) ||
+        (e.ingest_path?.toLowerCase().includes(term) ?? false)
     );
   }, [events, q]);
 
@@ -67,6 +90,7 @@ export function EventsTable({ events }: { events: EventRow[] }) {
             <TableRow>
               <TableHead>Quando</TableHead>
               <TableHead>Evento</TableHead>
+              <TableHead>Canal</TableHead>
               <TableHead>User</TableHead>
               <TableHead>UTM</TableHead>
               <TableHead>Geo</TableHead>
@@ -81,6 +105,16 @@ export function EventsTable({ events }: { events: EventRow[] }) {
                 </TableCell>
                 <TableCell>
                   <Badge variant="secondary">{e.event_name}</Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="font-mono text-[10px]">
+                    {channelLabel(e.channel_class)}
+                  </Badge>
+                  {e.ingest_path === "webhook" ? (
+                    <span className="ml-1 text-[10px] text-muted-foreground">
+                      webhook
+                    </span>
+                  ) : null}
                 </TableCell>
                 <TableCell className="max-w-[120px] truncate font-mono text-xs">
                   {e.trck_user_id ?? "—"}
@@ -105,7 +139,7 @@ export function EventsTable({ events }: { events: EventRow[] }) {
             ))}
             {!filtered.length ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
+                <TableCell colSpan={7} className="text-center text-muted-foreground">
                   Nenhum evento
                 </TableCell>
               </TableRow>
@@ -123,6 +157,16 @@ export function EventsTable({ events }: { events: EventRow[] }) {
           </DialogHeader>
           {selected ? (
             <div className="space-y-4 text-sm">
+              <p className="text-xs text-muted-foreground">
+                Canal: {channelLabel(selected.channel_class)}
+                {selected.ingest_path ? ` · ${selected.ingest_path}` : ""}
+                {" · "}
+                web meta/ga4: {String(!!selected.web_meta)}/
+                {String(!!selected.web_ga4)}
+                {" · "}
+                server meta/ga4: {String(!!selected.server_meta)}/
+                {String(!!selected.server_ga4)}
+              </p>
               <PayloadBlock title="Meta payload" data={selected.payload_meta} />
               <PayloadBlock title="Meta response" data={selected.response_meta} />
               <PayloadBlock title="GA4 payload" data={selected.payload_ga4} />

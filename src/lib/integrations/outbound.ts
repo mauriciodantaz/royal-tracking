@@ -180,6 +180,7 @@ export async function sendToGa4Connection(
     }));
   }
   if (input.gaSessionId) eventParams.session_id = input.gaSessionId;
+  eventParams.event_id = input.eventId;
   if (input.eventName === "purchase" || input.eventName === "Purchase") {
     eventParams.transaction_id = input.eventId;
   }

@@ -12,7 +12,8 @@ export default async function EventosPage() {
     const result = await query<EventRow>(
       `select id, event_name, event_id, trck_user_id, utm_source, utm_campaign,
               geo_country, geo_city, created_at, payload_meta, response_meta,
-              payload_ga4, response_ga4
+              payload_ga4, response_ga4,
+              ingest_path, channel_class, web_meta, web_ga4, server_meta, server_ga4
        from events_log
        order by created_at desc
        limit 200`
@@ -27,7 +28,7 @@ export default async function EventosPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Eventos</h1>
         <p className="text-sm text-muted-foreground">
-          Últimos 200 — filtre e abra payload/response Meta e GA4.
+          Últimos 200 — canal (web/server), filtre e abra payload Meta/GA4.
         </p>
       </div>
       {error ? (

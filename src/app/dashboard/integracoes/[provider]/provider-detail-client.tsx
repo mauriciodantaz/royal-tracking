@@ -85,6 +85,11 @@ export function ProviderDetailClient({
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
           {mod.description}
         </p>
+        {(mod.provider === "meta_pixel" || mod.provider === "ga4") && (
+          <p className="mt-2 inline-flex rounded-md border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
+            Modo: web + server (deduplicação por event_id)
+          </p>
+        )}
       </div>
 
       {connections.length > 0 ? (
