@@ -2,6 +2,8 @@
 
 Aba **Integrações** (`/dashboard/integracoes`): catálogo multi-módulo e multi-conta.
 
+Guias de credenciais (não-OAuth): [`docs/integrations/`](./integrations/) — no painel, **Precisa de ajuda com estes campos?** em cada plataforma.
+
 ## Conceito
 
 - **Fontes (inbound):** snippet/forms, Hotmart, Kiwify, Eduzz, RD CRM/MKT/Conversas, Pipedrive

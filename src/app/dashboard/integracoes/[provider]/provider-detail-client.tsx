@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Trash2 } from "lucide-react";
 
 import {
   deleteConnection,
@@ -19,6 +19,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { IntegrationModuleDef } from "@/lib/integrations/registry";
+
+function DocsHelpLink({ provider }: { provider: string }) {
+  return (
+    <p className="text-sm">
+      <Link
+        href={`/dashboard/integracoes/${provider}/docs`}
+        className="inline-flex items-center gap-1.5 font-medium text-foreground underline underline-offset-4 hover:opacity-80"
+      >
+        Precisa de ajuda com estes campos? Leia a documentação
+        <ArrowRight className="size-3.5" />
+      </Link>
+    </p>
+  );
+}
 
 type Conn = {
   id: string;
@@ -171,6 +185,11 @@ export function ProviderDetailClient({
       {mod.provider === "snippet" ? (
         <section className="rounded-xl border border-border/60 p-5">
           <h2 className="text-base font-medium">Como usar</h2>
+          {mod.docsSlug ? (
+            <div className="mt-2">
+              <DocsHelpLink provider={mod.provider} />
+            </div>
+          ) : null}
           <p className="mt-2 text-sm text-muted-foreground">
             O snippet já está ativo nesta stack. Cole no site do cliente:
           </p>
@@ -220,6 +239,11 @@ export function ProviderDetailClient({
           <p className="mt-1 text-sm text-muted-foreground">
             Preencha as credenciais para conectar outra conta desta plataforma.
           </p>
+          {mod.docsSlug && mod.authType !== "oauth" ? (
+            <div className="mt-3">
+              <DocsHelpLink provider={mod.provider} />
+            </div>
+          ) : null}
 
           {mod.authType === "oauth" ? (
             <div className="mt-4 space-y-3">

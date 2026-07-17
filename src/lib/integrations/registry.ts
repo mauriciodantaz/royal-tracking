@@ -37,6 +37,8 @@ export type IntegrationModuleDef = {
     placeholder?: string;
   }>;
   defaultSourceEvents?: string[];
+  /** Markdown slug under docs/integrations/ (non-OAuth only) */
+  docsSlug?: string;
 };
 
 export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
@@ -48,6 +50,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     authType: "token",
     direction: "outbound",
     phase: 1,
+    docsSlug: "meta-pixel",
     connectFields: [
       { key: "label", label: "Nome", required: true },
       { key: "pixel_id", label: "Pixel ID", required: true },
@@ -72,6 +75,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     authType: "token",
     direction: "outbound",
     phase: 1,
+    docsSlug: "meta-ads",
     connectFields: [
       { key: "label", label: "Nome", required: true },
       { key: "ad_account_id", label: "Ad Account ID", required: true },
@@ -86,6 +90,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     authType: "token",
     direction: "outbound",
     phase: 1,
+    docsSlug: "ga4",
     connectFields: [
       { key: "label", label: "Nome", required: true },
       { key: "measurement_id", label: "Measurement ID", required: true },
@@ -108,6 +113,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     authType: "webhook_secret",
     direction: "inbound",
     phase: 2,
+    docsSlug: "hotmart",
     connectFields: [
       { key: "label", label: "Nome", required: true },
       {
@@ -126,6 +132,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     authType: "webhook_secret",
     direction: "inbound",
     phase: 2,
+    docsSlug: "kiwify",
     connectFields: [
       { key: "label", label: "Nome", required: true },
       {
@@ -144,6 +151,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     authType: "webhook_secret",
     direction: "inbound",
     phase: 2,
+    docsSlug: "eduzz",
     connectFields: [
       { key: "label", label: "Nome", required: true },
       {
@@ -182,6 +190,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     authType: "token",
     direction: "inbound",
     phase: 2,
+    docsSlug: "rdstation-conversas",
     connectFields: [
       { key: "label", label: "Nome", required: true },
       { key: "access_token", label: "API token", secret: true, required: true },
@@ -195,6 +204,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     authType: "token",
     direction: "inbound",
     phase: 2,
+    docsSlug: "pipedrive",
     connectFields: [
       { key: "label", label: "Nome", required: true },
       { key: "access_token", label: "API token", secret: true, required: true },
@@ -213,6 +223,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     authType: "none",
     direction: "inbound",
     phase: 1,
+    docsSlug: "snippet",
     connectFields: [],
     defaultSourceEvents: ["PageView", "Lead", "InitiateCheckout", "Purchase"],
   },
@@ -224,4 +235,13 @@ export function getModule(provider: string): IntegrationModuleDef | undefined {
 
 export function isIntegrationProvider(v: string): v is IntegrationProvider {
   return INTEGRATION_MODULES.some((m) => m.provider === v);
+}
+
+/** Docs slug for non-OAuth modules that have credential/setup guides. */
+export function getIntegrationDocsSlug(
+  provider: string
+): string | undefined {
+  const mod = getModule(provider);
+  if (!mod || mod.authType === "oauth") return undefined;
+  return mod.docsSlug;
 }
