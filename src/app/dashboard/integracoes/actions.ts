@@ -383,6 +383,7 @@ export async function saveRdStageMapsAction(
     id?: string;
     stage_external_id?: string | null;
     mkt_lifecycle?: string | null;
+    deal_status?: string | null;
     meta_event_name?: string | null;
     ga4_event_name?: string | null;
   }> = [];
@@ -400,6 +401,10 @@ export async function saveRdStageMapsAction(
     const ga4 =
       m.ga4_event_name != null && String(m.ga4_event_name).trim()
         ? String(m.ga4_event_name).trim()
+        : null;
+    const dealStatus =
+      m.deal_status === "won" || m.deal_status === "lost"
+        ? m.deal_status
         : null;
 
     if (m.id) {
@@ -425,6 +430,29 @@ export async function saveRdStageMapsAction(
          ) values ($1,$2,$3,$4, now())`,
         [connectionId, m.mkt_lifecycle, meta, ga4]
       );
+    } else if (dealStatus) {
+      const existing = await queryOne<{ id: string }>(
+        `select id from rd_stage_event_maps
+         where connection_id = $1 and deal_status = $2 limit 1`,
+        [connectionId, dealStatus]
+      );
+      if (existing) {
+        await query(
+          `update rd_stage_event_maps set
+             meta_event_name = $1,
+             ga4_event_name = $2,
+             updated_at = now()
+           where id = $3 and connection_id = $4`,
+          [meta, ga4, existing.id, connectionId]
+        );
+      } else {
+        await query(
+          `insert into rd_stage_event_maps (
+             connection_id, deal_status, meta_event_name, ga4_event_name, updated_at
+           ) values ($1,$2,$3,$4, now())`,
+          [connectionId, dealStatus, meta, ga4]
+        );
+      }
     }
   }
 

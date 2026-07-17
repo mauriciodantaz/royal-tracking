@@ -170,6 +170,7 @@ type StageMapItem = {
   id: string;
   stage_external_id: string | null;
   mkt_lifecycle: string | null;
+  deal_status: string | null;
   meta_event_name: string;
   ga4_event_name: string;
   label: string;
@@ -213,6 +214,69 @@ function groupStageMapsByPipeline(
   }));
 }
 
+function MapEventRow({
+  row,
+  updateRow,
+}: {
+  row: StageMapItem;
+  updateRow: (
+    id: string,
+    patch: Partial<Pick<StageMapItem, "meta_event_name" | "ga4_event_name">>
+  ) => void;
+}) {
+  return (
+    <div className="grid gap-2 rounded-lg border border-border/40 p-3 sm:grid-cols-[minmax(0,1.2fr)_1fr_1fr]">
+      <div className="min-w-0 self-center">
+        <h3 className="truncate text-sm font-medium leading-snug">
+          {row.label}
+        </h3>
+      </div>
+      <div className="space-y-1">
+        <Label className="text-[11px]">Meta</Label>
+        <Select
+          value={row.meta_event_name || "__none__"}
+          onValueChange={(value) => {
+            const v = value === "__none__" ? "" : String(value ?? "");
+            updateRow(row.id, { meta_event_name: v });
+          }}
+        >
+          <SelectTrigger className="w-full min-w-0">
+            <SelectValue placeholder="Não enviar" />
+          </SelectTrigger>
+          <SelectContent>
+            {META_EVENT_OPTIONS.map((opt) => (
+              <SelectItem key={opt || "none"} value={opt || "__none__"}>
+                {opt || "Não enviar"}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1">
+        <Label className="text-[11px]">GA4</Label>
+        <Select
+          value={row.ga4_event_name || "__none__"}
+          onValueChange={(value) => {
+            const v = value === "__none__" ? "" : String(value ?? "");
+            updateRow(row.id, { ga4_event_name: v });
+          }}
+        >
+          <SelectTrigger className="w-full min-w-0">
+            <SelectValue placeholder="Não enviar" />
+          </SelectTrigger>
+          <SelectContent>
+            {GA4_EVENT_OPTIONS.map((opt) => (
+              <SelectItem key={opt || "none"} value={opt || "__none__"}>
+                {opt || "Não enviar"}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+}
+
 function RdStageMapsSection({
   connectionId,
   maps,
@@ -227,7 +291,15 @@ function RdStageMapsSection({
   onSaved: () => void;
 }) {
   const [rows, setRows] = useState(maps);
-  const groups = groupStageMapsByPipeline(rows);
+  const stageRows = rows.filter((r) => !r.deal_status);
+  const statusRows = rows
+    .filter((r) => r.deal_status)
+    .slice()
+    .sort((a, b) => {
+      const order = { won: 0, lost: 1 } as Record<string, number>;
+      return (order[a.deal_status || ""] ?? 9) - (order[b.deal_status || ""] ?? 9);
+    });
+  const groups = groupStageMapsByPipeline(stageRows);
 
   function updateRow(
     id: string,
@@ -248,90 +320,58 @@ function RdStageMapsSection({
   }
 
   return (
-    <div className="space-y-4 border-t border-border/50 pt-3">
-      <div>
-        <h2 className="text-base font-semibold tracking-tight">
-          Mapeamento estágio → Meta / GA4
-        </h2>
-        <p className="text-xs text-muted-foreground">
-          Vazio = não enviar para aquele destino. Dedup por estágio da
-          negociação.
-        </p>
-      </div>
-
-      <div className="space-y-6">
-        {groups.map((group) => (
-          <section key={group.pipeline} className="space-y-3">
-            <h2 className="text-sm font-semibold tracking-tight">
-              {group.pipeline}
+    <div className="space-y-6 border-t border-border/50 pt-3">
+      {stageRows.length > 0 ? (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-base font-semibold tracking-tight">
+              Mapeamento estágio → Meta / GA4
             </h2>
-            <div className="space-y-2 pl-1 sm:pl-3">
-              {group.stages.map((row) => (
-                <div
-                  key={row.id}
-                  className="grid gap-2 rounded-lg border border-border/40 p-3 sm:grid-cols-[minmax(0,1.2fr)_1fr_1fr]"
-                >
-                  <div className="min-w-0 self-center">
-                    <h3 className="truncate text-sm font-medium leading-snug">
-                      {row.label}
-                    </h3>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[11px]">Meta</Label>
-                    <Select
-                      value={row.meta_event_name || "__none__"}
-                      onValueChange={(value) => {
-                        const v =
-                          value === "__none__" ? "" : String(value ?? "");
-                        updateRow(row.id, { meta_event_name: v });
-                      }}
-                    >
-                      <SelectTrigger className="w-full min-w-0">
-                        <SelectValue placeholder="Não enviar" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {META_EVENT_OPTIONS.map((opt) => (
-                          <SelectItem
-                            key={opt || "none"}
-                            value={opt || "__none__"}
-                          >
-                            {opt || "Não enviar"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[11px]">GA4</Label>
-                    <Select
-                      value={row.ga4_event_name || "__none__"}
-                      onValueChange={(value) => {
-                        const v =
-                          value === "__none__" ? "" : String(value ?? "");
-                        updateRow(row.id, { ga4_event_name: v });
-                      }}
-                    >
-                      <SelectTrigger className="w-full min-w-0">
-                        <SelectValue placeholder="Não enviar" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {GA4_EVENT_OPTIONS.map((opt) => (
-                          <SelectItem
-                            key={opt || "none"}
-                            value={opt || "__none__"}
-                          >
-                            {opt || "Não enviar"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+            <p className="text-xs text-muted-foreground">
+              Vazio = não enviar para aquele destino. Dedup por estágio da
+              negociação.
+            </p>
+          </div>
+
+          <div className="space-y-6">
+            {groups.map((group) => (
+              <section key={group.pipeline} className="space-y-3">
+                <h2 className="text-sm font-semibold tracking-tight">
+                  {group.pipeline}
+                </h2>
+                <div className="space-y-2 pl-1 sm:pl-3">
+                  {group.stages.map((row) => (
+                    <MapEventRow
+                      key={row.id}
+                      row={row}
+                      updateRow={updateRow}
+                    />
+                  ))}
                 </div>
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
+              </section>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {statusRows.length > 0 ? (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-base font-semibold tracking-tight">
+              Status da negociação → Meta / GA4
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Dispara quando a negociação muda para ganho (<code>won</code>) ou
+              perda (<code>lost</code>). Dedup separado do estágio.
+            </p>
+          </div>
+          <div className="space-y-2">
+            {statusRows.map((row) => (
+              <MapEventRow key={row.id} row={row} updateRow={updateRow} />
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <Button
         type="button"
@@ -348,6 +388,7 @@ function RdStageMapsSection({
                   id: r.id,
                   stage_external_id: r.stage_external_id,
                   mkt_lifecycle: r.mkt_lifecycle,
+                  deal_status: r.deal_status,
                   meta_event_name: r.meta_event_name || null,
                   ga4_event_name: r.ga4_event_name || null,
                 }))

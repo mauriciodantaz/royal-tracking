@@ -51,8 +51,9 @@ Callback no app RD = a URL mostrada no painel (`…/oauth/callback`), não a do 
 4. Após o callback, o sistema:
    - sincroniza funis e estágios (CRM API v2);
    - cria webhooks apontando para `/api/webhook/in/{connectionId}` com header `x-webhook-token`;
-   - sugere mapeamentos estágio → evento Meta / GA4.
-5. Ajuste a tabela de mapeamento e salve.
+   - sugere mapeamentos estágio → evento Meta / GA4;
+   - cria linhas de status **Ganho (`won`)** / **Perda (`lost`)** (padrão: won → Purchase / purchase; lost sem evento até você mapear).
+5. Ajuste as tabelas de mapeamento e salve.
 
 ## Mapeamento estágio → eventos
 
@@ -63,11 +64,25 @@ Para cada estágio do funil, escolha:
 
 O mesmo `event_id` determinístico (`sha256(rdcrm:deal:{dealId}:pipe:{pipelineId}:stage:{stageId})`) é usado nos dois destinos.
 
+## Mapeamento status da negociação (won / lost)
+
+Na API v2 do RD CRM, a negociação tem `status` ∈ `won` | `lost` | `ongoing` | `paused` (mais `closed_at` / `lost_reason_id`).
+
+Ganho e perda **não** usam webhook separado: chegam em `crm_deal_created` / `crm_deal_updated`. O Royal Tracking lê `status` do payload ou via `GET /deals/{id}` e dispara o mapa correspondente.
+
+| Status | Seed padrão Meta | Seed padrão GA4 | Dedup |
+|---|---|---|---|
+| `won` | `Purchase` | `purchase` (com `value` se houver preço) | uma vez por deal |
+| `lost` | (vazio) | (vazio) | uma vez por deal |
+
+`event_id` de status: `sha256(rdcrm:deal:{dealId}:status:{won|lost})` — **independente** do emit por estágio (os dois podem disparar no ciclo de vida do deal).
+
 ## Identidade e deduplicação
 
-- Contato do deal é casado por e-mail/telefone hash com `visitors` / leads da 1ª visita
+- Contato: o webhook só traz IDs; o sistema busca `GET /deals/{id}` + `GET /contacts/{id}` para e-mail, telefone e nome, depois casa com `visitors` / leads da 1ª visita
 - Reutiliza `fbp`, `fbc`, `ga_client_id`, UTMs, IP e UA quando houver match
-- **Uma vez por combinação** `deal_id + pipeline_id + stage_id` (claim atômico em `rd_deal_stage_emits`). Webhooks repetidos do RD no mesmo estágio → `{ deduped: true }`
+- **Estágio:** uma vez por `deal_id + pipeline_id + stage_id` (`rd_deal_stage_emits`)
+- **Status won/lost:** uma vez por `deal_id + status` (`rd_deal_status_emits`)
 - Refresh OAuth automático enquanto o `refresh_token` for válido; se falhar, a UI mostra aviso de reautorização
 
 ## Remover conexão

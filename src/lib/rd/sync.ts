@@ -125,7 +125,38 @@ export async function syncRdFunnels(
     }
   }
 
+  await seedCrmDealStatusMaps(conn.id);
+
   return { pipelines: pipelines.length, stages: stageCount };
+}
+
+/** Seed won/lost maps (CRM deal status → Meta/GA4). */
+export async function seedCrmDealStatusMaps(
+  connectionId: string
+): Promise<void> {
+  const slots: Array<{
+    status: "won" | "lost";
+    meta: string | null;
+    ga4: string | null;
+  }> = [
+    { status: "won", meta: "Purchase", ga4: "purchase" },
+    { status: "lost", meta: null, ga4: null },
+  ];
+
+  for (const slot of slots) {
+    const existing = await queryOne<{ id: string }>(
+      `select id from rd_stage_event_maps
+       where connection_id = $1 and deal_status = $2 limit 1`,
+      [connectionId, slot.status]
+    );
+    if (existing) continue;
+    await query(
+      `insert into rd_stage_event_maps (
+         connection_id, deal_status, meta_event_name, ga4_event_name, updated_at
+       ) values ($1,$2,$3,$4, now())`,
+      [connectionId, slot.status, slot.meta, slot.ga4]
+    );
+  }
 }
 
 async function seedMktLifecycleSlots(

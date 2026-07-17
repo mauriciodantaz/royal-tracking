@@ -48,11 +48,17 @@ type StageMapRow = {
   connection_id: string;
   stage_external_id: string | null;
   mkt_lifecycle: string | null;
+  deal_status: string | null;
   meta_event_name: string | null;
   ga4_event_name: string | null;
   stage_name: string | null;
   pipeline_name: string | null;
   stage_order: number | null;
+};
+
+const DEAL_STATUS_LABELS: Record<string, string> = {
+  won: "Ganho (won)",
+  lost: "Perda (lost)",
 };
 
 export default async function ProviderIntegracaoPage({ params }: Props) {
@@ -118,6 +124,7 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
            m.connection_id,
            m.stage_external_id,
            m.mkt_lifecycle,
+           m.deal_status,
            m.meta_event_name,
            m.ga4_event_name,
            s.name as stage_name,
@@ -129,7 +136,12 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
           and s.external_id = m.stage_external_id
          left join rd_pipelines p on p.id = s.pipeline_id
          where m.connection_id = any($1::uuid[])
-         order by m.connection_id, p.name nulls last, s.stage_order nulls last, m.mkt_lifecycle`,
+         order by m.connection_id,
+           case when m.deal_status is not null then 1 else 0 end,
+           p.name nulls last,
+           s.stage_order nulls last,
+           m.mkt_lifecycle,
+           m.deal_status`,
         [ids]
       );
       stageMaps = maps.rows;
@@ -145,6 +157,19 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
             : row.stage_name,
           pipeline_name: row.mkt_lifecycle ? "Lifecycle MKT" : row.pipeline_name,
         }));
+      }
+
+      if (provider === "rdstation_crm") {
+        stageMaps = stageMaps.map((row) =>
+          row.deal_status
+            ? {
+                ...row,
+                stage_name:
+                  DEAL_STATUS_LABELS[row.deal_status] || row.deal_status,
+                pipeline_name: "Status da negociação",
+              }
+            : row
+        );
       }
     }
   } catch (e) {
@@ -208,11 +233,13 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
           id: m.id,
           stage_external_id: m.stage_external_id,
           mkt_lifecycle: m.mkt_lifecycle,
+          deal_status: m.deal_status,
           meta_event_name: m.meta_event_name ?? "",
           ga4_event_name: m.ga4_event_name ?? "",
           label:
             m.stage_name ||
             m.mkt_lifecycle ||
+            m.deal_status ||
             m.stage_external_id ||
             "Estágio",
           pipeline: m.pipeline_name || "",

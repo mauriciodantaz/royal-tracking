@@ -42,6 +42,12 @@ function asRecord(v: unknown): Record<string, unknown> | null {
   return null;
 }
 
+export type CrmDealStatus = "won" | "lost";
+
+function isCrmDealStatus(v: unknown): v is CrmDealStatus {
+  return v === "won" || v === "lost";
+}
+
 /** Deterministic id: once per deal + pipeline + stage. */
 function crmEventId(
   dealId: string,
@@ -49,6 +55,10 @@ function crmEventId(
   stageId: string
 ): string {
   return sha256(`rdcrm:deal:${dealId}:pipe:${pipelineId}:stage:${stageId}`);
+}
+
+function crmStatusEventId(dealId: string, status: CrmDealStatus): string {
+  return sha256(`rdcrm:deal:${dealId}:status:${status}`);
 }
 
 function mktEventId(dealKey: string, lifecycle: string): string {
@@ -84,9 +94,36 @@ async function claimDealStageEmit(opts: {
   return row ? "claimed" : "already_emitted";
 }
 
+async function claimDealStatusEmit(opts: {
+  connectionId: string;
+  dealExternalId: string;
+  dealStatus: CrmDealStatus;
+  eventId: string;
+}): Promise<"claimed" | "already_emitted"> {
+  const row = await queryOne<{ id: string }>(
+    `insert into rd_deal_status_emits (
+       connection_id, deal_external_id, deal_status, event_id
+     ) values ($1,$2,$3,$4)
+     on conflict (connection_id, deal_external_id, deal_status)
+     do nothing
+     returning id`,
+    [
+      opts.connectionId,
+      opts.dealExternalId,
+      opts.dealStatus,
+      opts.eventId,
+    ]
+  );
+  return row ? "claimed" : "already_emitted";
+}
+
 async function loadStageMap(
   connectionId: string,
-  opts: { stageExternalId?: string; mktLifecycle?: string }
+  opts: {
+    stageExternalId?: string;
+    mktLifecycle?: string;
+    dealStatus?: CrmDealStatus;
+  }
 ): Promise<{ meta_event_name: string | null; ga4_event_name: string | null } | null> {
   if (opts.stageExternalId) {
     return queryOne(
@@ -100,6 +137,13 @@ async function loadStageMap(
       `select meta_event_name, ga4_event_name from rd_stage_event_maps
        where connection_id = $1 and mkt_lifecycle = $2 limit 1`,
       [connectionId, opts.mktLifecycle]
+    );
+  }
+  if (opts.dealStatus) {
+    return queryOne(
+      `select meta_event_name, ga4_event_name from rd_stage_event_maps
+       where connection_id = $1 and deal_status = $2 limit 1`,
+      [connectionId, opts.dealStatus]
     );
   }
   return null;
@@ -256,6 +300,9 @@ async function processCrmDealWebhook(
     (typeof document.deal_pipeline_id === "string" &&
       document.deal_pipeline_id) ||
     null;
+  let dealStatus: CrmDealStatus | null = isCrmDealStatus(document.status)
+    ? document.status
+    : null;
 
   let email: string | null = null;
   let phone: string | null = null;
@@ -267,11 +314,15 @@ async function processCrmDealWebhook(
     value = document.one_time_price;
   }
 
-  const contactIds = Array.isArray(document.contact_ids)
+  let contactIds = Array.isArray(document.contact_ids)
     ? document.contact_ids.filter((x): x is string => typeof x === "string")
     : [];
 
-  if ((!email || !stageId || !pipelineId) && dealId) {
+  const needsDealFetch =
+    Boolean(dealId) &&
+    (!email || !stageId || !pipelineId || !dealStatus || contactIds.length === 0);
+
+  if (needsDealFetch && dealId) {
     const deal = await getCrmDeal(conn, dealId);
     if (deal) {
       dealId = typeof deal.id === "string" ? deal.id : dealId;
@@ -280,11 +331,18 @@ async function processCrmDealWebhook(
       pipelineId =
         (typeof deal.pipeline_id === "string" && deal.pipeline_id) ||
         pipelineId;
+      if (!dealStatus && isCrmDealStatus(deal.status)) {
+        dealStatus = deal.status;
+      }
       if (typeof deal.total_price === "number") value = deal.total_price;
+      else if (typeof deal.one_time_price === "number") {
+        value = deal.one_time_price;
+      }
       const ids = Array.isArray(deal.contact_ids)
         ? deal.contact_ids.filter((x): x is string => typeof x === "string")
         : contactIds;
-      if (ids[0]) {
+      if (ids.length) contactIds = ids;
+      if (ids[0] && !email) {
         const contact = await getCrmContact(conn, ids[0]);
         if (contact) {
           const extracted = extractContactEmailPhone(contact);
@@ -306,81 +364,154 @@ async function processCrmDealWebhook(
     }
   }
 
-  if (!dealId || !stageId) {
+  if (!dealId) {
+    return { ok: false, error: "missing_deal", status: 400 };
+  }
+  if (!stageId && !dealStatus) {
     return { ok: false, error: "missing_deal_or_stage", status: 400 };
-  }
-
-  // pipeline may be empty on rare payloads; still key the emit (deal+stage)
-  const pipeKey = pipelineId || "";
-
-  const map = await loadStageMap(conn.id, { stageExternalId: stageId });
-  if (!map || (!map.meta_event_name && !map.ga4_event_name)) {
-    await upsertDealState(conn.id, dealId, stageId, hashEmail(email));
-    return { ok: true, skipped: "no_stage_map" };
-  }
-
-  const eventId = crmEventId(dealId, pipeKey, stageId);
-  const claim = await claimDealStageEmit({
-    connectionId: conn.id,
-    dealExternalId: dealId,
-    pipelineExternalId: pipeKey,
-    stageExternalId: stageId,
-    eventId,
-  });
-  if (claim === "already_emitted") {
-    await upsertDealState(conn.id, dealId, stageId, hashEmail(email));
-    return { ok: true, deduped: true, event_id: eventId };
   }
 
   const match = await matchVisitor({ email, phone });
   const visitor = match.visitor;
   const trckUserId = visitor?.trck_user_id ?? null;
-  const eventName = map.meta_event_name || map.ga4_event_name || "Lead";
+  const userData: Parameters<typeof sendToConnection>[1]["userData"] = {
+    email: email ?? visitor?.email,
+    emailHash: hashEmail(email) ?? visitor?.email_hash,
+    phoneHash: hashPhone(phone) ?? visitor?.phone_hash,
+    firstNameHash: hashPii(name?.split(/\s+/)[0]) ?? visitor?.first_name_hash,
+    lastNameHash:
+      hashPii(name?.split(/\s+/).slice(1).join(" ")) ??
+      visitor?.last_name_hash,
+    cityHash: visitor?.city_hash,
+    stateHash: visitor?.state_hash,
+    countryHash: visitor?.country_hash,
+    externalId: trckUserId,
+    externalIdHash:
+      visitor?.external_id_hash ?? (trckUserId ? hashPii(trckUserId) : null),
+    fbp: visitor?.fbp,
+    fbc: visitor?.fbc,
+    clientIpAddress: visitor?.ip,
+    clientUserAgent: visitor?.user_agent,
+  };
 
-  const results = await dispatchMapped({
-    eventId,
-    metaEventName: map.meta_event_name,
-    ga4EventName: map.ga4_event_name,
-    eventSourceUrl: null,
-    userData: {
-      email: email ?? visitor?.email,
-      emailHash: hashEmail(email) ?? visitor?.email_hash,
-      phoneHash: hashPhone(phone) ?? visitor?.phone_hash,
-      firstNameHash: hashPii(name?.split(/\s+/)[0]) ?? visitor?.first_name_hash,
-      lastNameHash:
-        hashPii(name?.split(/\s+/).slice(1).join(" ")) ??
-        visitor?.last_name_hash,
-      cityHash: visitor?.city_hash,
-      stateHash: visitor?.state_hash,
-      countryHash: visitor?.country_hash,
-      externalId: trckUserId,
-      externalIdHash:
-        visitor?.external_id_hash ?? (trckUserId ? hashPii(trckUserId) : null),
-      fbp: visitor?.fbp,
-      fbc: visitor?.fbc,
-      clientIpAddress: visitor?.ip,
-      clientUserAgent: visitor?.user_agent,
-    },
-    customData:
-      value != null
-        ? { value, currency: "BRL", content_type: "product" }
-        : undefined,
-    gaClientId: visitor?.ga_client_id,
-    gaSessionId: visitor?.ga_session_id,
-  });
+  let stageEventId: string | undefined;
+  let stageDeduped = false;
+  let stageSkipped: string | undefined;
 
-  await persistEventLog({
-    trckUserId,
-    eventName,
-    eventId,
-    visitor,
-    results,
-  });
-  await upsertDealState(conn.id, dealId, stageId, hashEmail(email));
+  if (stageId) {
+    const pipeKey = pipelineId || "";
+    const map = await loadStageMap(conn.id, { stageExternalId: stageId });
+    if (!map || (!map.meta_event_name && !map.ga4_event_name)) {
+      stageSkipped = "no_stage_map";
+    } else {
+      stageEventId = crmEventId(dealId, pipeKey, stageId);
+      const claim = await claimDealStageEmit({
+        connectionId: conn.id,
+        dealExternalId: dealId,
+        pipelineExternalId: pipeKey,
+        stageExternalId: stageId,
+        eventId: stageEventId,
+      });
+      if (claim === "already_emitted") {
+        stageDeduped = true;
+      } else {
+        const eventName = map.meta_event_name || map.ga4_event_name || "Lead";
+        const results = await dispatchMapped({
+          eventId: stageEventId,
+          metaEventName: map.meta_event_name,
+          ga4EventName: map.ga4_event_name,
+          eventSourceUrl: null,
+          userData,
+          customData:
+            value != null
+              ? { value, currency: "BRL", content_type: "product" }
+              : undefined,
+          gaClientId: visitor?.ga_client_id,
+          gaSessionId: visitor?.ga_session_id,
+        });
+        await persistEventLog({
+          trckUserId,
+          eventName,
+          eventId: stageEventId,
+          visitor,
+          results,
+        });
+      }
+    }
+  }
+
+  let statusEventId: string | undefined;
+  let statusDeduped = false;
+  let statusSkipped: string | undefined;
+
+  if (dealStatus) {
+    const statusMap = await loadStageMap(conn.id, { dealStatus });
+    if (!statusMap || (!statusMap.meta_event_name && !statusMap.ga4_event_name)) {
+      statusSkipped = "no_status_map";
+    } else {
+      statusEventId = crmStatusEventId(dealId, dealStatus);
+      const claim = await claimDealStatusEmit({
+        connectionId: conn.id,
+        dealExternalId: dealId,
+        dealStatus,
+        eventId: statusEventId,
+      });
+      if (claim === "already_emitted") {
+        statusDeduped = true;
+      } else {
+        const eventName =
+          statusMap.meta_event_name || statusMap.ga4_event_name || "Lead";
+        const includeValue = dealStatus === "won" && value != null;
+        const results = await dispatchMapped({
+          eventId: statusEventId,
+          metaEventName: statusMap.meta_event_name,
+          ga4EventName: statusMap.ga4_event_name,
+          eventSourceUrl: null,
+          userData,
+          customData: includeValue
+            ? { value, currency: "BRL", content_type: "product" }
+            : undefined,
+          gaClientId: visitor?.ga_client_id,
+          gaSessionId: visitor?.ga_session_id,
+        });
+        await persistEventLog({
+          trckUserId,
+          eventName,
+          eventId: statusEventId,
+          visitor,
+          results,
+        });
+      }
+    }
+  }
+
+  await upsertDealState(
+    conn.id,
+    dealId,
+    stageId || `status:${dealStatus ?? "unknown"}`,
+    hashEmail(email),
+    dealStatus
+  );
+
+  if (
+    stageSkipped &&
+    !stageEventId &&
+    (statusSkipped || !dealStatus) &&
+    !statusEventId
+  ) {
+    return {
+      ok: true,
+      skipped: stageSkipped || statusSkipped || "no_map",
+    };
+  }
 
   return {
     ok: true,
-    event_id: eventId,
+    event_id: stageEventId ?? statusEventId,
+    deduped:
+      (stageDeduped || !stageEventId) &&
+      (statusDeduped || !statusEventId) &&
+      Boolean(stageEventId || statusEventId),
     match: { status: match.match_status, reason: match.match_reason },
   };
 }
@@ -497,16 +628,24 @@ async function upsertDealState(
   connectionId: string,
   dealExternalId: string,
   lastStageExternalId: string,
-  contactEmailHash: string | null
+  contactEmailHash: string | null,
+  lastStatus?: CrmDealStatus | null
 ): Promise<void> {
   await query(
     `insert into rd_deal_state (
-       connection_id, deal_external_id, last_stage_external_id, contact_email_hash, updated_at
-     ) values ($1,$2,$3,$4, now())
+       connection_id, deal_external_id, last_stage_external_id, contact_email_hash, last_status, updated_at
+     ) values ($1,$2,$3,$4,$5, now())
      on conflict (connection_id, deal_external_id) do update set
        last_stage_external_id = excluded.last_stage_external_id,
        contact_email_hash = coalesce(excluded.contact_email_hash, rd_deal_state.contact_email_hash),
+       last_status = coalesce(excluded.last_status, rd_deal_state.last_status),
        updated_at = now()`,
-    [connectionId, dealExternalId, lastStageExternalId, contactEmailHash]
+    [
+      connectionId,
+      dealExternalId,
+      lastStageExternalId,
+      contactEmailHash,
+      lastStatus ?? null,
+    ]
   );
 }
