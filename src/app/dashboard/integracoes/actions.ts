@@ -65,23 +65,20 @@ export async function upsertConnection(formData: FormData): Promise<
     null;
 
   let accessCipher: string | null = null;
-  if (accessToken && !accessToken.startsWith("••••")) {
+  if (accessToken) {
     accessCipher = await encryptSecret(accessToken);
   }
   let webhookCipher: string | null = null;
-  if (webhookSecret && !webhookSecret.startsWith("••••")) {
+  if (webhookSecret) {
     webhookCipher = await encryptSecret(webhookSecret);
   }
   let refreshCipher: string | null = null;
-  if (refreshToken && !refreshToken.startsWith("••••")) {
+  if (refreshToken) {
     refreshCipher = await encryptSecret(refreshToken);
   }
 
-  // Token/secret efetivo para validar (novo do form ou já salvo na conexão)
-  let tokenForValidation =
-    accessToken && !accessToken.startsWith("••••") ? accessToken : "";
-  let webhookForValidation =
-    webhookSecret && !webhookSecret.startsWith("••••") ? webhookSecret : "";
+  let tokenForValidation = accessToken;
+  let webhookForValidation = webhookSecret;
 
   if (id && (!tokenForValidation || !webhookForValidation)) {
     const existing = await queryOne<IntegrationConnectionRow>(

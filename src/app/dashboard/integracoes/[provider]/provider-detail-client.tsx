@@ -38,10 +38,24 @@ type Conn = {
   label: string;
   active: boolean;
   account_external_id: string | null;
-  hasToken: boolean;
-  hasWebhookSecret: boolean;
+  accessToken: string;
+  webhookSecret: string;
+  config: Record<string, string>;
   webhookUrl: string | null;
 };
+
+function fieldDefaultValue(
+  conn: Conn,
+  key: string
+): string {
+  if (key === "label") return conn.label;
+  if (key === "access_token") return conn.accessToken;
+  if (key === "webhook_secret") return conn.webhookSecret;
+  if (key === "account_external_id") {
+    return conn.config.account_external_id || conn.account_external_id || "";
+  }
+  return conn.config[key] || "";
+}
 
 type Mapping = {
   id: string;
@@ -105,13 +119,22 @@ export function ProviderDetailClient({
         )}
       </div>
 
-      {connections.length > 0 ? (
+      {connections.length > 0 && mod.provider !== "snippet" ? (
         <section className="space-y-3">
-          <h2 className="text-base font-medium">Contas nesta plataforma</h2>
-          <ul className="divide-y divide-border/60 rounded-xl border border-border/60">
+          <div>
+            <h2 className="text-base font-medium">Contas nesta plataforma</h2>
+            <p className="text-sm text-muted-foreground">
+              Credenciais visíveis neste painel (self-hosted). Edite e salve —
+              validamos o acesso de novo antes de gravar.
+            </p>
+          </div>
+          <ul className="space-y-4">
             {connections.map((c) => (
-              <li key={c.id} className="space-y-2 px-4 py-3">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <li
+                key={c.id}
+                className="space-y-3 rounded-xl border border-border/60 p-4"
+              >
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="text-sm font-medium">{c.label}</p>
                     <p className="font-mono text-xs text-muted-foreground">
@@ -119,36 +142,82 @@ export function ProviderDetailClient({
                       {c.active ? " · ativa" : " · inativa"}
                     </p>
                   </div>
-                  <div className="flex gap-1.5">
-                    {mod.provider !== "snippet" && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        disabled={pending}
-                        onClick={() =>
-                          start(async () => {
-                            try {
-                              await deleteConnection(c.id);
-                              toast.success("Removida");
-                              refresh();
-                            } catch (e) {
-                              toast.error(
-                                e instanceof Error ? e.message : "Erro"
-                              );
-                            }
-                          })
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={pending}
+                    onClick={() =>
+                      start(async () => {
+                        try {
+                          await deleteConnection(c.id);
+                          toast.success("Removida");
+                          refresh();
+                        } catch (e) {
+                          toast.error(
+                            e instanceof Error ? e.message : "Erro"
+                          );
                         }
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    )}
-                  </div>
+                      })
+                    }
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
                 </div>
+
                 {c.webhookUrl ? (
                   <p className="break-all rounded-lg bg-muted/50 px-3 py-2 font-mono text-[11px] text-muted-foreground">
                     Webhook: {c.webhookUrl}
                   </p>
+                ) : null}
+
+                {mod.connectFields.length > 0 && mod.authType !== "oauth" ? (
+                  <form
+                    className="grid max-w-lg gap-3 border-t border-border/50 pt-3"
+                    action={(fd) =>
+                      start(async () => {
+                        try {
+                          const r = await upsertConnection(fd);
+                          if (r.ok) {
+                            toast.success("Alterações validadas e salvas");
+                            refresh();
+                          } else {
+                            toast.error(r.error);
+                          }
+                        } catch (e) {
+                          toast.error(
+                            e instanceof Error ? e.message : "Erro"
+                          );
+                        }
+                      })
+                    }
+                  >
+                    <input type="hidden" name="id" value={c.id} />
+                    <input type="hidden" name="provider" value={mod.provider} />
+                    <input
+                      type="hidden"
+                      name="active"
+                      value={c.active ? "true" : "false"}
+                    />
+                    {mod.connectFields.map((f) => (
+                      <div key={`${c.id}-${f.key}`} className="space-y-1.5">
+                        <Label htmlFor={`edit-${c.id}-${f.key}`}>{f.label}</Label>
+                        <Input
+                          id={`edit-${c.id}-${f.key}`}
+                          name={f.key}
+                          type="text"
+                          required={Boolean(f.required)}
+                          placeholder={f.placeholder}
+                          defaultValue={fieldDefaultValue(c, f.key)}
+                          autoComplete="off"
+                          className={f.secret ? "font-mono text-xs" : undefined}
+                        />
+                      </div>
+                    ))}
+                    <Button type="submit" disabled={pending} className="w-fit">
+                      {pending ? "Validando…" : "Salvar alterações"}
+                    </Button>
+                  </form>
                 ) : null}
               </li>
             ))}
@@ -262,16 +331,17 @@ export function ProviderDetailClient({
                   <Input
                     id={`field-${f.key}`}
                     name={f.key}
-                    type={f.secret ? "password" : "text"}
+                    type="text"
                     required={Boolean(f.required)}
                     placeholder={f.placeholder}
                     autoComplete="off"
+                    className={f.secret ? "font-mono text-xs" : undefined}
                   />
                 </div>
               ))}
               <p className="text-xs text-muted-foreground">
-                Ao salvar, validamos o acesso na plataforma. Se falhar, nada é
-                gravado e o erro retornado é exibido.
+                Tokens ficam visíveis neste painel. Ao salvar, validamos o
+                acesso na plataforma; se falhar, nada é gravado.
               </p>
               <Button type="submit" disabled={pending} className="w-fit">
                 {pending ? "Validando…" : "Adicionar integração"}
@@ -310,8 +380,9 @@ export function ProviderDetailClient({
                   <Input
                     id={`oauth-field-${f.key}`}
                     name={f.key}
-                    type={f.secret ? "password" : "text"}
+                    type="text"
                     autoComplete="off"
+                    className={f.secret ? "font-mono text-xs" : undefined}
                   />
                 </div>
               ))}
@@ -320,8 +391,9 @@ export function ProviderDetailClient({
                 <Input
                   id="oauth-access-token"
                   name="access_token"
-                  type="password"
+                  type="text"
                   autoComplete="off"
+                  className="font-mono text-xs"
                 />
               </div>
               <Button type="submit" disabled={pending} className="w-fit">

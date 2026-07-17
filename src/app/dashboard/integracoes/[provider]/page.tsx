@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { ProviderDetailClient } from "@/app/dashboard/integracoes/[provider]/provider-detail-client";
 import { Card, CardContent } from "@/components/ui/card";
+import { decryptSecret } from "@/lib/crypto/secrets";
 import { ensureDbReady } from "@/lib/db/boot";
 import { query, queryOne } from "@/lib/db/pool";
 import type {
@@ -17,6 +18,26 @@ import {
 export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ provider: string }> };
+
+async function safeDecrypt(cipher: string | null): Promise<string> {
+  if (!cipher) return "";
+  try {
+    return await decryptSecret(cipher);
+  } catch {
+    return "";
+  }
+}
+
+function configRecord(
+  config: IntegrationConnectionRow["config"]
+): Record<string, string> {
+  if (!config || typeof config !== "object" || Array.isArray(config)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(config as Record<string, unknown>)) {
+    if (v != null && v !== "") out[k] = String(v);
+  }
+  return out;
+}
 
 export default async function ProviderIntegracaoPage({ params }: Props) {
   const { provider } = await params;
@@ -80,23 +101,33 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
     );
   }
 
-  return (
-    <ProviderDetailClient
-      module={mod}
-      appUrl={appUrl}
-      connections={connections.map((c) => ({
+  const connectionsForClient = await Promise.all(
+    connections.map(async (c) => {
+      const cfg = configRecord(c.config);
+      const accessToken = await safeDecrypt(c.access_token_cipher);
+      const webhookSecret = await safeDecrypt(c.webhook_secret_cipher);
+      return {
         id: c.id,
         label: c.label,
         active: c.active,
         account_external_id: c.account_external_id,
-        hasToken: Boolean(c.access_token_cipher),
-        hasWebhookSecret: Boolean(c.webhook_secret_cipher),
+        accessToken,
+        webhookSecret,
+        config: cfg,
         webhookUrl:
           (c.direction === "inbound" || c.direction === "both") &&
           (mod.authType === "webhook_secret" || c.webhook_secret_cipher)
             ? `${appUrl}/api/webhook/in/${c.id}`
             : null,
-      }))}
+      };
+    })
+  );
+
+  return (
+    <ProviderDetailClient
+      module={mod}
+      appUrl={appUrl}
+      connections={connectionsForClient}
       mappings={mappings.map((m) => ({
         id: m.id,
         source_provider: m.source_provider,
