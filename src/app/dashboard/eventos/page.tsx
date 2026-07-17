@@ -28,7 +28,7 @@ export default async function EventosPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Eventos</h1>
         <p className="text-sm text-muted-foreground">
-          Últimos 200 — canal (web/server), filtre e abra payload Meta/GA4.
+          Últimos 200 — plataformas (Meta/GA4), canal web/server e origem.
         </p>
       </div>
       {error ? (

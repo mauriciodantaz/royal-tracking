@@ -57,6 +57,44 @@ function channelLabel(c: string | null | undefined): string {
   }
 }
 
+function hasPayload(data: unknown): boolean {
+  if (data == null) return false;
+  if (Array.isArray(data)) return data.length > 0;
+  if (typeof data === "object") return Object.keys(data).length > 0;
+  return true;
+}
+
+/** Destinos que receberam / emitiram o evento (web e/ou server). */
+function platformsForEvent(e: EventRow): string[] {
+  const out: string[] = [];
+  const meta =
+    e.web_meta === true ||
+    e.server_meta === true ||
+    hasPayload(e.payload_meta) ||
+    hasPayload(e.response_meta);
+  const ga4 =
+    e.web_ga4 === true ||
+    e.server_ga4 === true ||
+    hasPayload(e.payload_ga4) ||
+    hasPayload(e.response_ga4);
+  if (meta) out.push("Meta");
+  if (ga4) out.push("GA4");
+  return out;
+}
+
+function sourceLabel(ingest: string | null | undefined): string {
+  switch (ingest) {
+    case "webhook":
+      return "Webhook";
+    case "snippet":
+      return "Snippet";
+    case "api":
+      return "API";
+    default:
+      return ingest?.trim() ? ingest : "—";
+  }
+}
+
 export function EventsTable({ events }: { events: EventRow[] }) {
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<EventRow | null>(null);
@@ -64,22 +102,26 @@ export function EventsTable({ events }: { events: EventRow[] }) {
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     if (!term) return events;
-    return events.filter(
-      (e) =>
+    return events.filter((e) => {
+      const platforms = platformsForEvent(e).join(" ").toLowerCase();
+      return (
         e.event_name.toLowerCase().includes(term) ||
         e.event_id.toLowerCase().includes(term) ||
         (e.trck_user_id?.toLowerCase().includes(term) ?? false) ||
         (e.utm_source?.toLowerCase().includes(term) ?? false) ||
         (e.utm_campaign?.toLowerCase().includes(term) ?? false) ||
         channelLabel(e.channel_class).includes(term) ||
-        (e.ingest_path?.toLowerCase().includes(term) ?? false)
-    );
+        (e.ingest_path?.toLowerCase().includes(term) ?? false) ||
+        platforms.includes(term) ||
+        sourceLabel(e.ingest_path).toLowerCase().includes(term)
+      );
+    });
   }, [events, q]);
 
   return (
     <div className="space-y-4">
       <Input
-        placeholder="Filtrar por evento, id, UTM…"
+        placeholder="Filtrar por evento, Meta, GA4, canal, UTM…"
         value={q}
         onChange={(e) => setQ(e.target.value)}
         className="max-w-md"
@@ -90,7 +132,9 @@ export function EventsTable({ events }: { events: EventRow[] }) {
             <TableRow>
               <TableHead>Quando</TableHead>
               <TableHead>Evento</TableHead>
+              <TableHead>Plataformas</TableHead>
               <TableHead>Canal</TableHead>
+              <TableHead>Origem</TableHead>
               <TableHead>User</TableHead>
               <TableHead>UTM</TableHead>
               <TableHead>Geo</TableHead>
@@ -98,7 +142,9 @@ export function EventsTable({ events }: { events: EventRow[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((e) => (
+            {filtered.map((e) => {
+              const platforms = platformsForEvent(e);
+              return (
               <TableRow key={e.id}>
                 <TableCell className="font-mono text-xs tabular-nums whitespace-nowrap">
                   {new Date(e.created_at).toLocaleString("pt-BR")}
@@ -107,14 +153,29 @@ export function EventsTable({ events }: { events: EventRow[] }) {
                   <Badge variant="secondary">{e.event_name}</Badge>
                 </TableCell>
                 <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    {platforms.length ? (
+                      platforms.map((p) => (
+                        <Badge
+                          key={p}
+                          variant="outline"
+                          className="font-mono text-[10px]"
+                        >
+                          {p}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>
                   <Badge variant="outline" className="font-mono text-[10px]">
                     {channelLabel(e.channel_class)}
                   </Badge>
-                  {e.ingest_path === "webhook" ? (
-                    <span className="ml-1 text-[10px] text-muted-foreground">
-                      webhook
-                    </span>
-                  ) : null}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {sourceLabel(e.ingest_path)}
                 </TableCell>
                 <TableCell className="max-w-[120px] truncate font-mono text-xs">
                   {e.trck_user_id ?? "—"}
@@ -136,10 +197,11 @@ export function EventsTable({ events }: { events: EventRow[] }) {
                   </Button>
                 </TableCell>
               </TableRow>
-            ))}
+              );
+            })}
             {!filtered.length ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                <TableCell colSpan={9} className="text-center text-muted-foreground">
                   Nenhum evento
                 </TableCell>
               </TableRow>
@@ -158,8 +220,12 @@ export function EventsTable({ events }: { events: EventRow[] }) {
           {selected ? (
             <div className="space-y-4 text-sm">
               <p className="text-xs text-muted-foreground">
+                Plataformas:{" "}
+                {platformsForEvent(selected).join(", ") || "—"}
+                {" · "}
+                Origem: {sourceLabel(selected.ingest_path)}
+                {" · "}
                 Canal: {channelLabel(selected.channel_class)}
-                {selected.ingest_path ? ` · ${selected.ingest_path}` : ""}
                 {" · "}
                 web meta/ga4: {String(!!selected.web_meta)}/
                 {String(!!selected.web_ga4)}
