@@ -514,8 +514,8 @@ export function ProviderDetailClient({
           <div>
             <h2 className="text-base font-medium">Contas nesta plataforma</h2>
             <p className="text-sm text-muted-foreground">
-              Credenciais visíveis neste painel (self-hosted). Edite e salve —
-              validamos o acesso de novo antes de gravar.
+              Credenciais visíveis neste painel. Edite e salve — validamos o
+              acesso de novo antes de gravar.
             </p>
           </div>
           <ul className="space-y-4">
@@ -703,7 +703,7 @@ export function ProviderDetailClient({
             </div>
           ) : null}
           <p className="mt-2 text-sm text-muted-foreground">
-            O snippet já está ativo nesta stack. Cole no site do cliente:
+            O snippet já está ativo. Cole no site do cliente:
           </p>
           <pre className="mt-3 overflow-x-auto rounded-lg bg-muted/50 p-3 font-mono text-xs">
             {`<script src="${appUrl}/snippet.js" async></script>`}
@@ -760,8 +760,8 @@ export function ProviderDetailClient({
           {mod.authType === "oauth" && !rd ? (
             <div className="mt-4 space-y-3">
               <p className="text-sm text-muted-foreground">
-                Esta plataforma usa OAuth. Configure CLIENT_ID/SECRET no
-                Portainer e autorize a conta.
+                Esta plataforma usa OAuth. Peça ao administrador para configurar
+                as chaves do app e depois autorize a conta.
               </p>
               <Button
                 render={
@@ -841,8 +841,8 @@ export function ProviderDetailClient({
         <section className="rounded-xl border border-border/60 p-5">
           <h2 className="text-base font-medium">Teste Meta (Events Manager)</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Código padrão da stack. Cada pixel pode ter o próprio no formulário
-            de conexão; se vazio, usa este.
+            Código padrão deste ambiente. Cada pixel pode ter o próprio no
+            formulário de conexão; se vazio, usa este.
           </p>
           <form
             className="mt-4 grid max-w-md gap-3"

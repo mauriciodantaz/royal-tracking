@@ -49,7 +49,7 @@ export async function sendMail(input: SendMailInput): Promise<void> {
   const cfg = getSmtpConfig();
   if (!cfg) {
     throw new Error(
-      "SMTP não configurado. Defina SMTP_HOST e SMTP_FROM na stack."
+      "O envio de e-mail ainda não está configurado."
     );
   }
 

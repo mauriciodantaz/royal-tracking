@@ -68,7 +68,7 @@ export async function GET(request: NextRequest, context: Ctx) {
         {
           error: "oauth_not_configured",
           message:
-            "Salve Client ID e Client Secret na conexão (ou defina no Portainer) antes de autorizar.",
+            "Salve Client ID e Client Secret na conexão antes de autorizar.",
         },
         { status: 501 }
       );
@@ -82,7 +82,8 @@ export async function GET(request: NextRequest, context: Ctx) {
       return NextResponse.json(
         {
           error: "oauth_not_configured",
-          message: `Defina CLIENT_ID/SECRET no Portainer para ${provider}`,
+          message:
+            "As chaves do aplicativo ainda não foram configuradas para esta plataforma.",
         },
         { status: 501 }
       );

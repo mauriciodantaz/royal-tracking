@@ -23,7 +23,8 @@ async function sendInviteMail(user: UserRow): Promise<ActionResult> {
   if (!isSmtpConfigured()) {
     return {
       ok: false,
-      error: "SMTP não configurado na stack (SMTP_HOST / SMTP_FROM).",
+      error:
+        "O envio de e-mail ainda não está configurado. Peça ao administrador da instalação para ativá-lo.",
     };
   }
   const token = await createAuthToken({
@@ -62,7 +63,7 @@ export async function inviteUserAction(
   if (isStackSuperAdmin(email)) {
     return {
       ok: false,
-      error: "Este e-mail é o super admin da stack e não pode ser convidado.",
+      error: "Este e-mail é do super admin e não pode ser convidado.",
     };
   }
 
@@ -130,7 +131,7 @@ export async function setUserActiveAction(
   );
   if (!user) return { ok: false, error: "Usuário não encontrado." };
   if (isStackSuperAdmin(user.email) || user.role === "super_admin") {
-    return { ok: false, error: "O super admin da stack não pode ser alterado." };
+    return { ok: false, error: "O super admin não pode ser alterado aqui." };
   }
 
   await query(
@@ -150,7 +151,7 @@ export async function deleteUserAction(userId: string): Promise<ActionResult> {
   );
   if (!user) return { ok: false, error: "Usuário não encontrado." };
   if (isStackSuperAdmin(user.email) || user.role === "super_admin") {
-    return { ok: false, error: "O super admin da stack não pode ser excluído." };
+    return { ok: false, error: "O super admin não pode ser excluído." };
   }
 
   await query(`delete from users where id = $1`, [userId]);

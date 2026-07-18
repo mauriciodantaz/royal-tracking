@@ -37,7 +37,7 @@ export async function forgotPasswordAction(
     return {
       ok: true,
       message:
-        "A senha do super admin é definida apenas na stack (ADMIN_PASSWORD) e não pode ser redefinida por e-mail.",
+        "A senha do super admin é definida na instalação do sistema e não pode ser redefinida por e-mail.",
     };
   }
 
@@ -45,7 +45,7 @@ export async function forgotPasswordAction(
     return {
       ok: true,
       message:
-        "SMTP não configurado na stack. Peça ao administrador para definir SMTP_HOST e SMTP_FROM.",
+        "O envio de e-mail ainda não está configurado. Peça ao administrador da instalação para ativá-lo.",
     };
   }
 

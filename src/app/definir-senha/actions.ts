@@ -45,7 +45,7 @@ export async function setPasswordAction(
   }
   if (isStackSuperAdmin(user.email) || user.role === "super_admin") {
     return {
-      error: "A senha do super admin é definida apenas na stack.",
+      error: "A senha do super admin é definida na instalação do sistema.",
     };
   }
 

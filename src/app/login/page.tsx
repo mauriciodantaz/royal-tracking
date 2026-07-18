@@ -18,7 +18,7 @@ export default async function LoginPage({
         <CardHeader>
           <CardTitle className="text-xl">Entrar</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Painel autenticado (Auth.js).
+            Acesse o painel com e-mail e senha.
           </p>
         </CardHeader>
         <CardContent>

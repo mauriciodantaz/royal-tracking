@@ -43,7 +43,7 @@ export function UsersClient({ users, stackAdminEmail }: Props) {
       <section className="space-y-4">
         <h2 className="text-lg font-medium">Convidar gestor</h2>
         <p className="text-sm text-muted-foreground">
-          O gestor recebe um e-mail com link para definir a senha (SMTP da stack).
+          O gestor recebe um e-mail com link para definir a senha.
         </p>
         <form action={inviteAction} className="grid max-w-lg gap-3 sm:grid-cols-2">
           <div className="space-y-2 sm:col-span-1">
@@ -114,7 +114,7 @@ export function UsersClient({ users, stackAdminEmail }: Props) {
                     <td className="py-2">
                       {isSuper ? (
                         <span className="text-xs text-muted-foreground">
-                          Gerenciado pela stack
+                          Gerenciado na instalação
                         </span>
                       ) : (
                         <div className="flex flex-wrap gap-2">

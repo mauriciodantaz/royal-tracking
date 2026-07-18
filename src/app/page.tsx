@@ -9,11 +9,11 @@ export default function HomePage() {
       <div className="space-y-3">
         <BrandLogo />
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          Captura server-side com painel
+          Captura de eventos com painel
         </h1>
         <p className="max-w-xl text-muted-foreground">
-          Identify, eventos, CAPI Meta, GA4 e webhook de compra — com
-          credenciais multi-conta no banco e dashboard autenticado.
+          Identify, eventos, CAPI Meta, GA4 e webhook de compra — com várias
+          contas e painel com login.
         </p>
       </div>
       <div className="flex flex-wrap gap-3">

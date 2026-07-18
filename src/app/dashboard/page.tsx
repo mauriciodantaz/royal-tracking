@@ -108,7 +108,8 @@ export default async function DashboardPage({
       {error ? (
         <Card className="glass border-destructive/40">
           <CardContent className="pt-6 text-sm text-destructive">
-            {error}. Verifique DATABASE_URL e se a migration foi aplicada.
+            {error}. Verifique a conexão com o banco de dados e se a instalação
+            foi concluída.
           </CardContent>
         </Card>
       ) : null}

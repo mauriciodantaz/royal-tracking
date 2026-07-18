@@ -20,7 +20,7 @@ const jetbrains = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Royal Tracking",
-  description: "Sistema de tracking server-side com painel — Royal Tracking",
+  description: "Sistema de tracking com painel — Royal Tracking",
 };
 
 export default function RootLayout({

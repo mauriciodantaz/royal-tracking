@@ -55,7 +55,7 @@ export default async function IntegracoesPage() {
             <div>
               <h2 className="text-base font-medium">Conectadas e operando</h2>
               <p className="text-sm text-muted-foreground">
-                Integrações já configuradas nesta stack.
+                Integrações já configuradas neste ambiente.
               </p>
             </div>
             <ActiveIntegrationsList

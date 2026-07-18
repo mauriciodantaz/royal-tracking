@@ -38,9 +38,15 @@ export default async function UsuariosPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Usuários</h1>
         <p className="text-sm text-muted-foreground">
-          Gestores com acesso ao painel. O super admin (
-          <span className="font-mono text-xs">{stackAdminEmail || "ADMIN_EMAIL"}</span>
-          ) vem da stack e não pode ser alterado aqui.
+          Gestores com acesso ao painel. O super admin
+          {stackAdminEmail ? (
+            <>
+              {" "}
+              (
+              <span className="font-mono text-xs">{stackAdminEmail}</span>)
+            </>
+          ) : null}{" "}
+          é definido na instalação e não pode ser alterado aqui.
         </p>
       </div>
 

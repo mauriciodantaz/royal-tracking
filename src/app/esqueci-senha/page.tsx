@@ -10,8 +10,8 @@ export default function EsqueciSenhaPage() {
         <CardHeader>
           <CardTitle className="text-xl">Esqueci a senha</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Enviaremos um link por e-mail para gestores. O super admin da stack
-            não usa este fluxo.
+            Enviaremos um link por e-mail para gestores. O super admin não usa
+            este fluxo.
           </p>
         </CardHeader>
         <CardContent>
