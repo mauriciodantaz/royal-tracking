@@ -25,6 +25,13 @@ services:
       NEXT_PUBLIC_APP_URL: http://localhost:3000
       ADMIN_EMAIL: admin@localhost
       ADMIN_PASSWORD: admin123456
+      # SMTP opcional em dev (convite/reset/alertas)
+      SMTP_HOST: ""
+      SMTP_PORT: "587"
+      SMTP_SECURE: "false"
+      SMTP_USER: ""
+      SMTP_PASS: ""
+      SMTP_FROM: "Royal Tracking <noreply@localhost>"
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: "0.0.0.0"

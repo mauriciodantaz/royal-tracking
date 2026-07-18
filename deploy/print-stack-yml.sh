@@ -66,6 +66,12 @@ services:
       ALLOWED_EVENT_DOMAINS: "$(yq "${ALLOWED_EVENT_DOMAINS:-}")"
       ADMIN_EMAIL: "$(yq "${ADMIN_EMAIL}")"
       ADMIN_PASSWORD: "$(yq "${ADMIN_PASSWORD}")"
+      SMTP_HOST: "$(yq "${SMTP_HOST:-}")"
+      SMTP_PORT: "$(yq "${SMTP_PORT:-587}")"
+      SMTP_SECURE: "$(yq "${SMTP_SECURE:-false}")"
+      SMTP_USER: "$(yq "${SMTP_USER:-}")"
+      SMTP_PASS: "$(yq "${SMTP_PASS:-}")"
+      SMTP_FROM: "$(yq "${SMTP_FROM:-}")"
     deploy:
       mode: replicated
       replicas: 1

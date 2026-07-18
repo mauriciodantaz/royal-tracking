@@ -12,6 +12,7 @@ import {
   Megaphone,
   Receipt,
   Menu,
+  UserCog,
   Users,
 } from "lucide-react";
 
@@ -29,7 +30,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
-const NAV = [
+const NAV_BASE = [
   { href: "/dashboard", label: "Visão geral", icon: LayoutDashboard },
   { href: "/dashboard/integracoes", label: "Integrações", icon: Cable },
   { href: "/dashboard/leads", label: "Leads", icon: Users },
@@ -40,12 +41,24 @@ const NAV = [
   { href: "/dashboard/geo", label: "Geo", icon: Globe2 },
 ] as const;
 
-function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
+function NavLinks({
+  onNavigate,
+  showUsersNav,
+}: {
+  onNavigate?: () => void;
+  showUsersNav: boolean;
+}) {
   const pathname = usePathname();
+  const items = showUsersNav
+    ? [
+        ...NAV_BASE,
+        { href: "/dashboard/usuarios", label: "Usuários", icon: UserCog },
+      ]
+    : [...NAV_BASE];
 
   return (
     <nav className="flex flex-col gap-1">
-      {NAV.map(({ href, label, icon: Icon }) => {
+      {items.map(({ href, label, icon: Icon }) => {
         const active =
           href === "/dashboard"
             ? pathname === href
@@ -80,12 +93,12 @@ function Brand() {
   );
 }
 
-export function AppSidebar() {
+export function AppSidebar({ showUsersNav }: { showUsersNav: boolean }) {
   return (
     <aside className="glass sticky top-0 hidden h-svh w-60 shrink-0 flex-col border-r p-4 md:flex">
       <Brand />
       <Separator className="my-4" />
-      <NavLinks />
+      <NavLinks showUsersNav={showUsersNav} />
       <div className="mt-auto space-y-3 pt-4">
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted-foreground">Tema</span>
@@ -106,7 +119,7 @@ export function AppSidebar() {
   );
 }
 
-export function MobileHeader() {
+export function MobileHeader({ showUsersNav }: { showUsersNav: boolean }) {
   return (
     <header className="glass sticky top-0 z-40 flex h-14 items-center justify-between border-b px-3 md:hidden">
       <Brand />
@@ -124,7 +137,7 @@ export function MobileHeader() {
             <SheetHeader className="mb-4 space-y-0 p-0 text-left">
               <SheetTitle>Menu</SheetTitle>
             </SheetHeader>
-            <NavLinks />
+            <NavLinks showUsersNav={showUsersNav} />
           </SheetContent>
         </Sheet>
       </div>

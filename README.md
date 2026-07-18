@@ -37,7 +37,8 @@ Produção: ver [DEPLOY.md](./DEPLOY.md).
 | `ENCRYPTION_KEY` | Chave AES-GCM (≥16 chars) para tokens no banco |
 | `AUTH_SECRET` | Secret Auth.js |
 | `NEXTAUTH_URL` | URL pública (https://tracking.royalgrowth.com.br) |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Seed do admin no primeiro boot |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Super admin imutável (sync a cada boot; senha só na stack) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | SMTP para convite, reset de senha e alertas de integração |
 | `NEXT_PUBLIC_APP_URL` | URL pública (snippet / links) |
 | `ALLOWED_EVENT_DOMAINS` | Apex da marca (ex.: `royalgrowth.com.br`) — aceita esse host e qualquer subdomínio nas APIs do snippet |
 

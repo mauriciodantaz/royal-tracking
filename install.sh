@@ -170,6 +170,12 @@ NEXT_PUBLIC_APP_URL=https://${DOMAIN}
 ALLOWED_EVENT_DOMAINS=${ALLOWED_EVENT_DOMAINS}
 ADMIN_EMAIL=${ADMIN_EMAIL}
 ADMIN_PASSWORD=${ADMIN_PASSWORD}
+SMTP_HOST=${SMTP_HOST:-}
+SMTP_PORT=${SMTP_PORT:-587}
+SMTP_SECURE=${SMTP_SECURE:-false}
+SMTP_USER=${SMTP_USER:-}
+SMTP_PASS=${SMTP_PASS:-}
+SMTP_FROM=${SMTP_FROM:-Royal Tracking <noreply@${DOMAIN}>}
 NODE_ENV=production
 PORT=3000
 HOSTNAME=0.0.0.0
@@ -263,6 +269,12 @@ services:
       ALLOWED_EVENT_DOMAINS: "$(_yaml_escape "${ALLOWED_EVENT_DOMAINS}")"
       ADMIN_EMAIL: "$(_yaml_escape "${ADMIN_EMAIL}")"
       ADMIN_PASSWORD: "$(_yaml_escape "${ADMIN_PASSWORD}")"
+      SMTP_HOST: "$(_yaml_escape "${SMTP_HOST:-}")"
+      SMTP_PORT: "$(_yaml_escape "${SMTP_PORT:-587}")"
+      SMTP_SECURE: "$(_yaml_escape "${SMTP_SECURE:-false}")"
+      SMTP_USER: "$(_yaml_escape "${SMTP_USER:-}")"
+      SMTP_PASS: "$(_yaml_escape "${SMTP_PASS:-}")"
+      SMTP_FROM: "$(_yaml_escape "${SMTP_FROM:-Royal Tracking <noreply@${DOMAIN}>}")"
     deploy:
       replicas: 1
       placement:
@@ -306,6 +318,12 @@ services:
       ALLOWED_EVENT_DOMAINS: "$(_yaml_escape "${ALLOWED_EVENT_DOMAINS}")"
       ADMIN_EMAIL: "$(_yaml_escape "${ADMIN_EMAIL}")"
       ADMIN_PASSWORD: "$(_yaml_escape "${ADMIN_PASSWORD}")"
+      SMTP_HOST: "$(_yaml_escape "${SMTP_HOST:-}")"
+      SMTP_PORT: "$(_yaml_escape "${SMTP_PORT:-587}")"
+      SMTP_SECURE: "$(_yaml_escape "${SMTP_SECURE:-false}")"
+      SMTP_USER: "$(_yaml_escape "${SMTP_USER:-}")"
+      SMTP_PASS: "$(_yaml_escape "${SMTP_PASS:-}")"
+      SMTP_FROM: "$(_yaml_escape "${SMTP_FROM:-Royal Tracking <noreply@${DOMAIN}>}")"
     networks:
       - royalnet
     deploy:

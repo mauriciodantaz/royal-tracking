@@ -31,7 +31,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           `select * from users where email = $1 limit 1`,
           [email]
         );
-        if (!user) return null;
+        if (!user || !user.active || !user.password_hash) return null;
 
         const ok = await bcrypt.compare(
           parsed.data.password,
@@ -43,6 +43,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           id: user.id,
           email: user.email,
           name: user.name ?? undefined,
+          role: user.role,
         };
       },
     }),

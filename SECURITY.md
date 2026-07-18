@@ -6,7 +6,7 @@ Checklist verificado no código (revisar de novo a cada release):
 
 - [x] `.env` no `.gitignore` — nunca commitado
 - [x] `.env.example` só com placeholders
-- [x] `DATABASE_URL`, `ENCRYPTION_KEY`, `AUTH_SECRET`, `ADMIN_PASSWORD` sem `NEXT_PUBLIC_`
+- [x] `DATABASE_URL`, `ENCRYPTION_KEY`, `AUTH_SECRET`, `ADMIN_PASSWORD`, `SMTP_PASS` sem `NEXT_PUBLIC_`
 - [x] Tokens Meta/GA4/Ads no Postgres (AES-GCM), não em env
 - [x] Pool Postgres e crypto em `server-only`
 - [x] Decrypt só no servidor (`src/lib/crypto/secrets.ts`)
@@ -14,8 +14,9 @@ Checklist verificado no código (revisar de novo a cada release):
 ## Auth
 
 - [x] Auth.js credentials + JWT session
-- [x] Admin seed só no primeiro boot (`ADMIN_EMAIL` / `ADMIN_PASSWORD`)
-- [x] Sem signup público na UI
+- [x] Super admin sync a cada boot (`ADMIN_EMAIL` / `ADMIN_PASSWORD`); imutável na UI
+- [x] Gestores convidados por e-mail (SMTP da stack); sem signup público
+- [x] Reset de senha só para gestores (não para super admin da stack)
 - [x] Proxy protege `/dashboard/*` (redirect login)
 - [x] Logout no painel
 

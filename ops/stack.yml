@@ -25,8 +25,16 @@ services:
       NEXTAUTH_URL: https://tracking.royalgrowth.com.br
       NEXT_PUBLIC_APP_URL: https://tracking.royalgrowth.com.br
       ALLOWED_EVENT_DOMAINS: royalgrowth.com.br
+      # Super admin (imutável — só stack)
       ADMIN_EMAIL: admin@example.com
       ADMIN_PASSWORD: CHANGE_ME_ADMIN_PASSWORD
+      # SMTP (convite, reset, alertas)
+      SMTP_HOST: CHANGE_ME_SMTP_HOST
+      SMTP_PORT: "587"
+      SMTP_SECURE: "false"
+      SMTP_USER: CHANGE_ME_SMTP_USER
+      SMTP_PASS: CHANGE_ME_SMTP_PASS
+      SMTP_FROM: "Royal Tracking <noreply@royalgrowth.com.br>"
     deploy:
       mode: replicated
       replicas: 1

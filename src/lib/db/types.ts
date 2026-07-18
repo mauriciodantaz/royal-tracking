@@ -6,11 +6,17 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+export type UserRole = "super_admin" | "manager";
+
 export type UserRow = {
   id: string;
   email: string;
-  password_hash: string;
+  password_hash: string | null;
   name: string | null;
+  role: UserRole;
+  active: boolean;
+  invited_at: string | null;
+  password_set_at: string | null;
   created_at: string;
   updated_at: string;
 };

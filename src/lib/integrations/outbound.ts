@@ -14,6 +14,7 @@ import {
 import { META_GRAPH_BASE_URL } from "@/lib/meta/constants";
 import { ensureDbReady } from "@/lib/db/boot";
 import { queryOne } from "@/lib/db/pool";
+import { notifyIntegrationBroken } from "@/lib/mail/alerts";
 
 export type OutboundEventInput = {
   eventId: string;
@@ -35,6 +36,17 @@ export type OutboundResult = {
   response: unknown;
   error?: string;
 };
+
+async function alertIfError(
+  result: Pick<OutboundResult, "ok" | "connectionId" | "provider" | "error">
+): Promise<void> {
+  if (result.ok || !result.error) return;
+  void notifyIntegrationBroken({
+    provider: result.provider,
+    connectionId: result.connectionId,
+    error: result.error,
+  });
+}
 
 async function resolveTestEventCode(
   conn: IntegrationConnectionRow
@@ -278,11 +290,14 @@ export async function sendToConnection(
   conn: IntegrationConnectionRow,
   input: OutboundEventInput
 ): Promise<OutboundResult> {
+  let result: OutboundResult;
   switch (conn.provider) {
     case "meta_pixel":
-      return sendToMetaConnection(conn, input);
+      result = await sendToMetaConnection(conn, input);
+      break;
     case "ga4":
-      return sendToGa4Connection(conn, input);
+      result = await sendToGa4Connection(conn, input);
+      break;
     case "google_ads":
       await logDelivery({
         eventId: input.eventId,
@@ -292,7 +307,7 @@ export async function sendToConnection(
         status: "skipped",
         error: "google_ads_not_implemented",
       });
-      return {
+      result = {
         connectionId: conn.id,
         provider: "google_ads",
         ok: false,
@@ -301,6 +316,7 @@ export async function sendToConnection(
         response: null,
         error: "google_ads_not_implemented",
       };
+      break;
     default:
       await logDelivery({
         eventId: input.eventId,
@@ -310,7 +326,7 @@ export async function sendToConnection(
         status: "skipped",
         error: "not_an_outbound_adapter",
       });
-      return {
+      result = {
         connectionId: conn.id,
         provider: conn.provider,
         ok: false,
@@ -319,5 +335,18 @@ export async function sendToConnection(
         response: null,
         error: "not_an_outbound_adapter",
       };
+      break;
   }
+
+  if (
+    !result.ok &&
+    result.error &&
+    result.error !== "google_ads_not_implemented" &&
+    result.error !== "not_an_outbound_adapter" &&
+    result.error !== "missing_ga_client_id"
+  ) {
+    await alertIfError(result);
+  }
+
+  return result;
 }

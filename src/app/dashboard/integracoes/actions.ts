@@ -2,9 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { auth } from "@/auth";
+import { requireUser } from "@/lib/auth/session";
 import { decryptSecret, encryptSecret } from "@/lib/crypto/secrets";
-import { ensureDbReady } from "@/lib/db/boot";
 import { query, queryOne } from "@/lib/db/pool";
 import type { IntegrationConnectionRow } from "@/lib/db/types";
 import {
@@ -20,13 +19,6 @@ import {
   ensureRdWebhooks,
   syncRdFunnels,
 } from "@/lib/rd/sync";
-
-async function requireUser() {
-  const session = await auth();
-  if (!session?.user) throw new Error("unauthorized");
-  await ensureDbReady();
-  return session.user;
-}
 
 function revalidateIntegrations(provider?: string) {
   revalidatePath("/dashboard/integracoes");

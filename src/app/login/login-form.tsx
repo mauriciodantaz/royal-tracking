@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -7,12 +8,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginAction } from "./actions";
 
-export function LoginForm({ nextPath }: { nextPath: string }) {
+export function LoginForm({
+  nextPath,
+  resetOk,
+}: {
+  nextPath: string;
+  resetOk?: boolean;
+}) {
   const [state, formAction, pending] = useActionState(loginAction, undefined);
 
   return (
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="next" value={nextPath || "/dashboard"} />
+      {resetOk ? (
+        <p className="text-sm text-muted-foreground" role="status">
+          Senha definida. Entre com seu e-mail e a nova senha.
+        </p>
+      ) : null}
       <div className="space-y-2">
         <Label htmlFor="email">E-mail</Label>
         <Input
@@ -42,8 +54,13 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
       <Button type="submit" className="w-full" disabled={pending}>
         {pending ? "Entrando…" : "Entrar"}
       </Button>
-      <p className="text-xs text-muted-foreground">
-        Admin criado no primeiro boot via ADMIN_EMAIL / ADMIN_PASSWORD.
+      <p className="text-center text-sm">
+        <Link
+          href="/esqueci-senha"
+          className="text-primary underline-offset-4 hover:underline"
+        >
+          Esqueci a senha
+        </Link>
       </p>
     </form>
   );
