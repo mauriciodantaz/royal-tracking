@@ -7,3 +7,53 @@ export function getAppUrl(): string {
     "http://localhost:3000"
   );
 }
+
+/** Nome de exibição da instância (env PROJECT_NAME). */
+export function getProjectName(): string {
+  return process.env.PROJECT_NAME?.trim() ?? "";
+}
+
+/** Título HTML: "NOME DO PROJETO | Royal Tracking". */
+export function getAppTitle(): string {
+  const name = getProjectName();
+  return name ? `${name} | Royal Tracking` : "Royal Tracking";
+}
+
+export type PostgresConfig =
+  | {
+      mode: "parts";
+      host: string;
+      port: number;
+      user: string;
+      password: string;
+      database: string;
+    }
+  | { mode: "url"; connectionString: string };
+
+/**
+ * Prefere DB_POSTGRESDB_* (padrão n8n). Fallback: DATABASE_URL legado.
+ */
+export function getPostgresConfig(): PostgresConfig {
+  const host = process.env.DB_POSTGRESDB_HOST?.trim();
+  const user = process.env.DB_POSTGRESDB_USER?.trim();
+  const password = process.env.DB_POSTGRESDB_PASSWORD;
+  const database = process.env.DB_POSTGRESDB_DATABASE?.trim();
+  const portRaw = process.env.DB_POSTGRESDB_PORT?.trim();
+
+  if (host && user && password !== undefined && database) {
+    const port = Number(portRaw || "5432");
+    if (!Number.isFinite(port) || port <= 0) {
+      throw new Error("Invalid DB_POSTGRESDB_PORT");
+    }
+    return { mode: "parts", host, port, user, password, database };
+  }
+
+  const connectionString = process.env.DATABASE_URL?.trim();
+  if (connectionString) {
+    return { mode: "url", connectionString };
+  }
+
+  throw new Error(
+    "Missing Postgres config: set DB_POSTGRESDB_HOST/PORT/USER/PASSWORD/DATABASE (or DATABASE_URL)"
+  );
+}

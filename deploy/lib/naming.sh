@@ -2,7 +2,8 @@
 # Naming padrão Royal Tracking — source este arquivo nos scripts de setup/deploy.
 # Prefixo: royaltracking_<slug-do-projeto>
 #
-# Ex.: projeto "Fizzing Marketing" → royaltracking_fizzing_marketing
+# Ex.: projeto "Fizzing Marketing" → stack royaltracking_fizzing_marketing
+#      título HTML: "Fizzing Marketing | Royal Tracking"
 #      stack, serviço, volume, DB e user Postgres usam o mesmo prefixo.
 
 royal_tracking_slugify() {
@@ -14,13 +15,19 @@ royal_tracking_slugify() {
 }
 
 # Define variáveis globais a partir do slug (ou do nome bruto).
-# Uso: royal_tracking_set_names "fizzing"   OU   royal_tracking_set_names_from_label "Fizzing"
+# Uso: royal_tracking_set_names "fizzing"   OU   royal_tracking_set_names "Fizzing Marketing"
+# PROJECT_NAME (nome de exibição) só é definido se ainda estiver vazio.
 royal_tracking_set_names() {
+  local input="${1:-}"
   local slug
-  slug="$(royal_tracking_slugify "${1:-}")"
+  slug="$(royal_tracking_slugify "$input")"
   if [[ -z "$slug" ]]; then
     echo "Nome do projeto inválido (use letras/números)." >&2
     return 1
+  fi
+
+  if [[ -z "${PROJECT_NAME:-}" ]]; then
+    PROJECT_NAME="$input"
   fi
 
   PROJECT_SLUG="$slug"
@@ -43,6 +50,7 @@ royal_tracking_write_instance_file() {
   mkdir -p "$(dirname "$INSTANCE_FILE")"
   cat > "$INSTANCE_FILE" <<EOF
 # Gerado pelo setup — não editar à mão sem necessidade
+PROJECT_NAME=$(printf '%q' "${PROJECT_NAME}")
 PROJECT_SLUG=${PROJECT_SLUG}
 INSTANCE_PREFIX=${INSTANCE_PREFIX}
 STACK_NAME=${STACK_NAME}
@@ -54,8 +62,8 @@ VOLUME_DATA=${VOLUME_DATA}
 PROJECT_DIR=${PROJECT_DIR}
 PG_DB=${PG_DB}
 PG_USER=${PG_USER}
-PG_HOST=${pg_host}
-DOMAIN=${domain}
+PG_HOST=$(printf '%q' "${pg_host}")
+DOMAIN=$(printf '%q' "${domain}")
 EOF
   chmod 600 "$INSTANCE_FILE"
 }

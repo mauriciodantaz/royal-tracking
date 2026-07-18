@@ -7,20 +7,36 @@ services:
   app:
     image: royalserver/royal-tracking:latest
     environment:
+      # --- Runtime ---
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
       TZ: America/Sao_Paulo
-      DATABASE_URL: postgresql://royaltracking_<SLUG>:CHANGE_ME@postgres:5432/royaltracking_<SLUG>
+
+      # --- Instância ---
+      PROJECT_NAME: "<NOME_DO_PROJETO>"
+
+      # --- Postgres (externo na RoyalNet) ---
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_USER: royaltracking_<SLUG>
+      DB_POSTGRESDB_PASSWORD: CHANGE_ME
+      DB_POSTGRESDB_DATABASE: royaltracking_<SLUG>
+
+      # --- Auth / crypto ---
       ENCRYPTION_KEY: CHANGE_ME_ENCRYPTION_KEY_MIN_32_CHARS
       AUTH_SECRET: CHANGE_ME_AUTH_SECRET_MIN_32_CHARS
       NEXTAUTH_URL: https://<DOMAIN>
       NEXT_PUBLIC_APP_URL: https://<DOMAIN>
+
+      # --- Domínios / eventos ---
       ALLOWED_EVENT_DOMAINS: <APEX_DOMAIN>
-      # Super admin (imutável — só stack)
+
+      # --- Super admin (imutável — só stack) ---
       ADMIN_EMAIL: admin@example.com
       ADMIN_PASSWORD: CHANGE_ME_ADMIN_PASSWORD
-      # SMTP (convite, reset, alertas)
+
+      # --- SMTP (convite, reset, alertas) ---
       SMTP_HOST: CHANGE_ME_SMTP_HOST
       SMTP_PORT: "587"
       SMTP_SECURE: "false"

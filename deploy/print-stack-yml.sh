@@ -38,6 +38,29 @@ yq() {
   printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
+# Prefer discrete Postgres vars; derive from DATABASE_URL / .instance if needed
+_DB_HOST="${DB_POSTGRESDB_HOST:-${PG_HOST:-postgres}}"
+_DB_PORT="${DB_POSTGRESDB_PORT:-5432}"
+_DB_USER="${DB_POSTGRESDB_USER:-${PG_USER:-$INSTANCE_PREFIX}}"
+_DB_PASS="${DB_POSTGRESDB_PASSWORD:-}"
+_DB_NAME="${DB_POSTGRESDB_DATABASE:-${PG_DB:-$INSTANCE_PREFIX}}"
+
+if [[ -z "$_DB_PASS" && -n "${DATABASE_URL:-}" ]]; then
+  # postgresql://user:pass@host:port/db
+  _rest="${DATABASE_URL#*://}"
+  _userinfo="${_rest%%@*}"
+  _DB_USER="${_userinfo%%:*}"
+  _DB_PASS="${_userinfo#*:}"
+  _hostport_db="${_rest#*@}"
+  _hostport="${_hostport_db%%/*}"
+  _DB_HOST="${_hostport%%:*}"
+  if [[ "$_hostport" == *:* ]]; then
+    _DB_PORT="${_hostport##*:}"
+  fi
+  _DB_NAME="${_hostport_db#*/}"
+  _DB_NAME="${_DB_NAME%%\?*}"
+fi
+
 cat <<EOF
 version: "3.7"
 
@@ -54,18 +77,36 @@ services:
     networks:
       - RoyalNet
     environment:
+      # --- Runtime ---
       TZ: America/Sao_Paulo
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
-      DATABASE_URL: "$(yq "${DATABASE_URL}")"
+
+      # --- Instância ---
+      PROJECT_NAME: "$(yq "${PROJECT_NAME:-$PROJECT_SLUG}")"
+
+      # --- Postgres (externo na RoyalNet) ---
+      DB_POSTGRESDB_HOST: "$(yq "${_DB_HOST}")"
+      DB_POSTGRESDB_PORT: "$(yq "${_DB_PORT}")"
+      DB_POSTGRESDB_USER: "$(yq "${_DB_USER}")"
+      DB_POSTGRESDB_PASSWORD: "$(yq "${_DB_PASS}")"
+      DB_POSTGRESDB_DATABASE: "$(yq "${_DB_NAME}")"
+
+      # --- Auth / crypto ---
       ENCRYPTION_KEY: "$(yq "${ENCRYPTION_KEY}")"
       AUTH_SECRET: "$(yq "${AUTH_SECRET}")"
       NEXTAUTH_URL: "$(yq "${NEXTAUTH_URL}")"
       NEXT_PUBLIC_APP_URL: "$(yq "${NEXT_PUBLIC_APP_URL:-$NEXTAUTH_URL}")"
+
+      # --- Domínios / eventos ---
       ALLOWED_EVENT_DOMAINS: "$(yq "${ALLOWED_EVENT_DOMAINS:-}")"
+
+      # --- Super admin (imutável — só stack) ---
       ADMIN_EMAIL: "$(yq "${ADMIN_EMAIL}")"
       ADMIN_PASSWORD: "$(yq "${ADMIN_PASSWORD}")"
+
+      # --- SMTP (convite, reset, alertas) ---
       SMTP_HOST: "$(yq "${SMTP_HOST:-}")"
       SMTP_PORT: "$(yq "${SMTP_PORT:-587}")"
       SMTP_SECURE: "$(yq "${SMTP_SECURE:-false}")"

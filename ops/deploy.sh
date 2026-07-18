@@ -3,12 +3,33 @@ set -Eeuo pipefail
 
 # Git to VPS — Next.js standalone → Swarm volume + service update
 # Target OS: Debian 11 (bullseye) + bash.
-# Called as: /root/projects/tracking/ops/deploy.sh
+# Prefer .instance (install.sh): stack/volume = royaltracking_<slug>
+# Legacy fallback: /root/projects/tracking + volume tracking
 # Stack creation: Portainer UI only. This script never creates/updates the stack via SSH CLI.
 
-REPOSITORY_SLUG="tracking"
-PROJECT_DIR="/root/projects/${REPOSITORY_SLUG}"
-VOLUME_DIR="/var/lib/docker/volumes/tracking/_data"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck disable=SC1091
+source "${ROOT}/deploy/lib/naming.sh"
+
+INSTANCE_FILE="${ROYAL_TRACKING_INSTANCE_FILE:-${ROOT}/.instance}"
+
+if [[ -f "$INSTANCE_FILE" ]]; then
+  royal_tracking_load_instance "$INSTANCE_FILE"
+  REPOSITORY_SLUG="${INSTANCE_PREFIX}"
+  PROJECT_DIR="${PROJECT_DIR:-/root/projects/${INSTANCE_PREFIX}}"
+  VOLUME_DIR="${VOLUME_DATA:-/var/lib/docker/volumes/${INSTANCE_PREFIX}/_data}"
+  SERVICE_MATCH="^${STACK_NAME}_"
+  PUBLIC_URL="${NEXTAUTH_URL:-https://${DOMAIN:-}}"
+else
+  # Legado (antes do padrão royaltracking_<slug>)
+  REPOSITORY_SLUG="tracking"
+  PROJECT_DIR="/root/projects/${REPOSITORY_SLUG}"
+  VOLUME_DIR="/var/lib/docker/volumes/tracking/_data"
+  SERVICE_MATCH="^${REPOSITORY_SLUG}_"
+  PUBLIC_URL="https://tracking.royalgrowth.com.br"
+fi
+
 BRANCH="main"
 NODE_IMAGE="node:22-alpine"
 DOCKER_BUILD_SHELL='rm -rf node_modules .next && npm ci --legacy-peer-deps && npm run build'
@@ -18,16 +39,15 @@ die() { printf '[deploy] ERROR: %s\n' "$*" >&2; exit 1; }
 
 [[ -n "${REPOSITORY_SLUG}" ]] || die "REPOSITORY_SLUG is empty"
 [[ -n "${VOLUME_DIR}" ]] || die "VOLUME_DIR is empty"
-[[ "${VOLUME_DIR}" == *"${REPOSITORY_SLUG}"* ]] || die "VOLUME_DIR must include slug for safety"
 [[ -d "${PROJECT_DIR}" ]] || die "Project directory missing: ${PROJECT_DIR}"
 
 cd "${PROJECT_DIR}"
 
-# Multi-repo VPS: origin must use the per-slug SSH host alias.
+# Multi-repo VPS: origin must use the per-slug SSH host alias when configured.
 if git remote get-url origin >/dev/null 2>&1; then
   origin_url="$(git remote get-url origin)"
-  if [[ "${origin_url}" == git@github.com:* && "${origin_url}" != git@github.com-${REPOSITORY_SLUG}:* ]]; then
-    die "origin uses bare git@github.com (wrong Deploy Key risk). Set: git remote set-url origin git@github.com-${REPOSITORY_SLUG}:mauriciodantaz/${REPOSITORY_SLUG}.git"
+  if [[ "${origin_url}" == git@github.com:* && "${origin_url}" != git@github.com-tracking:* ]]; then
+    log "AVISO: origin usa git@github.com sem alias — confira a Deploy Key."
   fi
 fi
 
@@ -85,13 +105,13 @@ fi
 [[ -f "${VOLUME_DIR}/server.js" ]] || die "Publish failed: ${VOLUME_DIR}/server.js missing"
 
 # Auto-detect Swarm service — stack must already exist in Portainer UI.
-SERVICE_NAME="$(docker service ls --format '{{.Name}}' | grep -E "^${REPOSITORY_SLUG}_" | head -n1 || true)"
+SERVICE_NAME="$(docker service ls --format '{{.Name}}' | grep -E "${SERVICE_MATCH}" | head -n1 || true)"
 if [[ -z "${SERVICE_NAME}" ]]; then
-  die "No Swarm service matching ^${REPOSITORY_SLUG}_ . Create the stack in Portainer UI first (paste ops/stack.yml). Never create/update the stack over SSH CLI. Then: docker service ls | grep ${REPOSITORY_SLUG}"
+  die "No Swarm service matching ${SERVICE_MATCH} . Create the stack in Portainer UI first (name: royaltracking_<slug>). Never create/update the stack over SSH CLI."
 fi
 
 log "Updating Swarm service ${SERVICE_NAME} (auto-detected)"
 docker service update --force "${SERVICE_NAME}"
 
-log "Deploy completed successfully → https://tracking.royalgrowth.com.br"
+log "Deploy completed successfully → ${PUBLIC_URL:-stack ${REPOSITORY_SLUG}}"
 log "Script path: ${PROJECT_DIR}/ops/deploy.sh — stack edits only in Portainer UI"

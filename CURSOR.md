@@ -5,7 +5,7 @@ Documentação viva do sistema de tracking server-side. Atualizar ao fim de cada
 ## Stack
 
 - **Next.js** 16 (App Router) + React 19 + Tailwind v4 + shadcn/ui
-- **Postgres** local (Docker Swarm) via `DATABASE_URL` — single-tenant por stack
+- **Postgres** local (Docker Swarm) via `DB_POSTGRESDB_*` (padrão n8n) — single-tenant por stack
 - **Auth.js** (credentials) + seed `ADMIN_EMAIL` / `ADMIN_PASSWORD`
 - **Deploy:** build na VPS (volume + Portainer/Swarm + Traefik); imagem Docker Hub pausada
 - **Meta Graph API:** constante `META_GRAPH_API_VERSION` em `src/lib/meta/constants.ts` (atual: `v25.0`)
@@ -14,7 +14,7 @@ Documentação viva do sistema de tracking server-side. Atualizar ao fim de cada
 ## Self-hosted — regras
 
 - **NÃO usar** o MCP Supabase neste repo (conta errada / produto OSS não depende dele).
-- Env obrigatórios: `DATABASE_URL`, `ENCRYPTION_KEY`, `AUTH_SECRET`, `NEXTAUTH_URL`, `ADMIN_*`.
+- Env obrigatórios: `DB_POSTGRESDB_*` (ou `DATABASE_URL` legado), `ENCRYPTION_KEY`, `AUTH_SECRET`, `NEXTAUTH_URL`, `ADMIN_*`.
 - Env recomendado em produção: `ALLOWED_EVENT_DOMAINS` (apex da marca).
 - Schema: `db/migrations/*.sql` (aplicado no boot). Histórico antigo em `supabase/migrations/` só referência.
 - Uma stack por domínio-raiz = um Postgres + um admin + um `ENCRYPTION_KEY` + allowlist desse apex.
@@ -30,7 +30,7 @@ Documentação viva do sistema de tracking server-side. Atualizar ao fim de cada
 ## Como rodar
 
 ```bash
-cp .env.example .env   # preencher DATABASE_URL, ENCRYPTION_KEY, AUTH_SECRET, ADMIN_*
+cp .env.example .env   # preencher DB_POSTGRESDB_*, ENCRYPTION_KEY, AUTH_SECRET, ADMIN_*
 npm install --legacy-peer-deps
 npm run dev
 ```

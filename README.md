@@ -25,7 +25,7 @@ Abra http://localhost:3000 → login `admin@localhost` / `admin123456` (só no c
 ./install.sh
 ```
 
-O script pergunta o **nome da empresa/projeto** e cria stack, serviço, volume, DB e user como `royaltracking_<slug>`. Postgres fica na stack externa (`RoyalNet`). **Env vai no YAML da stack Portainer** (não no volume).
+O script pergunta o **nome da empresa/projeto** e cria stack, serviço, volume, DB e user como `royaltracking_<slug>`. O nome vira `PROJECT_NAME` (título `{NOME} | Royal Tracking`). Postgres fica na stack externa (`RoyalNet`). **Env vai no YAML da stack Portainer** (não no volume).
 
 Produção: ver [DEPLOY.md](./DEPLOY.md).
 
@@ -33,7 +33,9 @@ Produção: ver [DEPLOY.md](./DEPLOY.md).
 
 | Variável | Descrição |
 |----------|-----------|
-| `DATABASE_URL` | Postgres connection string |
+| `PROJECT_NAME` | Nome da instância (título HTML: `{PROJECT_NAME} \| Royal Tracking`; stack = `royaltracking_<slug>`) |
+| `DB_POSTGRESDB_HOST` / `PORT` / `USER` / `PASSWORD` / `DATABASE` | Postgres (padrão n8n; externo na RoyalNet) |
+| `DATABASE_URL` | Fallback legado (só se as vars `DB_POSTGRESDB_*` não existirem) |
 | `ENCRYPTION_KEY` | Chave AES-GCM (≥16 chars) para tokens no banco |
 | `AUTH_SECRET` | Secret Auth.js |
 | `NEXTAUTH_URL` | URL pública (https://tracking.royalgrowth.com.br) |
@@ -60,7 +62,7 @@ Header: `x-webhook-token: <secret da conexão>`
 ## Dev local (sem Docker)
 
 ```bash
-# Postgres rodando + DATABASE_URL no .env
+# Postgres rodando + DB_POSTGRESDB_* no .env
 cp .env.example .env
 npm install --legacy-peer-deps
 npm run dev

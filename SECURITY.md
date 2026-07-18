@@ -6,7 +6,7 @@ Checklist verificado no código (revisar de novo a cada release):
 
 - [x] `.env` no `.gitignore` — nunca commitado
 - [x] `.env.example` só com placeholders
-- [x] `DATABASE_URL`, `ENCRYPTION_KEY`, `AUTH_SECRET`, `ADMIN_PASSWORD`, `SMTP_PASS` sem `NEXT_PUBLIC_`
+- [x] `DB_POSTGRESDB_PASSWORD` / `DATABASE_URL`, `ENCRYPTION_KEY`, `AUTH_SECRET`, `ADMIN_PASSWORD`, `SMTP_PASS` sem `NEXT_PUBLIC_`
 - [x] Tokens Meta/GA4/Ads no Postgres (AES-GCM), não em env
 - [x] Pool Postgres e crypto em `server-only`
 - [x] Decrypt só no servidor (`src/lib/crypto/secrets.ts`)

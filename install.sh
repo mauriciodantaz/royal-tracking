@@ -27,13 +27,14 @@ if [[ "$(id -u)" -ne 0 ]]; then
   exit 1
 fi
 
-read -r -p "Nome da empresa / projeto (ex: fizzing, royalserver): " PROJECT_LABEL
-PROJECT_LABEL="${PROJECT_LABEL// /}"
+read -r -p "Nome da empresa / projeto (ex: Fizzing, Royal Growth): " PROJECT_LABEL
+PROJECT_LABEL="$(printf '%s' "$PROJECT_LABEL" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
 if [[ -z "$PROJECT_LABEL" ]]; then
   echo "Nome obrigatório." >&2
   exit 1
 fi
 
+PROJECT_NAME="$PROJECT_LABEL"
 royal_tracking_set_names "$PROJECT_LABEL"
 
 read -r -p "Domínio (ex: tracking.royalgrowth.com.br): " DOMAIN
@@ -67,6 +68,8 @@ CREATE_DB="${CREATE_DB:-Y}"
 
 echo
 echo "Vai criar:"
+echo "  Nome:     ${PROJECT_NAME}"
+echo "  Título:   ${PROJECT_NAME} | Royal Tracking"
 echo "  Prefixo:  ${INSTANCE_PREFIX}"
 echo "  Stack:    ${STACK_NAME}"
 echo "  Serviço:  ${SERVICE_NAME}"
@@ -162,7 +165,12 @@ royal_tracking_write_instance_file "$DOMAIN" "$PG_HOST"
 echo "==> .env"
 cat > "${PROJECT_DIR}/.env" <<EOF
 # Instância ${INSTANCE_PREFIX} — gerado por install.sh
-DATABASE_URL=postgresql://${PG_USER}:${DB_PASSWORD}@${PG_HOST}:5432/${PG_DB}
+PROJECT_NAME="${PROJECT_NAME}"
+DB_POSTGRESDB_HOST=${PG_HOST}
+DB_POSTGRESDB_PORT=5432
+DB_POSTGRESDB_USER=${PG_USER}
+DB_POSTGRESDB_PASSWORD=${DB_PASSWORD}
+DB_POSTGRESDB_DATABASE=${PG_DB}
 ENCRYPTION_KEY=${ENCRYPTION_KEY}
 AUTH_SECRET=${AUTH_SECRET}
 NEXTAUTH_URL=https://${DOMAIN}
@@ -239,7 +247,6 @@ _yaml_escape() {
   printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
-_DB_URL="postgresql://${PG_USER}:${DB_PASSWORD}@${PG_HOST}:5432/${PG_DB}"
 _NEXTAUTH_URL="https://${DOMAIN}"
 
 if [[ "$BUILD_ON_VPS" == "1" ]]; then
@@ -257,18 +264,36 @@ services:
     networks:
       - royalnet
     environment:
+      # --- Runtime ---
       TZ: America/Sao_Paulo
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
-      DATABASE_URL: "$(_yaml_escape "${_DB_URL}")"
+
+      # --- Instância ---
+      PROJECT_NAME: "$(_yaml_escape "${PROJECT_NAME}")"
+
+      # --- Postgres (externo na RoyalNet) ---
+      DB_POSTGRESDB_HOST: "$(_yaml_escape "${PG_HOST}")"
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_USER: "$(_yaml_escape "${PG_USER}")"
+      DB_POSTGRESDB_PASSWORD: "$(_yaml_escape "${DB_PASSWORD}")"
+      DB_POSTGRESDB_DATABASE: "$(_yaml_escape "${PG_DB}")"
+
+      # --- Auth / crypto ---
       ENCRYPTION_KEY: "$(_yaml_escape "${ENCRYPTION_KEY}")"
       AUTH_SECRET: "$(_yaml_escape "${AUTH_SECRET}")"
       NEXTAUTH_URL: "$(_yaml_escape "${_NEXTAUTH_URL}")"
       NEXT_PUBLIC_APP_URL: "$(_yaml_escape "${_NEXTAUTH_URL}")"
+
+      # --- Domínios / eventos ---
       ALLOWED_EVENT_DOMAINS: "$(_yaml_escape "${ALLOWED_EVENT_DOMAINS}")"
+
+      # --- Super admin (imutável — só stack) ---
       ADMIN_EMAIL: "$(_yaml_escape "${ADMIN_EMAIL}")"
       ADMIN_PASSWORD: "$(_yaml_escape "${ADMIN_PASSWORD}")"
+
+      # --- SMTP (convite, reset, alertas) ---
       SMTP_HOST: "$(_yaml_escape "${SMTP_HOST:-}")"
       SMTP_PORT: "$(_yaml_escape "${SMTP_PORT:-587}")"
       SMTP_SECURE: "$(_yaml_escape "${SMTP_SECURE:-false}")"
@@ -306,18 +331,36 @@ services:
   ${SERVICE_KEY}:
     image: ${IMAGE}
     environment:
+      # --- Runtime ---
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
       TZ: America/Sao_Paulo
-      DATABASE_URL: "$(_yaml_escape "${_DB_URL}")"
+
+      # --- Instância ---
+      PROJECT_NAME: "$(_yaml_escape "${PROJECT_NAME}")"
+
+      # --- Postgres (externo na RoyalNet) ---
+      DB_POSTGRESDB_HOST: "$(_yaml_escape "${PG_HOST}")"
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_USER: "$(_yaml_escape "${PG_USER}")"
+      DB_POSTGRESDB_PASSWORD: "$(_yaml_escape "${DB_PASSWORD}")"
+      DB_POSTGRESDB_DATABASE: "$(_yaml_escape "${PG_DB}")"
+
+      # --- Auth / crypto ---
       ENCRYPTION_KEY: "$(_yaml_escape "${ENCRYPTION_KEY}")"
       AUTH_SECRET: "$(_yaml_escape "${AUTH_SECRET}")"
       NEXTAUTH_URL: "$(_yaml_escape "${_NEXTAUTH_URL}")"
       NEXT_PUBLIC_APP_URL: "$(_yaml_escape "${_NEXTAUTH_URL}")"
+
+      # --- Domínios / eventos ---
       ALLOWED_EVENT_DOMAINS: "$(_yaml_escape "${ALLOWED_EVENT_DOMAINS}")"
+
+      # --- Super admin (imutável — só stack) ---
       ADMIN_EMAIL: "$(_yaml_escape "${ADMIN_EMAIL}")"
       ADMIN_PASSWORD: "$(_yaml_escape "${ADMIN_PASSWORD}")"
+
+      # --- SMTP (convite, reset, alertas) ---
       SMTP_HOST: "$(_yaml_escape "${SMTP_HOST:-}")"
       SMTP_PORT: "$(_yaml_escape "${SMTP_PORT:-587}")"
       SMTP_SECURE: "$(_yaml_escape "${SMTP_SECURE:-false}")"

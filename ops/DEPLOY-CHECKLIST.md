@@ -9,17 +9,17 @@ Strategy: docker-swarm-volume-node | Framework: nextjs | Build mode: docker
 - [x] VPS OS = Debian 11; comandos em bash
 - [x] Build via Docker (`node:22-alpine`) — sem npm no host
 - [x] Workflow path = `/root/projects/tracking/ops/deploy.sh`
-- [x] Service name auto-detect (`^tracking_`)
+- [x] Service name auto-detect (`^royaltracking_` ou legado `^tracking_`)
 - [x] Stack creation = Portainer only
 - [x] Traefik Host = `tracking.royalgrowth.com.br`
-- [x] `ALLOWED_EVENT_DOMAINS` = `royalgrowth.com.br`
+- [x] `PROJECT_NAME` + `ALLOWED_EVENT_DOMAINS` no YAML
 - [x] Multi-repo: alias `github.com-tracking` + Deploy Key por slug
-- [x] Postgres externo preservado (DATABASE_URL do YAML de entrega; só o volume do app mudou)
+- [x] Postgres externo preservado (`DB_POSTGRESDB_*` no YAML de entrega; só o volume do app mudou)
 
 ## Identificação
 
 - [x] Repositório: mauriciodantaz/tracking
-- [x] Slug: tracking
+- [x] Naming: `royaltracking_<slug>` (slugify de `PROJECT_NAME`)
 - [x] Framework: Next.js standalone
 - [x] Estratégia: Swarm volume + `node server.js`
 - [x] URL pública: https://tracking.royalgrowth.com.br
@@ -27,18 +27,18 @@ Strategy: docker-swarm-volume-node | Framework: nextjs | Build mode: docker
 ## Artefatos
 
 - [x] `ops/stack.yml` (placeholders no Git; YAML preenchido na entrega)
-- [x] Pasta VPS: `/root/projects/tracking`
-- [x] Volume: `/var/lib/docker/volumes/tracking/_data`
-- [x] Deploy script: `ops/deploy.sh`
+- [x] Pasta VPS: `/root/projects/royaltracking_<slug>` (legado: `/root/projects/tracking`)
+- [x] Volume: `/var/lib/docker/volumes/royaltracking_<slug>/_data`
+- [x] Deploy script: `ops/deploy.sh` (lê `.instance` quando existir)
 - [x] Sem criação de stack via SSH CLI / sem `PENDING`
 
-## Migração do legado (stack antiga → slug tracking)
+## Migração do legado (stack `tracking` → `royaltracking_<slug>`)
 
-- [ ] Remover stack antiga no Portainer (UI), se ainda existir (nome antigo com prefixo legado)
-- [ ] Criar stack nova `tracking` colando o YAML preenchido
-- [ ] Volume antigo apagado pelo operador — criar/publicar via `ops/deploy.sh`
-- [ ] Manter o Postgres/user já existente (DATABASE_URL do YAML de entrega)
-- [ ] Apontar clone para `/root/projects/tracking` (não a pasta legada)
+- [ ] Remover stack antiga no Portainer (UI), se ainda existir
+- [ ] Criar stack nova `royaltracking_<slug>` colando o YAML com `PROJECT_NAME`
+- [ ] Volume antigo → republicar via `ops/deploy.sh` no path novo
+- [ ] Manter o Postgres/user já existente (`DB_POSTGRESDB_*` no YAML de entrega)
+- [ ] Apontar clone para `/root/projects/royaltracking_<slug>`
 
 ## Acesso
 

@@ -32,11 +32,12 @@ deployment:
   environment_source: "portainer-stack-environment"
 
 docker:
-  stack_name: "tracking"
+  # Naming: royaltracking_<slug> (slugify de PROJECT_NAME)
+  stack_name: "royaltracking_<SLUG>"
   service_name: "app"
-  full_service_name: "auto-detect:^tracking_"
-  volume_name: "tracking"
-  volume_directory: "/var/lib/docker/volumes/tracking/_data"
+  full_service_name: "auto-detect:^royaltracking_"
+  volume_name: "royaltracking_<SLUG>"
+  volume_directory: "/var/lib/docker/volumes/royaltracking_<SLUG>/_data"
   network: "RoyalNet"
 
 domain:

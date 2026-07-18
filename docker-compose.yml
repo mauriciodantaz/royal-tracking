@@ -18,23 +18,38 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: postgresql://tracking:tracking@postgres:5432/tracking
+      # --- Runtime ---
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+
+      # --- Instância ---
+      PROJECT_NAME: Dev
+
+      # --- Postgres ---
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_USER: tracking
+      DB_POSTGRESDB_PASSWORD: tracking
+      DB_POSTGRESDB_DATABASE: tracking
+
+      # --- Auth / crypto ---
       ENCRYPTION_KEY: local-dev-encryption-key-32chars
       AUTH_SECRET: local-dev-auth-secret-change-me-32
       NEXTAUTH_URL: http://localhost:3000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+      # --- Super admin ---
       ADMIN_EMAIL: admin@localhost
       ADMIN_PASSWORD: admin123456
-      # SMTP opcional em dev (convite/reset/alertas)
+
+      # --- SMTP (opcional em dev) ---
       SMTP_HOST: ""
       SMTP_PORT: "587"
       SMTP_SECURE: "false"
       SMTP_USER: ""
       SMTP_PASS: ""
       SMTP_FROM: "Royal Tracking <noreply@localhost>"
-      NODE_ENV: production
-      PORT: "3000"
-      HOSTNAME: "0.0.0.0"
     depends_on:
       - postgres
 

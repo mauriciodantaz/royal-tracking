@@ -1,26 +1,38 @@
 import "server-only";
 
 import { Pool, type QueryResult, type QueryResultRow } from "pg";
+import { getPostgresConfig } from "@/lib/env";
 
 declare global {
   // eslint-disable-next-line no-var
   var __royalTrackingPool: Pool | undefined;
 }
 
-function getDatabaseUrl(): string {
-  const url = process.env.DATABASE_URL;
-  if (!url) {
-    throw new Error("Missing DATABASE_URL");
-  }
-  return url;
-}
-
 export function getPool(): Pool {
   if (!globalThis.__royalTrackingPool) {
-    globalThis.__royalTrackingPool = new Pool({
-      connectionString: getDatabaseUrl(),
-      max: 10,
-    });
+    const config = getPostgresConfig();
+    switch (config.mode) {
+      case "parts":
+        globalThis.__royalTrackingPool = new Pool({
+          host: config.host,
+          port: config.port,
+          user: config.user,
+          password: config.password,
+          database: config.database,
+          max: 10,
+        });
+        break;
+      case "url":
+        globalThis.__royalTrackingPool = new Pool({
+          connectionString: config.connectionString,
+          max: 10,
+        });
+        break;
+      default: {
+        const _exhaustive: never = config;
+        throw new Error(`Unknown postgres config: ${JSON.stringify(_exhaustive)}`);
+      }
+    }
   }
   return globalThis.__royalTrackingPool;
 }
