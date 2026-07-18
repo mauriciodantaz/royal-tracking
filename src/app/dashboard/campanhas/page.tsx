@@ -4,7 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ensureDbReady } from "@/lib/db/boot";
 import { query } from "@/lib/db/pool";
 import { getAdsInsightsTree } from "@/lib/meta/ads-insights";
+
 import { CampaignsView } from "./campaigns-view";
+import { CampanhasTreeSkeleton } from "./campaigns-skeleton";
 
 export default async function CampanhasPage({
   searchParams,
@@ -12,23 +14,7 @@ export default async function CampanhasPage({
   searchParams: Promise<{ account?: string; refresh?: string }>;
 }) {
   const params = await searchParams;
-  let error: string | null = null;
-  let accounts: Array<{ id: string; label: string }> = [];
-  let trees: Awaited<ReturnType<typeof getAdsInsightsTree>> = [];
-
-  try {
-    await ensureDbReady();
-    const result = await query<{ id: string; label: string }>(
-      `select id, label from meta_ad_accounts where active = true`
-    );
-    accounts = result.rows;
-    trees = await getAdsInsightsTree({
-      accountId: params.account,
-      force: params.refresh === "1",
-    });
-  } catch (e) {
-    error = e instanceof Error ? e.message : "Erro";
-  }
+  const suspenseKey = `${params.account ?? "all"}:${params.refresh ?? "0"}`;
 
   return (
     <div className="space-y-6">
@@ -39,24 +25,44 @@ export default async function CampanhasPage({
           limit conservador.
         </p>
       </div>
-      {error ? (
-        <Card className="glass border-destructive/40">
-          <CardContent className="pt-6 text-sm text-destructive">{error}</CardContent>
-        </Card>
-      ) : (
-        <Card className="glass">
-          <CardHeader>
-            <CardTitle className="text-base">
-              Árvore campanha → conjunto → anúncio
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Suspense fallback={<p className="text-sm">Carregando…</p>}>
-              <CampaignsView accounts={accounts} trees={trees} />
-            </Suspense>
-          </CardContent>
-        </Card>
-      )}
+      <Card className="glass">
+        <CardHeader>
+          <CardTitle className="text-base">
+            Árvore campanha → conjunto → anúncio
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Suspense key={suspenseKey} fallback={<CampanhasTreeSkeleton />}>
+            <CampaignsData
+              accountId={params.account}
+              force={params.refresh === "1"}
+            />
+          </Suspense>
+        </CardContent>
+      </Card>
     </div>
   );
+}
+
+async function CampaignsData({
+  accountId,
+  force,
+}: {
+  accountId?: string;
+  force: boolean;
+}) {
+  try {
+    await ensureDbReady();
+    const result = await query<{ id: string; label: string }>(
+      `select id, label from meta_ad_accounts where active = true`
+    );
+    const trees = await getAdsInsightsTree({
+      accountId,
+      force,
+    });
+    return <CampaignsView accounts={result.rows} trees={trees} />;
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Erro";
+    return <p className="text-sm text-destructive">{message}</p>;
+  }
 }
