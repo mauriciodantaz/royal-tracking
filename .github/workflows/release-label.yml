@@ -1,0 +1,46 @@
+name: Release label
+
+# Gate pré-merge: PRs com base `beta` precisam de exatamente um label release:*.
+# Marque este check como required na branch protection de `beta`.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize, labeled, unlabeled]
+    branches:
+      - beta
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require exactly one release:* label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          LABELS="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '[.labels[].name] | join(",")')"
+          count=0
+          matched=""
+          IFS=',' read -ra parts <<< "${LABELS}"
+          for l in "${parts[@]}"; do
+            case "$l" in
+              release:versão|release:versao|release:melhoria|release:hotfix|release:none)
+                count=$((count + 1))
+                matched="$l"
+                ;;
+            esac
+          done
+          if [ "$count" -eq 0 ]; then
+            echo "::error::PR para beta precisa de exatamente um label: release:versão | release:melhoria | release:hotfix | release:none"
+            exit 1
+          fi
+          if [ "$count" -gt 1 ]; then
+            echo "::error::PR para beta deve ter só um label release:* (encontrou $count). Labels: ${LABELS}"
+            exit 1
+          fi
+          echo "OK: ${matched}"
