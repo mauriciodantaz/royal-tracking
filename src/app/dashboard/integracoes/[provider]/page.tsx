@@ -9,13 +9,14 @@ import type {
   IntegrationConnectionRow,
   IntegrationEventMappingRow,
 } from "@/lib/db/types";
-import { getAppUrl } from "@/lib/env";
+import { getAppUrl, getProjectName } from "@/lib/env";
 import {
   getModule,
   isUiVisibleProvider,
 } from "@/lib/integrations/registry";
 import { metadataRecord } from "@/lib/rd/credentials";
 import { MKT_LIFECYCLE_SLOTS } from "@/lib/rd/mkt";
+import { slugTicketName } from "@/lib/whatsapp/ticket";
 
 export const dynamic = "force-dynamic";
 
@@ -203,6 +204,17 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
         cfg.client_secret = await safeDecrypt(secretCipher);
       }
       const meta = metadataRecord(c.metadata);
+      const whMeta =
+        meta.whatsapp_webhook &&
+        typeof meta.whatsapp_webhook === "object" &&
+        !Array.isArray(meta.whatsapp_webhook)
+          ? (meta.whatsapp_webhook as Record<string, unknown>)
+          : null;
+      const isWhatsapp =
+        provider === "evolution_api" || provider === "uazapi";
+      const ticketName = slugTicketName(
+        cfg.ticket_name || getProjectName() || "rt"
+      );
       return {
         id: c.id,
         label: c.label,
@@ -217,9 +229,15 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
           (c.direction === "inbound" || c.direction === "both") &&
           (mod.authType === "webhook_secret" ||
             c.webhook_secret_cipher ||
-            isRd)
+            isRd ||
+            isWhatsapp)
             ? `${appUrl}/api/webhook/in/${c.id}`
             : null,
+        webhookStatus:
+          typeof whMeta?.status === "string" ? whMeta.status : null,
+        webhookStatusMessage:
+          typeof whMeta?.message === "string" ? whMeta.message : null,
+        ticketName,
       };
     })
   );

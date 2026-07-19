@@ -9,6 +9,9 @@ O módulo **Site / Forms** não pede token. O snippet já está ativo na stack: 
 - Captura submit de formulários → **Lead**
 - Expõe `window.trck.event` / `identify` / `lead`
 - Anexa `trck_user_id` em links de checkout/WhatsApp/Hotmart/etc.
+- Em `wa.me` / `api.whatsapp.com`, também coloca `[ticket=NOME:valor]` no `text=` (valor = `trck_user_id` ou fallback fbp/ga/gclid/ttclid)
+- Captura `gclid` / `ttclid` e monta `fbc` a partir de `fbclid` quando o cookie `_fbc` não existir
+- Helper: `trck.withWhatsAppTicket(url, message?)`
 
 ## Código para colar
 
@@ -30,7 +33,9 @@ Opcional, antes do script:
 
 Se `ALLOWED_EVENT_DOMAINS` estiver definido no Portainer (ex.: `royalgrowth.com.br`), as APIs públicas só aceitam `Origin`/`Referer` desse apex e subdomínios.
 
-Endpoints: `/api/identify`, `/api/event`, `/api/lead`, `/api/ga4/ids`, `/api/meta/ids`.
+Endpoints: `/api/identify`, `/api/event`, `/api/lead`, `/api/ga4/ids`, `/api/meta/ids`, `/api/tracking/config`.
+
+Opcional: `window.TRCK_TICKET_NAME="MeuNome"` para forçar o nome do ticket no WhatsApp (senão vem de `/api/tracking/config` / `PROJECT_NAME`).
 
 ## Web + server
 

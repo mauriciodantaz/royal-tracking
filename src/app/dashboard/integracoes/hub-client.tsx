@@ -117,52 +117,67 @@ export function ActiveIntegrationsList({
   );
 }
 
+type GalleryModule = {
+  provider: string;
+  name: string;
+  description: string;
+  direction: string;
+};
+
 export function ModuleGallery({
-  modules,
+  segments,
   connectedCounts,
 }: {
-  modules: Array<{
-    provider: string;
-    name: string;
-    description: string;
-    direction: string;
+  segments: Array<{
+    id: string;
+    label: string;
+    modules: GalleryModule[];
   }>;
   connectedCounts: Record<string, number>;
 }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {modules.map((mod) => {
-        const count = connectedCounts[mod.provider] ?? 0;
-        return (
-          <div
-            key={mod.provider}
-            className="flex flex-col rounded-xl border border-border/60 p-4 transition-colors hover:border-border hover:bg-muted/30"
-          >
-            <div className="mb-3">
-              <h3 className="text-sm font-semibold tracking-tight">
-                {mod.name}
-              </h3>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {directionLabel(mod.direction)}
-                {count > 0 ? ` · ${count} conectada(s)` : ""}
-              </p>
-            </div>
-            <p className="mb-4 flex-1 text-sm text-muted-foreground">
-              {mod.description}
-            </p>
-            <Button
-              className="w-full justify-between"
-              size="sm"
-              render={
-                <Link href={`/dashboard/integracoes/${mod.provider}`} />
-              }
-            >
-              Adicionar integração
-              <ArrowRight className="size-3.5" />
-            </Button>
+    <div className="space-y-8">
+      {segments.map((seg) => (
+        <div key={seg.id} className="space-y-3">
+          <h3 className="text-sm font-semibold tracking-tight text-foreground">
+            {seg.label}
+          </h3>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {seg.modules.map((mod) => {
+              const count = connectedCounts[mod.provider] ?? 0;
+              return (
+                <div
+                  key={mod.provider}
+                  className="flex flex-col rounded-xl border border-border/60 p-4 transition-colors hover:border-border hover:bg-muted/30"
+                >
+                  <div className="mb-3">
+                    <h3 className="text-sm font-semibold tracking-tight">
+                      {mod.name}
+                    </h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {directionLabel(mod.direction)}
+                      {count > 0 ? ` · ${count} conectada(s)` : ""}
+                    </p>
+                  </div>
+                  <p className="mb-4 flex-1 text-sm text-muted-foreground">
+                    {mod.description}
+                  </p>
+                  <Button
+                    className="w-full justify-between"
+                    size="sm"
+                    render={
+                      <Link href={`/dashboard/integracoes/${mod.provider}`} />
+                    }
+                  >
+                    Adicionar integração
+                    <ArrowRight className="size-3.5" />
+                  </Button>
+                </div>
+              );
+            })}
           </div>
-        );
-      })}
+        </div>
+      ))}
     </div>
   );
 }

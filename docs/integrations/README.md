@@ -17,6 +17,8 @@ URL: `/dashboard/integracoes/{provider}/docs`
 | RD Station Marketing | [rdstation-mkt.md](./rdstation-mkt.md) | `rdstation_mkt` |
 | RD Conversas | [rdstation-conversas.md](./rdstation-conversas.md) | `rdstation_conversas` |
 | Pipedrive | [pipedrive.md](./pipedrive.md) | `pipedrive` |
+| Evolution API | [evolution-api.md](./evolution-api.md) | `evolution_api` |
+| UazAPI Go | [uazapi.md](./uazapi.md) | `uazapi` |
 | Site / Forms | [snippet.md](./snippet.md) | `snippet` |
 
 RD CRM/MKT: Client ID/Secret na UI (Portainer só como fallback). Google Ads OAuth ainda usa env — ver [INTEGRATIONS.md](../INTEGRATIONS.md).

@@ -7,8 +7,8 @@ import { ensureDbReady } from "@/lib/db/boot";
 import { query } from "@/lib/db/pool";
 import type { IntegrationConnectionRow } from "@/lib/db/types";
 import {
+  groupUiModulesBySegment,
   isUiVisibleProvider,
-  listUiModules,
 } from "@/lib/integrations/registry";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +41,16 @@ export default async function IntegracoesPage() {
   for (const c of visibleConnections) {
     connectedCounts[c.provider] = (connectedCounts[c.provider] ?? 0) + 1;
   }
-  const uiModules = listUiModules();
+  const gallerySegments = groupUiModulesBySegment().map((seg) => ({
+    id: seg.id,
+    label: seg.label,
+    modules: seg.modules.map((m) => ({
+      provider: m.provider,
+      name: m.name,
+      description: m.description,
+      direction: m.direction,
+    })),
+  }));
 
   return (
     <div className="space-y-10">
@@ -87,12 +96,7 @@ export default async function IntegracoesPage() {
               </p>
             </div>
             <ModuleGallery
-              modules={uiModules.map((m) => ({
-                provider: m.provider,
-                name: m.name,
-                description: m.description,
-                direction: m.direction,
-              }))}
+              segments={gallerySegments}
               connectedCounts={connectedCounts}
             />
           </section>

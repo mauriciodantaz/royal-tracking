@@ -9,6 +9,7 @@ import { ArrowLeft, ArrowRight, Trash2 } from "lucide-react";
 import {
   deleteConnection,
   deleteEventMapping,
+  reconfigureWhatsappWebhookAction,
   saveRdStageMapsAction,
   syncRdFunnelsAction,
   updateMetaTestEventCode,
@@ -164,7 +165,102 @@ type Conn = {
   webhookUrl: string | null;
   oauthConnected?: boolean;
   needsReauth?: boolean;
+  webhookStatus?: string | null;
+  webhookStatusMessage?: string | null;
+  ticketName?: string;
 };
+
+function isWhatsappProvider(provider: string): boolean {
+  return provider === "evolution_api" || provider === "uazapi";
+}
+
+function WaMeLinkGenerator({ ticketName }: { ticketName: string }) {
+  const [phone, setPhone] = useState("");
+  const [message, setMessage] = useState(
+    "Olá! Tudo bem? Quero saber mais."
+  );
+  const [link, setLink] = useState("");
+
+  function build() {
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length < 10) {
+      toast.error("Informe o telefone com DDI (ex.: 5511999999999).");
+      return;
+    }
+    const ticketLine = `[ticket=${ticketName}:{{tracking}}]`;
+    const body = `${message.trim()}\n\n${ticketLine}`;
+    const url = `https://wa.me/${digits}?text=${encodeURIComponent(body)}`;
+    setLink(url);
+  }
+
+  return (
+    <div className="space-y-3 border-t border-border/50 pt-3">
+      <div>
+        <h2 className="text-sm font-medium">Gerador de link wa.me</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Monte o CTA com a mensagem pré-preenchida. No site, o snippet troca{" "}
+          <code className="font-mono">{"{{tracking}}"}</code> pelo ID real no
+          clique.
+        </p>
+      </div>
+      <div className="grid max-w-lg gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="wa-phone">Telefone (DDI+DDD+número)</Label>
+          <Input
+            id="wa-phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="5511999999999"
+            className="font-mono text-xs"
+            autoComplete="off"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="wa-msg">Mensagem</Label>
+          <Input
+            id="wa-msg"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Olá! Quero saber mais."
+          />
+        </div>
+        <Button type="button" size="sm" className="w-fit" onClick={build}>
+          Gerar link
+        </Button>
+      </div>
+      {link ? (
+        <div className="space-y-2">
+          <p className="break-all rounded-lg bg-muted/50 px-3 py-2 font-mono text-[11px]">
+            {link}
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(link);
+                toast.success("Link copiado");
+              } catch {
+                toast.error("Não foi possível copiar");
+              }
+            }}
+          >
+            Copiar link
+          </Button>
+        </div>
+      ) : null}
+      <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-foreground/90">
+        <strong className="font-medium">Não remova</strong> a linha{" "}
+        <code className="font-mono">[ticket={ticketName}:…]</code> do texto
+        (nem do link). Sem ela o clique no WhatsApp{" "}
+        <strong className="font-medium">não vira Lead rastreado</strong> no
+        Royal Tracking / Meta / Google. O resto da mensagem pode editar à
+        vontade.
+      </p>
+    </div>
+  );
+}
 
 type StageMapItem = {
   id: string;
@@ -443,6 +539,7 @@ export function ProviderDetailClient({
   const router = useRouter();
   const [pending, start] = useTransition();
   const rd = isRdProvider(mod.provider);
+  const whatsapp = isWhatsappProvider(mod.provider);
 
   function refresh() {
     router.refresh();
@@ -472,6 +569,12 @@ export function ProviderDetailClient({
         {rd && (
           <p className="mt-2 inline-flex rounded-md border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
             Fonte server-side → Meta CAPI + GA4 (destinos em modo web+server)
+          </p>
+        )}
+        {whatsapp && (
+          <p className="mt-2 inline-flex rounded-md border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
+            Webhook automático · Lead só com ticket na mensagem · ignore
+            fromMe/grupos
           </p>
         )}
       </div>
@@ -568,6 +671,54 @@ export function ProviderDetailClient({
                   </p>
                 ) : null}
 
+                {whatsapp && c.webhookStatus ? (
+                  <p
+                    className={
+                      c.webhookStatus === "ok"
+                        ? "text-xs text-muted-foreground"
+                        : "text-xs text-amber-700 dark:text-amber-400"
+                    }
+                  >
+                    Status do webhook: {c.webhookStatus}
+                    {c.webhookStatusMessage
+                      ? ` — ${c.webhookStatusMessage}`
+                      : ""}
+                  </p>
+                ) : null}
+
+                {whatsapp ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() =>
+                        start(async () => {
+                          const r = await reconfigureWhatsappWebhookAction(
+                            c.id
+                          );
+                          if (r.ok) {
+                            toast.success("Webhook reconfigurado");
+                            refresh();
+                          } else {
+                            toast.error(r.error);
+                            refresh();
+                          }
+                        })
+                      }
+                    >
+                      Reconfigurar webhook
+                    </Button>
+                  </div>
+                ) : null}
+
+                {whatsapp ? (
+                  <WaMeLinkGenerator
+                    ticketName={c.ticketName || c.config.ticket_name || "rt"}
+                  />
+                ) : null}
+
                 {mod.connectFields.length > 0 &&
                 (mod.authType !== "oauth" || rd) ? (
                   <form
@@ -577,18 +728,22 @@ export function ProviderDetailClient({
                         try {
                           const r = await upsertConnection(fd);
                           if (r.ok) {
-                            toast.success(
-                              rd
-                                ? "Credenciais salvas"
-                                : "Alterações validadas e salvas"
-                            );
-                            if (!rd) {
+                            if (r.warning) {
+                              toast.warning(r.warning);
+                            } else {
+                              toast.success(
+                                rd
+                                  ? "Credenciais salvas"
+                                  : "Alterações validadas e salvas"
+                              );
+                            }
+                            if (rd || whatsapp) {
+                              refresh();
+                            } else {
                               await new Promise((resolve) =>
                                 setTimeout(resolve, 900)
                               );
                               router.push("/dashboard/integracoes");
-                            } else {
-                              refresh();
                             }
                           } else {
                             toast.error(r.error);
@@ -782,12 +937,18 @@ export function ProviderDetailClient({
                   try {
                     const r = await upsertConnection(fd);
                     if (r.ok) {
-                      toast.success(
-                        rd
-                          ? "Credenciais salvas — clique em Conectar com OAuth na conta"
-                          : "Conexão validada e integração salva"
-                      );
-                      if (rd) {
+                      if (r.warning) {
+                        toast.warning(r.warning);
+                      } else {
+                        toast.success(
+                          rd
+                            ? "Credenciais salvas — clique em Conectar com OAuth na conta"
+                            : whatsapp
+                              ? "Instância salva e webhook configurado"
+                              : "Conexão validada e integração salva"
+                        );
+                      }
+                      if (rd || whatsapp) {
                         refresh();
                       } else {
                         await new Promise((resolve) =>
@@ -823,7 +984,9 @@ export function ProviderDetailClient({
               <p className="text-xs text-muted-foreground">
                 {rd
                   ? "Salve Client ID/Secret e depois autorize com OAuth na conta criada."
-                  : "Tokens ficam visíveis neste painel. Ao salvar, validamos o acesso na plataforma; se falhar, nada é gravado."}
+                  : whatsapp
+                    ? "Use a key da instância (não a global). Ao salvar, validamos o acesso e registramos o webhook automaticamente."
+                    : "Tokens ficam visíveis neste painel. Ao salvar, validamos o acesso na plataforma; se falhar, nada é gravado."}
               </p>
               <Button type="submit" disabled={pending} className="w-fit">
                 {pending

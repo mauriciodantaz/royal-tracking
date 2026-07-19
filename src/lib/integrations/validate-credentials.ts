@@ -281,6 +281,110 @@ async function validatePipedrive(
   return { ok: true };
 }
 
+function normalizeBaseUrl(raw: string): string {
+  return raw.trim().replace(/\/$/, "");
+}
+
+async function validateEvolutionInstance(
+  baseUrl: string,
+  instanceName: string,
+  token: string
+): Promise<CredentialValidation> {
+  if (!baseUrl) {
+    return { ok: false, error: "Informe a URL da Evolution." };
+  }
+  if (!instanceName) {
+    return { ok: false, error: "Informe o nome da instância." };
+  }
+  if (!token) {
+    return { ok: false, error: "Informe a API key da instância." };
+  }
+
+  const url = `${normalizeBaseUrl(baseUrl)}/instance/connectionState/${encodeURIComponent(instanceName)}`;
+  let res: Response;
+  let body: unknown;
+  try {
+    res = await fetch(url, {
+      headers: { apikey: token, Accept: "application/json" },
+    });
+    body = await res.json().catch(() => null);
+  } catch (e) {
+    return {
+      ok: false,
+      error: `Falha ao contatar a Evolution: ${e instanceof Error ? e.message : "erro de rede"}`,
+    };
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    return {
+      ok: false,
+      error: "Sem permissão: API key da instância inválida ou sem acesso.",
+    };
+  }
+  if (res.status === 404) {
+    return {
+      ok: false,
+      error: "Instância não encontrada. Confira o nome e a URL da Evolution.",
+    };
+  }
+  if (!res.ok) {
+    return {
+      ok: false,
+      error: summarizeJsonError(
+        body,
+        `Evolution recusou a conexão (HTTP ${res.status}).`
+      ),
+    };
+  }
+  return { ok: true };
+}
+
+async function validateUazapiInstance(
+  baseUrl: string,
+  token: string
+): Promise<CredentialValidation> {
+  if (!baseUrl) {
+    return { ok: false, error: "Informe a Base URL da UazAPI." };
+  }
+  if (!token) {
+    return { ok: false, error: "Informe o token da instância." };
+  }
+
+  const base = normalizeBaseUrl(baseUrl);
+  const candidates = [`${base}/instance/status`, `${base}/status`];
+  let lastError = "UazAPI recusou o token.";
+
+  for (const url of candidates) {
+    let res: Response;
+    let body: unknown;
+    try {
+      res = await fetch(url, {
+        headers: { token, Accept: "application/json" },
+      });
+      body = await res.json().catch(() => null);
+    } catch (e) {
+      lastError = `Falha ao contatar a UazAPI: ${e instanceof Error ? e.message : "erro de rede"}`;
+      continue;
+    }
+
+    if (res.status === 401 || res.status === 403) {
+      return {
+        ok: false,
+        error: "Sem permissão: token da instância inválido.",
+      };
+    }
+    if (res.ok) return { ok: true };
+    if (res.status !== 404) {
+      lastError = summarizeJsonError(
+        body,
+        `UazAPI recusou a conexão (HTTP ${res.status}).`
+      );
+    }
+  }
+
+  return { ok: false, error: lastError };
+}
+
 async function validateRdConversas(token: string): Promise<CredentialValidation> {
   if (!token) {
     return { ok: false, error: "Informe o API token do RD Conversas." };
@@ -383,6 +487,14 @@ export async function validateIntegrationCredentials(input: {
       }
       return { ok: true };
     }
+    case "evolution_api":
+      return validateEvolutionInstance(
+        cfg.base_url || "",
+        cfg.instance_name || "",
+        token
+      );
+    case "uazapi":
+      return validateUazapiInstance(cfg.base_url || "", token);
     default:
       return { ok: true };
   }
