@@ -164,10 +164,11 @@ jobs:
           git push origin HEAD:beta
 
       # GITHUB_TOKEN pushes do not trigger other workflows — always dispatch.
+      # Use -R: release:none skips checkout, so cwd is not a git repo.
       - name: Publish beta image
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run docker-publish.yml -f channel=beta
+        run: gh workflow run docker-publish.yml -R "$GITHUB_REPOSITORY" -f channel=beta
 
   promote-main:
     if: >
@@ -242,4 +243,4 @@ jobs:
         if: steps.tag.outputs.skipped != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run docker-publish.yml -f channel=stable
+        run: gh workflow run docker-publish.yml -R "$GITHUB_REPOSITORY" -f channel=stable
