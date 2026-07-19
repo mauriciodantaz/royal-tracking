@@ -3,7 +3,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 
 import { encryptSecret } from "@/lib/crypto/secrets";
-import { query } from "@/lib/db/pool";
+import { query, queryOne } from "@/lib/db/pool";
 import type { IntegrationConnectionRow } from "@/lib/db/types";
 import { getAppUrl } from "@/lib/env";
 import {
@@ -36,6 +36,34 @@ async function ensureWebhookSecret(
     [cipher, conn.id]
   );
   return secret;
+}
+
+/** Short public slug for listen-only URLs (~12 chars, URL-safe). */
+async function ensureWebhookSlug(
+  conn: IntegrationConnectionRow
+): Promise<string> {
+  const existing = configString(conn, "webhook_slug");
+  if (existing && /^[A-Za-z0-9_-]{8,32}$/.test(existing)) return existing;
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const slug = randomBytes(9).toString("base64url");
+    const taken = await queryOne<{ id: string }>(
+      `select id from integration_connections
+       where config->>'webhook_slug' = $1
+       limit 1`,
+      [slug]
+    );
+    if (taken) continue;
+    await query(
+      `update integration_connections set
+         config = coalesce(config, '{}'::jsonb) || $1::jsonb,
+         updated_at = now()
+       where id = $2`,
+      [JSON.stringify({ webhook_slug: slug }), conn.id]
+    );
+    return slug;
+  }
+  throw new Error("Não foi possível gerar slug curto do webhook.");
 }
 
 async function patchMetadata(
@@ -150,15 +178,17 @@ async function registerUazapiWebhook(opts: {
 }
 
 /**
- * RD Conversas (Tallos): secret + URL only — operator pastes URL in Tallos UI.
+ * RD Conversas (Tallos): short listen-only URL — operator pastes in Tallos UI.
+ * Auth is the unguessable slug (no UUID + long ?token=).
  */
 async function ensureRdConversasWebhook(
   connectionId: string,
   conn: IntegrationConnectionRow
 ): Promise<WhatsappWebhookResult> {
-  const secret = await ensureWebhookSecret(conn);
+  await ensureWebhookSecret(conn);
+  const slug = await ensureWebhookSlug(conn);
   const appUrl = getAppUrl().replace(/\/$/, "");
-  const url = `${appUrl}/api/webhook/in/${conn.id}?token=${encodeURIComponent(secret)}`;
+  const url = `${appUrl}/api/w/${slug}`;
   await patchMetadata(connectionId, {
     whatsapp_webhook: {
       status: "ok",

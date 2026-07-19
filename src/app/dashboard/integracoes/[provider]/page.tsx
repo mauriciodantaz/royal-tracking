@@ -16,6 +16,7 @@ import {
 } from "@/lib/integrations/registry";
 import { metadataRecord } from "@/lib/rd/credentials";
 import { MKT_LIFECYCLE_SLOTS } from "@/lib/rd/mkt";
+import { ensureWhatsappWebhook } from "@/lib/whatsapp/register-webhook";
 import { slugTicketName } from "@/lib/whatsapp/ticket";
 
 export const dynamic = "force-dynamic";
@@ -115,6 +116,20 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
     if (s) {
       stackCurrency = s.currency || "BRL";
       stackTestEventCode = s.test_event_code ?? "";
+    }
+
+    // Migrate RD Conversas to short /api/w/{slug} URLs (no UUID + ?token=).
+    if (provider === "rdstation_conversas" && connections.length > 0) {
+      await Promise.all(
+        connections.map((row) => ensureWhatsappWebhook(row.id).catch(() => null))
+      );
+      const refreshed = await query<IntegrationConnectionRow>(
+        `select * from integration_connections
+         where provider = $1
+         order by created_at desc`,
+        [provider]
+      );
+      connections = refreshed.rows;
     }
 
     if (isRd && connections.length > 0) {
@@ -221,6 +236,8 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
       const inboundBase = `${appUrl}/api/webhook/in/${c.id}`;
       const metaWebhookUrl =
         typeof whMeta?.url === "string" && whMeta.url ? whMeta.url : null;
+      const shortSlug =
+        typeof cfg.webhook_slug === "string" ? cfg.webhook_slug : "";
       let webhookUrl: string | null = null;
       if (
         (c.direction === "inbound" || c.direction === "both") &&
@@ -229,10 +246,10 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
           isRd ||
           isWhatsapp)
       ) {
-        if (metaWebhookUrl) {
+        if (isRdConversas && shortSlug) {
+          webhookUrl = `${appUrl}/api/w/${shortSlug}`;
+        } else if (metaWebhookUrl) {
           webhookUrl = metaWebhookUrl;
-        } else if (isRdConversas && webhookSecret) {
-          webhookUrl = `${inboundBase}?token=${encodeURIComponent(webhookSecret)}`;
         } else {
           webhookUrl = inboundBase;
         }

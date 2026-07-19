@@ -19,12 +19,14 @@ Nenhum token/API key da Tallos.
 
 ## O que acontece ao salvar
 
-1. Geramos um webhook secret interno.
-2. Exibimos a **URL pronta** (já com `?token=`) para colar no Tallos.
+1. Geramos um slug curto interno (a própria URL autentica).
+2. Exibimos a **URL pronta** para colar no Tallos.
 
 ```txt
-https://SEU_DOMINIO/api/webhook/in/{connectionId}?token=…
+https://SEU_DOMINIO/api/w/{slug}
 ```
+
+Exemplo: `https://tracking.seudominio.com.br/api/w/xK9m2pQ7vR4s`
 
 ### Configurar no Tallos
 
