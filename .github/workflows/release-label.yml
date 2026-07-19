@@ -14,7 +14,8 @@ permissions:
   pull-requests: read
 
 jobs:
-  check:
+  release-label:
+    name: Release label
     runs-on: ubuntu-latest
     steps:
       - name: Require exactly one release:* label
