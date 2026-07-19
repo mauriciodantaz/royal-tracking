@@ -9,13 +9,13 @@
 ## Promoção
 - [ ] N/A (feature → um canal)
 - [ ] `dev` → `beta`
-- [ ] `beta` → `main`
+- [ ] `beta` → `main` (**merge commit**, nunca squash/rebase)
 
 ## Release label (obrigatório em PR para `beta` — exatamente um)
 - [ ] `release:versão` (MAJOR — breaking)
 - [ ] `release:melhoria` (MINOR — feature)
 - [ ] `release:hotfix` (PATCH — bugfix)
-- [ ] `release:none` (sem bump / sem efeito na imagem)
+- [ ] `release:none` (sem bump / chore CI-docs)
 
 ## Stack de exemplo
 - [ ] N/A (sem mudança de env/deploy)
