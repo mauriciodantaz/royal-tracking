@@ -2,10 +2,16 @@
 -
 
 ## Canal
+- [ ] `dev` (só VPS interna — sem Docker Hub)
 - [ ] `beta` (publica `:beta` + `:X.Y.Z-beta`, sem bump)
 - [ ] `main` (bump `X.Y.Z` + `:stable` + `:latest`)
 
-## Release label (obrigatório — exatamente um)
+## Promoção
+- [ ] N/A (feature → um canal)
+- [ ] `dev` → `beta`
+- [ ] `beta` → `main`
+
+## Release label (obrigatório em PR para `main` — exatamente um)
 - [ ] `release:versão` (MAJOR — breaking)
 - [ ] `release:melhoria` (MINOR — feature)
 - [ ] `release:hotfix` (PATCH — bugfix)

@@ -1,8 +1,10 @@
 name: Docker publish
 
-# Tag padrão Hub / GitHub:
-#   Stable (main):  X.Y.Z  +  X.Y.Z-stable  +  stable  +  latest
-#   Beta   (beta):  X.Y.Z-beta  +  beta
+# Canais Docker Hub (sem deploy VPS):
+#   push `beta`     → :beta + :X.Y.Z-beta  (versão do package.json)
+#   tag  X.Y.Z      → :X.Y.Z + :X.Y.Z-stable + :stable + :latest
+#                     (tag criada pelo release.yml no merge em main)
+#   `dev` NÃO publica imagem — só VPS via deploy.yml
 # latest == sempre a stable atual. Sem prefixo "v", sem tags com sha.
 
 on:

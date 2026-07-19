@@ -1,8 +1,9 @@
 name: Docker Hub cleanup tags
 
-# Remove tags fora do padrão:
+# Manual (workflow_dispatch). Remove tags fora do padrão dos canais beta/main:
 #   OK: X.Y.Z | X.Y.Z-stable | X.Y.Z-beta | stable | latest | beta
 #   Fora: v*, beta-<sha>, etc.
+# Não afeta o canal `dev` (VPS-only, sem tags Hub).
 
 on:
   workflow_dispatch:

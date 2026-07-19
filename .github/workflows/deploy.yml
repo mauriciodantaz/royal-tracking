@@ -1,5 +1,11 @@
 name: Deploy tracking
 
+# Canal interno (demo VPS):
+#   push em `dev` → SSH → ops/deploy.sh (build no volume Swarm)
+#   `beta` / `main` NÃO disparam este workflow (só Docker Hub).
+# Secrets: VPS_HOST, VPS_USER, VPS_SSH_KEY
+# Variable: VPS_PROJECT_DIR (ex.: /root/projects/tracking)
+
 on:
   push:
     branches:

@@ -1,5 +1,12 @@
 name: Release SemVer
 
+# Promoção beta → main:
+#   PR mergeada em `main` com exatamente um label release:*
+#   → bump SemVer no package.json → tag git X.Y.Z → GitHub Release
+#   → docker-publish.yml publica :X.Y.Z / :stable / :latest
+# Labels: release:versão | release:melhoria | release:hotfix | release:none
+# PR dev → beta NÃO usa este workflow (só push em beta → docker-publish).
+
 on:
   pull_request:
     types: [closed]

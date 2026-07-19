@@ -13,11 +13,15 @@ Demo interna: https://tracking.royalgrowth.com.br
 2. Pull da imagem Hub — sem build na VPS.
 3. Atualizar com `docker service update --image mauriciodantaz/royal-tracking:latest royaltracking_<slug>_app`.
 
-Canais CI:
+Canais CI (branches: `dev` · `beta` · `main`):
 
-- push em `beta` → `:beta` + `:X.Y.Z-beta`
-- merge em `main` com label `release:*` → tag git `X.Y.Z` → `:X.Y.Z` + `:X.Y.Z-stable` + `:stable` + `:latest`
-- push em `dev` → **não** publica no Hub (só deploy VPS interno; ver abaixo)
+| Evento | Hub | VPS |
+|--------|-----|-----|
+| push `dev` | — | build-on-volume ([`deploy.yml`](./.github/workflows/deploy.yml)) |
+| push `beta` (ex.: merge PR `dev` → `beta`) | `:beta` + `:X.Y.Z-beta` | — |
+| merge PR `beta` → `main` + label `release:*` | tag `X.Y.Z` → `:X.Y.Z` / `:stable` / `:latest` | — |
+
+Promoção: `dev` → PR → `beta` → PR + label → `main`. Detalhes em [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 
 Secrets: ver [`ops/DOCKER-HUB.md`](./ops/DOCKER-HUB.md).
 
