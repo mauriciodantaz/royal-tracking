@@ -10,5 +10,3 @@ export function isStackSuperAdmin(email: string | null | undefined): boolean {
   if (!admin || !email) return false;
   return email.trim().toLowerCase() === admin;
 }
-
-export type UserRole = "super_admin" | "manager";

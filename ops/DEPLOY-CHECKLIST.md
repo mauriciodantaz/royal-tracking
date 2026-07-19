@@ -17,7 +17,7 @@ Strategy: docker-swarm-volume-node | Framework: nextjs | Build mode: docker
 
 ## Identificação
 
-- [x] Repositório: mauriciodantaz/tracking
+- [x] Repositório: mauriciodantaz/royal-tracking
 - [x] Naming: `royaltracking_<slug>` (slugify de `PROJECT_NAME`)
 - [x] Framework: Next.js standalone
 - [x] Estratégia: Swarm volume + `node server.js`
@@ -51,8 +51,8 @@ Strategy: docker-swarm-volume-node | Framework: nextjs | Build mode: docker
 ## Acesso
 
 - [ ] Deploy Key ≠ chave Actions
-- [ ] `ssh -T git@github.com-tracking` → `Hi mauriciodantaz/tracking!`
-- [ ] Remote: `git@github.com-tracking:mauriciodantaz/tracking.git`
+- [ ] `ssh -T git@github.com-tracking` → `Hi mauriciodantaz/royal-tracking!`
+- [ ] Remote: `git@github.com-tracking:mauriciodantaz/royal-tracking.git`
 - [ ] `VPS_SSH_KEY` = privada com BEGIN/END (não fingerprint, não `.pub`)
 - [ ] Teste PC: `ssh -i $HOME\.ssh\tracking_actions -o IdentitiesOnly=yes root@IP_DA_VPS "echo ok"`
 

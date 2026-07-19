@@ -1,5 +1,5 @@
 project:
-  repository: "mauriciodantaz/tracking"
+  repository: "mauriciodantaz/royal-tracking"
   slug: "tracking"
   branch: "main"
   framework: "nextjs"
@@ -14,10 +14,12 @@ build:
 
 vps:
   os: "debian-11"
-  project_directory: "/root/projects/tracking"
-  deploy_script: "/root/projects/tracking/ops/deploy.sh"
+  # Pasta do clone na VPS = /root/projects/royaltracking_<SLUG> (install.sh + .instance)
+  project_directory: "/root/projects/royaltracking_<SLUG>"
+  deploy_script: "/root/projects/royaltracking_<SLUG>/ops/deploy.sh"
+  # GitHub Actions: definir vars.VPS_PROJECT_DIR com o path real (sem placeholder)
   git_ssh_host_alias: "github.com-tracking"
-  git_origin: "git@github.com-tracking:mauriciodantaz/tracking.git"
+  git_origin: "git@github.com-tracking:mauriciodantaz/royal-tracking.git"
   deploy_key_file: "~/.ssh/id_ed25519_tracking"
   shell: "bash"
 

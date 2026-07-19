@@ -1,9 +1,6 @@
 import "server-only";
 
-import {
-  decryptAccessToken,
-  getConnection,
-} from "@/lib/integrations/connections";
+import { decryptAccessToken } from "@/lib/integrations/connections";
 import type { IntegrationConnectionRow } from "@/lib/db/types";
 import { refreshConnectionIfNeeded } from "@/lib/integrations/token-refresh";
 import { metadataRecord } from "@/lib/rd/credentials";
@@ -77,12 +74,6 @@ export async function rdMktFetch(
   const res = await fetch(url, { ...init, headers });
   const json = await res.json().catch(() => null);
   return { res, json, conn: fresh };
-}
-
-export async function reloadConnection(
-  id: string
-): Promise<IntegrationConnectionRow | null> {
-  return getConnection(id);
 }
 
 export function unwrapDataList(json: unknown): Record<string, unknown>[] {

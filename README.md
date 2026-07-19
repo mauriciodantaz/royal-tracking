@@ -28,8 +28,8 @@ Detalhes: [docs/SELF-HOSTED.md](./docs/SELF-HOSTED.md) · [DEPLOY.md](./DEPLOY.m
 ## Quickstart (Docker Compose — local)
 
 ```bash
-git clone https://github.com/mauriciodantaz/tracking.git
-cd tracking
+git clone https://github.com/mauriciodantaz/royal-tracking.git
+cd royal-tracking
 docker compose up -d --build
 ```
 

@@ -27,8 +27,6 @@ export type IntegrationModuleDef = {
   description: string;
   authType: IntegrationAuthType;
   direction: IntegrationDirection;
-  /** Phase when the module becomes fully usable */
-  phase: 1 | 2 | 3;
   connectFields: Array<{
     key: string;
     label: string;
@@ -49,7 +47,6 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
       "Modo web + server (deduplicação por event_id): Pixel no browser e CAPI no servidor em paralelo.",
     authType: "token",
     direction: "outbound",
-    phase: 1,
     docsSlug: "meta-pixel",
     connectFields: [
       { key: "label", label: "Nome", required: true },
@@ -74,7 +71,6 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     description: "Conta de anúncios para insights e campanhas.",
     authType: "token",
     direction: "outbound",
-    phase: 1,
     docsSlug: "meta-ads",
     connectFields: [
       { key: "label", label: "Nome", required: true },
@@ -89,7 +85,6 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
       "Modo web + server (deduplicação por event_id): gtag no browser e Measurement Protocol no servidor em paralelo.",
     authType: "token",
     direction: "outbound",
-    phase: 1,
     docsSlug: "ga4",
     connectFields: [
       { key: "label", label: "Nome", required: true },
@@ -103,7 +98,6 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     description: "Upload de conversões (OAuth).",
     authType: "oauth",
     direction: "outbound",
-    phase: 3,
     connectFields: [{ key: "label", label: "Nome", required: true }],
   },
   {
@@ -112,7 +106,6 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     description: "Webhook de compras — N contas.",
     authType: "webhook_secret",
     direction: "inbound",
-    phase: 2,
     docsSlug: "hotmart",
     connectFields: [
       { key: "label", label: "Nome", required: true },
@@ -131,7 +124,6 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     description: "Webhook de compras — N contas.",
     authType: "webhook_secret",
     direction: "inbound",
-    phase: 2,
     docsSlug: "kiwify",
     connectFields: [
       { key: "label", label: "Nome", required: true },
@@ -150,7 +142,6 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     description: "Webhook de compras.",
     authType: "webhook_secret",
     direction: "inbound",
-    phase: 2,
     docsSlug: "eduzz",
     connectFields: [
       { key: "label", label: "Nome", required: true },
@@ -170,7 +161,6 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
       "OAuth — funis/estágios via webhooks deal_created/updated → Meta CAPI e GA4 (server).",
     authType: "oauth",
     direction: "both",
-    phase: 2,
     docsSlug: "rdstation-crm",
     connectFields: [
       { key: "label", label: "Nome", required: true },
@@ -196,7 +186,6 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
       "OAuth — conversões (WEBHOOK.CONVERTED) e lifecycle → Meta CAPI e GA4 (server).",
     authType: "oauth",
     direction: "both",
-    phase: 2,
     docsSlug: "rdstation-mkt",
     connectFields: [
       { key: "label", label: "Nome", required: true },
@@ -221,7 +210,6 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     description: "Token / OAuth — conversas.",
     authType: "token",
     direction: "inbound",
-    phase: 2,
     docsSlug: "rdstation-conversas",
     connectFields: [
       { key: "label", label: "Nome", required: true },
@@ -235,7 +223,6 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     description: "Token ou OAuth — deals e pessoas.",
     authType: "token",
     direction: "inbound",
-    phase: 2,
     docsSlug: "pipedrive",
     connectFields: [
       { key: "label", label: "Nome", required: true },
@@ -254,7 +241,6 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     description: "Snippet no site — PageView, Lead e eventos manuais.",
     authType: "none",
     direction: "inbound",
-    phase: 1,
     docsSlug: "snippet",
     connectFields: [],
     defaultSourceEvents: ["PageView", "Lead", "InitiateCheckout", "Purchase"],

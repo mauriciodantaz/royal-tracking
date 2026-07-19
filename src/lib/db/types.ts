@@ -30,26 +30,6 @@ export type SettingsRow = {
   updated_at: string;
 };
 
-export type Ga4AccountRow = {
-  id: string;
-  label: string;
-  measurement_id: string;
-  api_secret_cipher: string | null;
-  active: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
-export type MetaPixelRow = {
-  id: string;
-  label: string;
-  pixel_id: string;
-  capi_token_cipher: string | null;
-  active: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
 export type MetaAdAccountRow = {
   id: string;
   label: string;
@@ -90,27 +70,6 @@ export type VisitorRow = {
   pixel_id: string | null;
   created_at: string;
   updated_at: string;
-};
-
-export type EventLogRow = {
-  id: string;
-  trck_user_id: string | null;
-  event_name: string;
-  event_id: string;
-  utm_source: string | null;
-  utm_medium: string | null;
-  utm_campaign: string | null;
-  utm_term: string | null;
-  utm_content: string | null;
-  payload_meta: Json | null;
-  response_meta: Json | null;
-  payload_ga4: Json | null;
-  response_ga4: Json | null;
-  ip: string | null;
-  geo_country: string | null;
-  geo_region: string | null;
-  geo_city: string | null;
-  created_at: string;
 };
 
 export type PurchaseRow = {
@@ -178,20 +137,6 @@ export type IntegrationEventMappingRow = {
   enabled: boolean;
   created_at: string;
   updated_at: string;
-};
-
-export type IntegrationDeliveryLogRow = {
-  id: string;
-  event_id: string;
-  connection_id: string | null;
-  provider: string;
-  dest_event_name: string | null;
-  status: string;
-  http_status: number | null;
-  request_payload: Json | null;
-  response_payload: Json | null;
-  error: string | null;
-  created_at: string;
 };
 
 export type FormRow = {

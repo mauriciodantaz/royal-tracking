@@ -45,9 +45,3 @@ export async function decryptSecret(cipher: string): Promise<string> {
   const dec = Buffer.concat([decipher.update(data), decipher.final()]);
   return dec.toString("utf8");
 }
-
-export function maskSecret(value: string | null | undefined): string {
-  if (!value) return "";
-  if (value.length <= 4) return "••••";
-  return `••••••••${value.slice(-4)}`;
-}

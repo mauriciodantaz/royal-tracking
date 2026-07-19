@@ -24,7 +24,13 @@ jobs:
           command_timeout: 30m
           script: |
             set -euo pipefail
-            cd /root/projects/tracking
+            PROJECT_DIR="${{ vars.VPS_PROJECT_DIR }}"
+            if [ -z "${PROJECT_DIR}" ]; then
+              echo "ERROR: GitHub Actions variable VPS_PROJECT_DIR is empty."
+              echo "Set it to /root/projects/royaltracking_<slug> (Settings → Variables)."
+              exit 1
+            fi
+            cd "${PROJECT_DIR}"
             git config core.fileMode false
             git fetch origin main
             git reset --hard origin/main

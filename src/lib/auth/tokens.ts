@@ -74,15 +74,5 @@ export async function markAuthTokenUsed(tokenId: string): Promise<void> {
   ]);
 }
 
-export async function consumeAuthToken(
-  raw: string,
-  purposes: AuthTokenPurpose[]
-): Promise<{ userId: string; purpose: AuthTokenPurpose } | null> {
-  const found = await findValidAuthToken(raw, purposes);
-  if (!found) return null;
-  await markAuthTokenUsed(found.id);
-  return { userId: found.userId, purpose: found.purpose };
-}
-
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const RESET_TTL_MS = 60 * 60 * 1000;

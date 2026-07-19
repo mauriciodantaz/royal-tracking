@@ -1,8 +1,9 @@
 import "server-only";
 
 import { auth } from "@/auth";
+import { isStackSuperAdmin } from "@/lib/auth/super-admin";
 import { ensureDbReady } from "@/lib/db/boot";
-import { isStackSuperAdmin, type UserRole } from "@/lib/auth/super-admin";
+import type { UserRole } from "@/lib/db/types";
 
 export type SessionUser = {
   id: string;

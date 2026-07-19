@@ -16,7 +16,7 @@ Documentação viva do sistema de tracking server-side. Atualizar ao fim de cada
 - **NÃO usar** o MCP Supabase neste repo (conta errada / produto OSS não depende dele).
 - Env obrigatórios: `DB_POSTGRESDB_*` (ou `DATABASE_URL` legado), `ENCRYPTION_KEY`, `AUTH_SECRET`, `NEXTAUTH_URL`, `ADMIN_*`.
 - Env recomendado em produção: `ALLOWED_EVENT_DOMAINS` (apex da marca).
-- Schema: `db/migrations/*.sql` (aplicado no boot). Histórico antigo em `supabase/migrations/` só referência.
+- Schema: `db/migrations/*.sql` (aplicado no boot do app).
 - Uma stack por domínio-raiz = um Postgres + um admin + um `ENCRYPTION_KEY` + allowlist desse apex.
 
 ## Segurança
@@ -55,4 +55,4 @@ Criar a conexão em Integrações → Hotmart/Kiwify/Eduzz.
 
 ### Snippet no site
 
-Ver [docs/SNIPPET.md](./docs/SNIPPET.md). URL relativa ao domínio instalado.
+Ver [docs/integrations/snippet.md](./docs/integrations/snippet.md). URL relativa ao domínio instalado.

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "rd-station-dev-portal": {
+      "type": "http",
+      "url": "https://developers.rdstation.com/mcp"
+    }
+  }
+}
