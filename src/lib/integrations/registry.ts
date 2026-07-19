@@ -237,18 +237,28 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
   {
     provider: "rdstation_conversas",
     name: "RD Conversas",
-    description: "Token / OAuth — conversas.",
+    description:
+      "WhatsApp via RD Conversas (Tallos) — webhook manual → ticket na 1ª mensagem → Lead Meta/GA4.",
     authType: "token",
     direction: "inbound",
-    segment: "crm_marketing",
+    segment: "whatsapp",
     docsSlug: "rdstation-conversas",
-    // Temporarily hidden for publish-sequence test; restore by removing uiHidden.
-    uiHidden: true,
     connectFields: [
       { key: "label", label: "Nome", required: true },
-      { key: "access_token", label: "API token", secret: true, required: true },
+      {
+        key: "access_token",
+        label: "API token Tallos",
+        secret: true,
+        required: true,
+      },
+      {
+        key: "ticket_name",
+        label: "Nome do ticket (opcional)",
+        required: false,
+        placeholder: "Deixe vazio para usar o PROJECT_NAME",
+      },
     ],
-    defaultSourceEvents: ["Lead", "Message"],
+    defaultSourceEvents: ["Lead"],
   },
   {
     provider: "pipedrive",

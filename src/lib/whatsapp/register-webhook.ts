@@ -150,7 +150,30 @@ async function registerUazapiWebhook(opts: {
 }
 
 /**
- * Ensure inbound secret exists and register webhook on Evolution / UazAPI.
+ * RD Conversas (Tallos): secret + URL only — operator pastes URL in Tallos UI.
+ */
+async function ensureRdConversasWebhook(
+  connectionId: string,
+  conn: IntegrationConnectionRow
+): Promise<WhatsappWebhookResult> {
+  const secret = await ensureWebhookSecret(conn);
+  const appUrl = getAppUrl().replace(/\/$/, "");
+  const url = `${appUrl}/api/webhook/in/${conn.id}?token=${encodeURIComponent(secret)}`;
+  await patchMetadata(connectionId, {
+    whatsapp_webhook: {
+      status: "ok",
+      message:
+        "Cole esta URL em Tallos → Integrações → Webhooks (app.tallos.com.br)",
+      url,
+      updated_at: new Date().toISOString(),
+    },
+  });
+  return { ok: true, url };
+}
+
+/**
+ * Ensure inbound secret exists and register webhook on Evolution / UazAPI,
+ * or prepare the manual Tallos URL for RD Conversas.
  * Connection is kept even if remote registration fails (status in metadata).
  */
 export async function ensureWhatsappWebhook(
@@ -160,8 +183,16 @@ export async function ensureWhatsappWebhook(
   if (!conn) {
     return { ok: false, error: "Conexão não encontrada." };
   }
-  if (conn.provider !== "evolution_api" && conn.provider !== "uazapi") {
+  if (
+    conn.provider !== "evolution_api" &&
+    conn.provider !== "uazapi" &&
+    conn.provider !== "rdstation_conversas"
+  ) {
     return { ok: false, error: "Provedor não é WhatsApp." };
+  }
+
+  if (conn.provider === "rdstation_conversas") {
+    return ensureRdConversasWebhook(connectionId, conn);
   }
 
   const secret = await ensureWebhookSecret(conn);

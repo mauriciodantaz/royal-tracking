@@ -387,11 +387,11 @@ async function validateUazapiInstance(
 
 async function validateRdConversas(token: string): Promise<CredentialValidation> {
   if (!token) {
-    return { ok: false, error: "Informe o API token do RD Conversas." };
+    return { ok: false, error: "Informe o API token do RD Conversas (Tallos)." };
   }
 
-  // Ping leve: endpoints variam; tentamos um recurso comum com Bearer.
-  const url = "https://api.rd.services/platform/contacts?page=1&page_size=1";
+  // Smoke test Tallos/Conversas API (Bearer JWT).
+  const url = "https://api.tallos.com.br/v2/employees?page=1&limit=1";
   let res: Response;
   let body: unknown;
   try {
@@ -405,7 +405,7 @@ async function validateRdConversas(token: string): Promise<CredentialValidation>
   } catch (e) {
     return {
       ok: false,
-      error: `Falha ao contatar a API RD: ${e instanceof Error ? e.message : "erro de rede"}`,
+      error: `Falha ao contatar a API Tallos: ${e instanceof Error ? e.message : "erro de rede"}`,
     };
   }
 
@@ -414,18 +414,17 @@ async function validateRdConversas(token: string): Promise<CredentialValidation>
       ok: false,
       error: summarizeJsonError(
         body,
-        "Sem permissão: token inválido ou sem acesso à API RD Conversas/RD Station."
+        "Sem permissão: token inválido ou sem acesso à API RD Conversas (Tallos)."
       ),
     };
   }
 
-  if (!res.ok && res.status !== 404) {
-    // 404 pode significar produto diferente; ainda assim token autenticou se não for 401
+  if (!res.ok) {
     return {
       ok: false,
       error: summarizeJsonError(
         body,
-        `RD Station recusou a conexão (HTTP ${res.status}).`
+        `Tallos recusou a conexão (HTTP ${res.status}).`
       ),
     };
   }

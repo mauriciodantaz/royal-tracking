@@ -24,7 +24,11 @@ import {
 import { ensureWhatsappWebhook } from "@/lib/whatsapp/register-webhook";
 
 function isWhatsappProvider(provider: string): boolean {
-  return provider === "evolution_api" || provider === "uazapi";
+  return (
+    provider === "evolution_api" ||
+    provider === "uazapi" ||
+    provider === "rdstation_conversas"
+  );
 }
 
 function revalidateIntegrations(provider?: string) {
@@ -84,7 +88,7 @@ export async function upsertConnection(formData: FormData): Promise<
   if (webhookSecret) {
     webhookCipher = await encryptSecret(webhookSecret);
   } else if (!id && isWhatsappProvider(provider)) {
-    // Inbound secret gerado pela stack (Evolution/UazAPI apontam para nós).
+    // Inbound secret gerado pela stack (WA providers apontam para nós).
     webhookCipher = await encryptSecret(randomBytes(24).toString("hex"));
   }
   let refreshCipher: string | null = null;

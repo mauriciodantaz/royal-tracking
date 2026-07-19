@@ -6,7 +6,7 @@ Guias de credenciais (não-OAuth): [`docs/integrations/`](./integrations/) — n
 
 ## Conceito
 
-- **Fontes (inbound):** snippet/forms, Hotmart, Kiwify, Eduzz, RD CRM/MKT/Conversas, Pipedrive, Evolution API, UazAPI Go
+- **Fontes (inbound):** snippet/forms, Hotmart, Kiwify, Eduzz, RD CRM/MKT, Pipedrive, Evolution API, UazAPI Go, RD Conversas (Tallos WhatsApp)
 - **Destinos (outbound):** Meta e GA4 em modo **web + server** (Pixel/gtag no browser + CAPI/MP no servidor, deduplicação por `event_id`); Google Ads / Meta Ads (insights)
 - **Mapeamentos:** `source_event` → N `dest_connection` + `dest_event_name`
 - **Dispatcher:** fan-out com `integration_delivery_log`

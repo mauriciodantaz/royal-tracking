@@ -211,10 +211,32 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
           ? (meta.whatsapp_webhook as Record<string, unknown>)
           : null;
       const isWhatsapp =
-        provider === "evolution_api" || provider === "uazapi";
+        provider === "evolution_api" ||
+        provider === "uazapi" ||
+        provider === "rdstation_conversas";
+      const isRdConversas = provider === "rdstation_conversas";
       const ticketName = slugTicketName(
         cfg.ticket_name || getProjectName() || "rt"
       );
+      const inboundBase = `${appUrl}/api/webhook/in/${c.id}`;
+      const metaWebhookUrl =
+        typeof whMeta?.url === "string" && whMeta.url ? whMeta.url : null;
+      let webhookUrl: string | null = null;
+      if (
+        (c.direction === "inbound" || c.direction === "both") &&
+        (mod.authType === "webhook_secret" ||
+          c.webhook_secret_cipher ||
+          isRd ||
+          isWhatsapp)
+      ) {
+        if (metaWebhookUrl) {
+          webhookUrl = metaWebhookUrl;
+        } else if (isRdConversas && webhookSecret) {
+          webhookUrl = `${inboundBase}?token=${encodeURIComponent(webhookSecret)}`;
+        } else {
+          webhookUrl = inboundBase;
+        }
+      }
       return {
         id: c.id,
         label: c.label,
@@ -225,14 +247,7 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
         config: cfg,
         oauthConnected: Boolean(c.access_token_cipher),
         needsReauth: meta.needs_reauth === true,
-        webhookUrl:
-          (c.direction === "inbound" || c.direction === "both") &&
-          (mod.authType === "webhook_secret" ||
-            c.webhook_secret_cipher ||
-            isRd ||
-            isWhatsapp)
-            ? `${appUrl}/api/webhook/in/${c.id}`
-            : null,
+        webhookUrl,
         webhookStatus:
           typeof whMeta?.status === "string" ? whMeta.status : null,
         webhookStatusMessage:

@@ -96,7 +96,11 @@ export async function POST(request: NextRequest, context: Ctx) {
       return NextResponse.json(result);
     }
 
-    if (conn.provider === "evolution_api" || conn.provider === "uazapi") {
+    if (
+      conn.provider === "evolution_api" ||
+      conn.provider === "uazapi" ||
+      conn.provider === "rdstation_conversas"
+    ) {
       const result = await processWhatsappMessageWebhook({ conn, raw });
       if (!result.ok) {
         return NextResponse.json(

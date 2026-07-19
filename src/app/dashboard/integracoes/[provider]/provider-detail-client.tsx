@@ -171,7 +171,15 @@ type Conn = {
 };
 
 function isWhatsappProvider(provider: string): boolean {
-  return provider === "evolution_api" || provider === "uazapi";
+  return (
+    provider === "evolution_api" ||
+    provider === "uazapi" ||
+    provider === "rdstation_conversas"
+  );
+}
+
+function isRdConversasProvider(provider: string): boolean {
+  return provider === "rdstation_conversas";
 }
 
 function WaMeLinkGenerator({ ticketName }: { ticketName: string }) {
@@ -540,6 +548,7 @@ export function ProviderDetailClient({
   const [pending, start] = useTransition();
   const rd = isRdProvider(mod.provider);
   const whatsapp = isWhatsappProvider(mod.provider);
+  const rdConversas = isRdConversasProvider(mod.provider);
 
   function refresh() {
     router.refresh();
@@ -573,8 +582,9 @@ export function ProviderDetailClient({
         )}
         {whatsapp && (
           <p className="mt-2 inline-flex rounded-md border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
-            Webhook automático · Lead só com ticket na mensagem · ignore
-            fromMe/grupos
+            {rdConversas
+              ? "Webhook manual no Tallos · Lead só com ticket na mensagem · só mensagens de clientes"
+              : "Webhook automático · Lead só com ticket na mensagem · ignore fromMe/grupos"}
           </p>
         )}
       </div>
@@ -666,9 +676,42 @@ export function ProviderDetailClient({
                 </div>
 
                 {c.webhookUrl ? (
-                  <p className="break-all rounded-lg bg-muted/50 px-3 py-2 font-mono text-[11px] text-muted-foreground">
-                    Webhook: {c.webhookUrl}
-                  </p>
+                  <div className="space-y-2">
+                    <p className="break-all rounded-lg bg-muted/50 px-3 py-2 font-mono text-[11px] text-muted-foreground">
+                      Webhook: {c.webhookUrl}
+                    </p>
+                    {rdConversas ? (
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(c.webhookUrl!);
+                              toast.success("URL do webhook copiada");
+                            } catch {
+                              toast.error("Não foi possível copiar");
+                            }
+                          }}
+                        >
+                          Copiar URL
+                        </Button>
+                        <p className="w-full text-xs text-muted-foreground">
+                          Cole em{" "}
+                          <a
+                            href="https://app.tallos.com.br/app/integrations/webhooks"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline underline-offset-2"
+                          >
+                            Tallos → Integrações → Webhooks
+                          </a>
+                          .
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
                 ) : null}
 
                 {whatsapp && c.webhookStatus ? (
@@ -686,7 +729,7 @@ export function ProviderDetailClient({
                   </p>
                 ) : null}
 
-                {whatsapp ? (
+                {whatsapp && !rdConversas ? (
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
@@ -943,9 +986,11 @@ export function ProviderDetailClient({
                         toast.success(
                           rd
                             ? "Credenciais salvas — clique em Conectar com OAuth na conta"
-                            : whatsapp
-                              ? "Instância salva e webhook configurado"
-                              : "Conexão validada e integração salva"
+                            : rdConversas
+                              ? "Salvo — copie a URL e cole no Tallos → Webhooks"
+                              : whatsapp
+                                ? "Instância salva e webhook configurado"
+                                : "Conexão validada e integração salva"
                         );
                       }
                       if (rd || whatsapp) {
@@ -984,9 +1029,11 @@ export function ProviderDetailClient({
               <p className="text-xs text-muted-foreground">
                 {rd
                   ? "Salve Client ID/Secret e depois autorize com OAuth na conta criada."
-                  : whatsapp
-                    ? "Use a key da instância (não a global). Ao salvar, validamos o acesso e registramos o webhook automaticamente."
-                    : "Tokens ficam visíveis neste painel. Ao salvar, validamos o acesso na plataforma; se falhar, nada é gravado."}
+                  : rdConversas
+                    ? "Use o API token de Apps e Integrações → API no Tallos. Ao salvar, geramos a URL do webhook para você colar em Integrações → Webhooks."
+                    : whatsapp
+                      ? "Use a key da instância (não a global). Ao salvar, validamos o acesso e registramos o webhook automaticamente."
+                      : "Tokens ficam visíveis neste painel. Ao salvar, validamos o acesso na plataforma; se falhar, nada é gravado."}
               </p>
               <Button type="submit" disabled={pending} className="w-fit">
                 {pending

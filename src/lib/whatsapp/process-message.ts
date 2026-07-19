@@ -63,7 +63,11 @@ export async function processWhatsappMessageWebhook(opts: {
 }): Promise<ProcessWhatsappResult> {
   await ensureDbReady();
 
-  if (opts.conn.provider !== "evolution_api" && opts.conn.provider !== "uazapi") {
+  if (
+    opts.conn.provider !== "evolution_api" &&
+    opts.conn.provider !== "uazapi" &&
+    opts.conn.provider !== "rdstation_conversas"
+  ) {
     return { ok: false, error: "invalid_provider", status: 400 };
   }
 
