@@ -3,7 +3,7 @@
 Sistema de tracking server-side self-hosted (Meta CAPI + GA4 + webhook de compra) com painel autenticado.
 
 **Licença:** [MIT](./LICENSE)  
-**Imagem:** [`mauriciodantaz/royal-tracking`](https://hub.docker.com/r/mauriciodantaz/royal-tracking) (`:latest` estável · `:beta` pré-release)  
+**Imagem:** [`mauriciodantaz/royal-tracking`](https://hub.docker.com/r/mauriciodantaz/royal-tracking) (`:latest` = `:stable` · `:beta` · `:X.Y.Z`)  
 **Demo:** https://tracking.royalgrowth.com.br
 
 Uma stack por domínio-raiz (apex) = um Postgres + um admin + um `ENCRYPTION_KEY` + allowlist de eventos desse apex.
@@ -13,7 +13,7 @@ Uma stack por domínio-raiz (apex) = um Postgres + um admin + um `ENCRYPTION_KEY
 1. Tenha Postgres acessível na mesma rede Docker/Swarm (ex.: `RoyalNet`) e um hostname no Traefik.
 2. Copie [`deploy/royal-tracking-stack.yml`](./deploy/royal-tracking-stack.yml), substitua os placeholders (`<SLUG>`, `<DOMAIN>`, senhas, etc.).
 3. No Portainer → Stacks → Add stack → cole o YAML → Deploy.
-4. Tags: `mauriciodantaz/royal-tracking:latest` (estável) ou `:beta` (pré-release).
+4. Tags: `:latest` / `:stable` (produção), `:beta` (pré-release), ou pin `:X.Y.Z` / `:X.Y.Z-stable`.
 
 Atualizar:
 

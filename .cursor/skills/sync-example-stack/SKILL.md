@@ -13,7 +13,7 @@ description: >-
 
 `deploy/royal-tracking-stack.yml` (raiz do repo)
 
-Imagem: `mauriciodantaz/royal-tracking` (`:latest` no template; comentar `:beta` / `:vX.Y.Z`).
+Imagem: `mauriciodantaz/royal-tracking` (`:latest` = stable no template; comentar `:beta` / `:X.Y.Z` / `:X.Y.Z-stable`).
 
 Variante avançada (build-on-VPS): `deploy/portainer-stack.yml` — não é o caminho canônico OSS.
 

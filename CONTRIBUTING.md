@@ -14,8 +14,10 @@ Obrigado por contribuir. O artefato publicado é a imagem Docker Hub `mauricioda
 
 | Branch | Docker Hub | SemVer |
 |--------|------------|--------|
-| `beta` | `:beta` | não bumpa |
-| `main` | `:vX.Y.Z` + `:latest` | bump automático no merge |
+| `beta` | `:beta` + `:X.Y.Z-beta` | não bumpa (usa versão do `package.json`) |
+| `main` | `:X.Y.Z` + `:X.Y.Z-stable` + `:stable` + `:latest` | bump automático no merge |
+
+`latest` é sempre a stable atual. Tags usam só o número (`0.1.0`), sem prefixo `v`.
 
 ## Labels de release (obrigatório no PR para `main`)
 

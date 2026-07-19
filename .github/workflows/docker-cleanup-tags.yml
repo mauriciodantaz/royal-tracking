@@ -1,0 +1,75 @@
+name: Docker Hub cleanup tags
+
+# Remove tags fora do padrão:
+#   OK: X.Y.Z | X.Y.Z-stable | X.Y.Z-beta | stable | latest | beta
+#   Fora: v*, beta-<sha>, etc.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: mauriciodantaz/royal-tracking
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete non-standard tags
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import json, os, re, urllib.request
+
+          user = os.environ["DOCKERHUB_USERNAME"]
+          password = os.environ["DOCKERHUB_TOKEN"]
+          image = os.environ["IMAGE_NAME"]
+          ok = re.compile(r"^(?:latest|stable|beta|\d+\.\d+\.\d+(?:-stable|-beta)?)$")
+
+          def req(url, method="GET", data=None, headers=None):
+              h = dict(headers or {})
+              body = None
+              if data is not None:
+                  body = json.dumps(data).encode()
+                  h["Content-Type"] = "application/json"
+              r = urllib.request.Request(url, data=body, headers=h, method=method)
+              with urllib.request.urlopen(r) as resp:
+                  raw = resp.read()
+                  return resp.status, raw
+
+          _, login_raw = req(
+              "https://hub.docker.com/v2/users/login/",
+              method="POST",
+              data={"username": user, "password": password},
+          )
+          token = json.loads(login_raw)["token"]
+          auth = {"Authorization": f"JWT {token}"}
+
+          page = 1
+          while True:
+              status, raw = req(
+                  f"https://hub.docker.com/v2/repositories/{image}/tags?page_size=100&page={page}",
+                  headers=auth,
+              )
+              data = json.loads(raw)
+              results = data.get("results") or []
+              if not results:
+                  break
+              for t in results:
+                  name = t["name"]
+                  if ok.match(name):
+                      print(f"KEEP {name}")
+                      continue
+                  url = f"https://hub.docker.com/v2/repositories/{image}/tags/{name}/"
+                  try:
+                      st, _ = req(url, method="DELETE", headers=auth)
+                      print(f"DELETE {name} -> {st}")
+                  except Exception as e:
+                      print(f"DELETE {name} FAILED: {e}")
+              page += 1
+          PY

@@ -82,11 +82,18 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          latest="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
+          # Tags estáveis = só X.Y.Z (sem prefixo v, sem -beta)
+          latest="$(git tag -l '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)"
           if [ -z "$latest" ]; then
-            base="$(node -p "require('./package.json').version")"
+            # legado: tags vX.Y.Z
+            legacy="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
+            if [ -n "$legacy" ]; then
+              base="${legacy#v}"
+            else
+              base="$(node -p "require('./package.json').version")"
+            fi
           else
-            base="${latest#v}"
+            base="$latest"
           fi
 
           IFS='.' read -r major minor patch <<< "$base"
@@ -109,7 +116,7 @@ jobs:
               ;;
           esac
           version="${major}.${minor}.${patch}"
-          tag="v${version}"
+          tag="$version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
@@ -143,15 +150,19 @@ jobs:
           PY
 
           git add package.json CHANGELOG.md
-          git commit -m "chore(release): ${tag}"
+          git commit -m "chore(release): ${tag} (stable)"
           git tag "$tag"
           git push origin HEAD:main
           git push origin "$tag"
 
           gh release create "$tag" \
-            --title "$tag" \
-            --notes "## ${tag}
+            --title "${tag} (stable)" \
+            --notes "## ${tag} — stable
 
 ${PR_TITLE} (#${PR_NUMBER})
 
-Imagem: \`mauriciodantaz/royal-tracking:${tag}\` e \`:latest\`."
+Docker Hub:
+- \`mauriciodantaz/royal-tracking:${tag}\`
+- \`mauriciodantaz/royal-tracking:${tag}-stable\`
+- \`mauriciodantaz/royal-tracking:stable\`
+- \`mauriciodantaz/royal-tracking:latest\` (= stable)"

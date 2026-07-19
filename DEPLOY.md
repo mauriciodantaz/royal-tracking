@@ -1,6 +1,7 @@
 # Deploy — Royal Tracking
 
-**Imagem canônica (OSS):** `mauriciodantaz/royal-tracking` (`:latest` / `:beta` / `:vX.Y.Z`)  
+**Imagem canônica (OSS):** `mauriciodantaz/royal-tracking`  
+**Tags:** `:latest` (= `:stable`) · `:beta` · `:X.Y.Z` / `:X.Y.Z-stable` / `:X.Y.Z-beta`  
 **Template Portainer (Hub):** [`deploy/royal-tracking-stack.yml`](./deploy/royal-tracking-stack.yml)  
 **Naming:** stack / volume / DB = `royaltracking_<slug>`
 
@@ -14,10 +15,10 @@ Demo interna: https://tracking.royalgrowth.com.br
 
 Canais CI:
 
-- push em `beta` → publica `:beta`
-- merge em `main` com label `release:*` → bump SemVer + `:vX.Y.Z` + `:latest`
+- push em `beta` → `:beta` + `:X.Y.Z-beta`
+- merge em `main` com label `release:*` → tag git `X.Y.Z` → `:X.Y.Z` + `:X.Y.Z-stable` + `:stable` + `:latest`
 
-Secrets do repositório: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` — ver [`ops/DOCKER-HUB.md`](./ops/DOCKER-HUB.md).
+Secrets: ver [`ops/DOCKER-HUB.md`](./ops/DOCKER-HUB.md).
 
 ## Regra de env
 

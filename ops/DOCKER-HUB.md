@@ -2,37 +2,41 @@
 
 Imagem: `mauriciodantaz/royal-tracking`
 
+## Padrão de tags
+
+| Tag | Canal | Origem |
+|-----|--------|--------|
+| `X.Y.Z` | stable | release em `main` |
+| `X.Y.Z-stable` | stable | mesmo digest de `X.Y.Z` |
+| `stable` | stable | floating = stable atual |
+| `latest` | stable | **sempre** = `stable` |
+| `X.Y.Z-beta` | beta | push / publish da branch `beta` |
+| `beta` | beta | floating = beta atual |
+
+Sem prefixo `v`. Sem tags com sha (`beta-<sha>`).
+
 ## Secrets (GitHub → Settings → Secrets and variables → Actions)
 
 | Secret | Valor |
 |--------|--------|
 | `DOCKERHUB_USERNAME` | `mauriciodantaz` |
-| `DOCKERHUB_TOKEN` | Access Token do Docker Hub (Read/Write/Delete) |
-
-Criar token: https://hub.docker.com/settings/security
-
-Via CLI (após ter o token):
+| `DOCKERHUB_TOKEN` | Access Token (Read/Write/Delete) |
 
 ```bash
 gh secret set DOCKERHUB_USERNAME --body "mauriciodantaz"
 gh secret set DOCKERHUB_TOKEN --body "<token>"
 ```
 
-## Canais
+## Workflows
 
-| Evento | Tags |
-|--------|------|
-| push em `beta` | `:beta`, `:beta-<sha>` |
-| tag `vX.Y.Z` (criada pelo `release.yml`) | `:vX.Y.Z`, `:X.Y.Z`, `:latest` |
-| `workflow_dispatch` | `beta` / `latest` / `both` |
-
-## Primeiro publish
-
-Depois dos secrets:
+| Evento | Tags publicadas |
+|--------|-----------------|
+| push `beta` | `:beta`, `:X.Y.Z-beta` (versão do `package.json`) |
+| tag git `X.Y.Z` | `:X.Y.Z`, `:X.Y.Z-stable`, `:stable`, `:latest` |
+| `workflow_dispatch` | `beta` / `stable` / `both` |
+| `docker-cleanup-tags.yml` | apaga tags fora do padrão |
 
 ```bash
 gh workflow run docker-publish.yml -f channel=both
-gh run watch
+gh workflow run docker-cleanup-tags.yml
 ```
-
-Ou push da branch `beta` + tag `v0.1.0` em `main`.

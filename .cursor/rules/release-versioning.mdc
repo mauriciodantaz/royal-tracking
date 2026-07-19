@@ -18,8 +18,9 @@ Todo PR que altera o produto precisa de **exatamente um** label:
 
 - Em dúvida → `release:hotfix`. Nunca `release:versão` sem breaking explícito.
 - Merge em `main` sem label → CI de release falha.
-- Merge em `beta` → só publica Docker `:beta` (sem bump SemVer).
-- Após merge em `main`, a versão vem do workflow `release.yml`; **não** crie tags manuais.
+- Merge em `beta` → Docker `:beta` + `:X.Y.Z-beta` (sem bump SemVer).
+- Merge em `main` → tag git `X.Y.Z` (sem `v`) → Docker `:X.Y.Z`, `:X.Y.Z-stable`, `:stable`, `:latest`.
+- `latest` = sempre stable. Após merge, a versão vem do `release.yml`; **não** crie tags manuais.
 
 Use a skill **classify-release** ao preparar ou revisar o PR.
 

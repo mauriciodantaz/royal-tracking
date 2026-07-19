@@ -1,9 +1,12 @@
 version: "3.8"
 
 # Template Portainer (OSS) — imagem Docker Hub
-# Imagem: mauriciodantaz/royal-tracking:latest  (estável)
-#         mauriciodantaz/royal-tracking:beta    (pré-release)
-#         mauriciodantaz/royal-tracking:vX.Y.Z  (versão pinada)
+# Imagem: mauriciodantaz/royal-tracking:latest      (= stable)
+#         mauriciodantaz/royal-tracking:stable
+#         mauriciodantaz/royal-tracking:beta
+#         mauriciodantaz/royal-tracking:X.Y.Z       (versão pinada stable)
+#         mauriciodantaz/royal-tracking:X.Y.Z-stable
+#         mauriciodantaz/royal-tracking:X.Y.Z-beta
 #
 # Naming: stack / serviço / DB = royaltracking_<SLUG>
 # 1) Substitua placeholders  2) Colar no Portainer → Deploy

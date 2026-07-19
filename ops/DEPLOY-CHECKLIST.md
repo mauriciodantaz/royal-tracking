@@ -26,7 +26,7 @@ Strategy: docker-swarm-volume-node | Framework: nextjs | Build mode: docker
 ## Docker Hub (OSS)
 
 - [ ] Secrets no GitHub: `DOCKERHUB_USERNAME` = `mauriciodantaz`, `DOCKERHUB_TOKEN` = access token
-- [ ] Imagem: `mauriciodantaz/royal-tracking` (`:latest` / `:beta` / `:vX.Y.Z`)
+- [ ] Imagem: `mauriciodantaz/royal-tracking` (`:latest`=:stable` / `:beta` / `:X.Y.Z`)
 - [ ] Template canônico: `deploy/royal-tracking-stack.yml`
 - [ ] Workflows: `docker-publish.yml` + `release.yml`
 

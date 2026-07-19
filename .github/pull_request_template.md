@@ -2,8 +2,8 @@
 -
 
 ## Canal
-- [ ] `beta` (publica `:beta`, sem SemVer)
-- [ ] `main` (bump SemVer + `:latest`)
+- [ ] `beta` (publica `:beta` + `:X.Y.Z-beta`, sem bump)
+- [ ] `main` (bump `X.Y.Z` + `:stable` + `:latest`)
 
 ## Release label (obrigatório — exatamente um)
 - [ ] `release:versão` (MAJOR — breaking)

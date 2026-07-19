@@ -10,6 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Open-source release surface: Docker Hub image `mauriciodantaz/royal-tracking`, Portainer stack template, SemVer labels on PRs (`release:versão` / `melhoria` / `hotfix` / `none`).
-- Channels: merge to `beta` publishes `:beta`; merge to `main` publishes `:vX.Y.Z` and `:latest`.
+- Channels: `beta` → `:beta` + `:X.Y.Z-beta`; `main` → `:X.Y.Z` + `:X.Y.Z-stable` + `:stable` + `:latest` (`latest` = stable).
 
-[0.1.0]: https://github.com/mauriciodantaz/tracking/releases/tag/v0.1.0
+[0.1.0]: https://github.com/mauriciodantaz/tracking/releases/tag/0.1.0
