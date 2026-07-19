@@ -21,6 +21,7 @@ import {
   ensureRdWebhooks,
   syncRdFunnels,
 } from "@/lib/rd/sync";
+import { ensureShortWebhookUrl } from "@/lib/integrations/webhook-slug";
 import { ensureWhatsappWebhook } from "@/lib/whatsapp/register-webhook";
 
 function isWhatsappProvider(provider: string): boolean {
@@ -28,6 +29,17 @@ function isWhatsappProvider(provider: string): boolean {
     provider === "evolution_api" ||
     provider === "uazapi" ||
     provider === "rdstation_conversas"
+  );
+}
+
+function needsShortWebhookUrl(provider: string): boolean {
+  return (
+    isWhatsappProvider(provider) ||
+    provider === "rdstation_crm" ||
+    provider === "rdstation_mkt" ||
+    provider === "hotmart" ||
+    provider === "kiwify" ||
+    provider === "eduzz"
   );
 }
 
@@ -276,6 +288,16 @@ export async function upsertConnection(formData: FormData): Promise<
           ? err.message
           : "Falha ao registrar webhook no WhatsApp.";
       console.error("[whatsapp] ensureWhatsappWebhook", err);
+    }
+  } else if (
+    savedId &&
+    needsShortWebhookUrl(provider) &&
+    !isWhatsappProvider(provider)
+  ) {
+    try {
+      await ensureShortWebhookUrl(savedId);
+    } catch (err) {
+      console.error("[webhook] ensureShortWebhookUrl", err);
     }
   }
 

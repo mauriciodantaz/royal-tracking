@@ -3,15 +3,17 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 
 import { encryptSecret } from "@/lib/crypto/secrets";
-import { query, queryOne } from "@/lib/db/pool";
+import { query } from "@/lib/db/pool";
 import type { IntegrationConnectionRow } from "@/lib/db/types";
-import { getAppUrl } from "@/lib/env";
 import {
   configString,
   decryptAccessToken,
   decryptWebhookSecret,
   getConnection,
 } from "@/lib/integrations/connections";
+import {
+  ensureShortWebhookUrl,
+} from "@/lib/integrations/webhook-slug";
 
 export type WhatsappWebhookResult =
   | { ok: true; url: string }
@@ -38,34 +40,6 @@ async function ensureWebhookSecret(
   return secret;
 }
 
-/** Short public slug for listen-only URLs (~12 chars, URL-safe). */
-async function ensureWebhookSlug(
-  conn: IntegrationConnectionRow
-): Promise<string> {
-  const existing = configString(conn, "webhook_slug");
-  if (existing && /^[A-Za-z0-9_-]{8,32}$/.test(existing)) return existing;
-
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const slug = randomBytes(9).toString("base64url");
-    const taken = await queryOne<{ id: string }>(
-      `select id from integration_connections
-       where config->>'webhook_slug' = $1
-       limit 1`,
-      [slug]
-    );
-    if (taken) continue;
-    await query(
-      `update integration_connections set
-         config = coalesce(config, '{}'::jsonb) || $1::jsonb,
-         updated_at = now()
-       where id = $2`,
-      [JSON.stringify({ webhook_slug: slug }), conn.id]
-    );
-    return slug;
-  }
-  throw new Error("Não foi possível gerar slug curto do webhook.");
-}
-
 async function patchMetadata(
   connectionId: string,
   patch: Record<string, unknown>
@@ -83,10 +57,9 @@ async function registerEvolutionWebhook(opts: {
   baseUrl: string;
   instanceName: string;
   instanceToken: string;
-  inboundUrl: string;
+  url: string;
   secret: string;
 }): Promise<WhatsappWebhookResult> {
-  const url = `${opts.inboundUrl}?token=${encodeURIComponent(opts.secret)}`;
   const endpoint = `${opts.baseUrl}/webhook/set/${encodeURIComponent(opts.instanceName)}`;
   let res: Response;
   let body: unknown;
@@ -100,7 +73,7 @@ async function registerEvolutionWebhook(opts: {
       body: JSON.stringify({
         webhook: {
           enabled: true,
-          url,
+          url: opts.url,
           byEvents: false,
           base64: false,
           headers: {
@@ -126,21 +99,19 @@ async function registerEvolutionWebhook(opts: {
     return { ok: false, error: `Evolution recusou o webhook: ${msg}` };
   }
 
-  return { ok: true, url };
+  return { ok: true, url: opts.url };
 }
 
 async function registerUazapiWebhook(opts: {
   baseUrl: string;
   instanceToken: string;
-  inboundUrl: string;
-  secret: string;
+  url: string;
 }): Promise<WhatsappWebhookResult> {
-  const url = `${opts.inboundUrl}?token=${encodeURIComponent(opts.secret)}`;
   const endpoint = `${opts.baseUrl}/webhook`;
   const payload = {
     enabled: true,
-    url,
-    webhookUrl: url,
+    url: opts.url,
+    webhookUrl: opts.url,
     events: ["messages"],
     excludeMessages: ["wasSentByApi", "isGroupYes"],
     addUrlEvents: false,
@@ -174,21 +145,18 @@ async function registerUazapiWebhook(opts: {
     return { ok: false, error: `UazAPI recusou o webhook: ${msg}` };
   }
 
-  return { ok: true, url };
+  return { ok: true, url: opts.url };
 }
 
 /**
  * RD Conversas (Tallos): short listen-only URL — operator pastes in Tallos UI.
- * Auth is the unguessable slug (no UUID + long ?token=).
  */
 async function ensureRdConversasWebhook(
   connectionId: string,
   conn: IntegrationConnectionRow
 ): Promise<WhatsappWebhookResult> {
   await ensureWebhookSecret(conn);
-  const slug = await ensureWebhookSlug(conn);
-  const appUrl = getAppUrl().replace(/\/$/, "");
-  const url = `${appUrl}/api/w/${slug}`;
+  const url = await ensureShortWebhookUrl(connectionId);
   await patchMetadata(connectionId, {
     whatsapp_webhook: {
       status: "ok",
@@ -202,9 +170,8 @@ async function ensureRdConversasWebhook(
 }
 
 /**
- * Ensure inbound secret exists and register webhook on Evolution / UazAPI,
+ * Ensure inbound secret + short slug, register on Evolution / UazAPI,
  * or prepare the manual Tallos URL for RD Conversas.
- * Connection is kept even if remote registration fails (status in metadata).
  */
 export async function ensureWhatsappWebhook(
   connectionId: string
@@ -254,8 +221,7 @@ export async function ensureWhatsappWebhook(
     return { ok: false, error: err };
   }
 
-  const appUrl = getAppUrl().replace(/\/$/, "");
-  const inboundUrl = `${appUrl}/api/webhook/in/${conn.id}`;
+  const url = await ensureShortWebhookUrl(connectionId);
 
   let result: WhatsappWebhookResult;
   if (conn.provider === "evolution_api") {
@@ -267,7 +233,7 @@ export async function ensureWhatsappWebhook(
         baseUrl,
         instanceName,
         instanceToken,
-        inboundUrl,
+        url,
         secret,
       });
     }
@@ -275,8 +241,7 @@ export async function ensureWhatsappWebhook(
     result = await registerUazapiWebhook({
       baseUrl,
       instanceToken,
-      inboundUrl,
-      secret,
+      url,
     });
   }
 

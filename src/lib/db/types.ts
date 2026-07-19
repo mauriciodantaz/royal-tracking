@@ -43,6 +43,7 @@ export type MetaAdAccountRow = {
 export type VisitorRow = {
   id: string;
   trck_user_id: string;
+  ticket_code: string | null;
   email: string | null;
   email_hash: string | null;
   phone_hash: string | null;

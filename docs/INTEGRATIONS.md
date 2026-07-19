@@ -22,6 +22,14 @@ Guias de credenciais (não-OAuth): [`docs/integrations/`](./integrations/) — n
 
 ## Webhooks
 
+URL curta (preferida na UI e nos registros remotos):
+
+```
+POST /api/w/{slug}
+```
+
+Legado (ainda aceito):
+
 ```
 POST /api/webhook/in/{connectionId}
 Header: x-webhook-token: <secret da conexão>

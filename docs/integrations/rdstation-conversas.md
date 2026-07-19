@@ -36,12 +36,12 @@ Exemplo: `https://tracking.seudominio.com.br/api/w/xK9m2pQ7vR4s`
 4. **Ative todas as opções** do webhook.
 5. Salve.
 
-A partir daí o fluxo é o mesmo do UazAPI: escutamos, descartamos o que não tem ticket, e com `[ticket=…]` viramos Lead → Meta/GA4.
+A partir daí o fluxo é o mesmo do UazAPI: escutamos, descartamos o que não tem ticket, e com a tag curta `[nome:código]` viramos Lead → Meta/GA4.
 
 ## Filtros
 
 - Payload Tallos `{ content, contact }` (texto do cliente)
-- Só persiste + dispara Lead com `[ticket=nome:valor]` no texto
+- Só persiste + dispara Lead com `[nome:código]` no texto (ex. `[rt:xK9m2pQ7]`)
 - Demais mensagens são ignoradas (ack sem Lead)
 
 ## Ticket e atribuição

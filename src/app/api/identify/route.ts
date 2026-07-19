@@ -10,6 +10,7 @@ import {
   hashEmail,
   hashPhone,
   hashPii,
+  newTicketCode,
   newTrckUserId,
 } from "@/lib/tracking/hash";
 import { getClientIp, getUserAgent } from "@/lib/tracking/request";
@@ -58,22 +59,27 @@ export async function POST(request: NextRequest) {
   const userAgent = getUserAgent(request);
   const geo = await lookupGeo(ip);
   const trckUserId = body.trck_user_id ?? newTrckUserId();
+  const ticketCode = newTicketCode();
 
   try {
     await ensureDbReady();
-    const data = await queryOne<
-      Pick<VisitorRow, "trck_user_id" | "ga_client_id" | "ga_session_id">
+    let data = await queryOne<
+      Pick<
+        VisitorRow,
+        "trck_user_id" | "ga_client_id" | "ga_session_id" | "ticket_code"
+      >
     >(
       `insert into visitors (
-         trck_user_id, email, email_hash, phone_hash,
+         trck_user_id, ticket_code, email, email_hash, phone_hash,
          first_name_hash, last_name_hash, city_hash, state_hash, country_hash,
          external_id_hash, fbp, fbc, ga_client_id, ga_session_id, gclid, ttclid,
          utm_source, utm_medium, utm_campaign, utm_term, utm_content,
          referrer, ip, user_agent, geo_country, geo_region, geo_city, pixel_id
        ) values (
-         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29
        )
        on conflict (trck_user_id) do update set
+         ticket_code = coalesce(visitors.ticket_code, excluded.ticket_code),
          email = coalesce(excluded.email, visitors.email),
          email_hash = coalesce(excluded.email_hash, visitors.email_hash),
          phone_hash = coalesce(excluded.phone_hash, visitors.phone_hash),
@@ -102,9 +108,10 @@ export async function POST(request: NextRequest) {
          geo_city = coalesce(excluded.geo_city, visitors.geo_city),
          pixel_id = coalesce(excluded.pixel_id, visitors.pixel_id),
          updated_at = now()
-       returning trck_user_id, ga_client_id, ga_session_id`,
+       returning trck_user_id, ga_client_id, ga_session_id, ticket_code`,
       [
         trckUserId,
+        ticketCode,
         body.email ?? null,
         hashEmail(body.email),
         hashPhone(body.phone),
@@ -139,10 +146,25 @@ export async function POST(request: NextRequest) {
       return jsonCors({ error: "db_error" }, { status: 500 }, request);
     }
 
+    if (!data.ticket_code) {
+      const filled = await queryOne<
+        Pick<VisitorRow, "trck_user_id" | "ticket_code">
+      >(
+        `update visitors set ticket_code = $2, updated_at = now()
+         where trck_user_id = $1 and ticket_code is null
+         returning trck_user_id, ticket_code`,
+        [data.trck_user_id, newTicketCode()]
+      );
+      if (filled?.ticket_code) {
+        data = { ...data, ticket_code: filled.ticket_code };
+      }
+    }
+
     return jsonCors(
       {
         ok: true,
         trck_user_id: data.trck_user_id,
+        ticket_code: data.ticket_code,
         ga_client_id: data.ga_client_id,
         ga_session_id: data.ga_session_id,
       },

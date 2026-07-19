@@ -1,16 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getConnectionByWebhookSlug } from "@/lib/integrations/connections";
+import { processInboundConnection } from "@/lib/integrations/process-inbound";
 import { rateLimit } from "@/lib/rate-limit/memory";
 import { getClientIp } from "@/lib/tracking/request";
-import { processWhatsappMessageWebhook } from "@/lib/whatsapp/process-message";
 
 export const runtime = "nodejs";
 
 type Ctx = { params: Promise<{ slug: string }> };
 
 /**
- * Short listen-only webhook for RD Conversas:
+ * Short listen-only webhook for any inbound connection:
  * POST /api/w/{slug}
  */
 export async function POST(request: NextRequest, context: Ctx) {
@@ -26,9 +26,6 @@ export async function POST(request: NextRequest, context: Ctx) {
     if (!conn) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
-    if (conn.provider !== "rdstation_conversas") {
-      return NextResponse.json({ error: "not_found" }, { status: 404 });
-    }
 
     let raw: unknown;
     try {
@@ -37,7 +34,7 @@ export async function POST(request: NextRequest, context: Ctx) {
       return NextResponse.json({ error: "invalid_json" }, { status: 400 });
     }
 
-    const result = await processWhatsappMessageWebhook({ conn, raw });
+    const result = await processInboundConnection({ conn, raw });
     if (!result.ok) {
       return NextResponse.json(
         { error: result.error },

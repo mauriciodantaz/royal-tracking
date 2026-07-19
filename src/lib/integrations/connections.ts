@@ -46,7 +46,7 @@ export async function getConnection(
   );
 }
 
-/** Lookup by short webhook slug (RD Conversas listen-only URLs). */
+/** Lookup by short webhook slug (any inbound connection). */
 export async function getConnectionByWebhookSlug(
   slug: string
 ): Promise<IntegrationConnectionRow | null> {
@@ -56,7 +56,7 @@ export async function getConnectionByWebhookSlug(
   return queryOne<IntegrationConnectionRow>(
     `select * from integration_connections
      where active = true
-       and provider = 'rdstation_conversas'
+       and direction in ('inbound', 'both')
        and config->>'webhook_slug' = $1
      limit 1`,
     [clean]

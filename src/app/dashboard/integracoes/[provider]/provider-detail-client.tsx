@@ -195,7 +195,8 @@ function WaMeLinkGenerator({ ticketName }: { ticketName: string }) {
       toast.error("Informe o telefone com DDI (ex.: 5511999999999).");
       return;
     }
-    const ticketLine = `[ticket=${ticketName}:{{tracking}}]`;
+    // Pretty short tag; snippet swaps {{tracking}} for the visitor ticket_code.
+    const ticketLine = `[${ticketName}:{{tracking}}]`;
     const body = `${message.trim()}\n\n${ticketLine}`;
     const url = `https://wa.me/${digits}?text=${encodeURIComponent(body)}`;
     setLink(url);
@@ -206,9 +207,9 @@ function WaMeLinkGenerator({ ticketName }: { ticketName: string }) {
       <div>
         <h2 className="text-sm font-medium">Gerador de link wa.me</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Monte o CTA com a mensagem pré-preenchida. No site, o snippet troca{" "}
-          <code className="font-mono">{"{{tracking}}"}</code> pelo ID real no
-          clique.
+          Use formatação WhatsApp na mensagem (<code className="font-mono">*negrito*</code>,{" "}
+          <code className="font-mono">_itálico_</code>). No clique, o snippet troca{" "}
+          <code className="font-mono">{"{{tracking}}"}</code> por um código curto.
         </p>
       </div>
       <div className="grid max-w-lg gap-3">
@@ -225,11 +226,13 @@ function WaMeLinkGenerator({ ticketName }: { ticketName: string }) {
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="wa-msg">Mensagem</Label>
-          <Input
+          <textarea
             id="wa-msg"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Olá! Quero saber mais."
+            placeholder={"*Sua marca*\n\nOlá! Quero saber mais."}
+            rows={4}
+            className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[80px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
           />
         </div>
         <Button type="button" size="sm" className="w-fit" onClick={build}>

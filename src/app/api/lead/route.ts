@@ -19,6 +19,7 @@ import {
   hashPhone,
   hashPii,
   newEventId,
+  newTicketCode,
   newTrckUserId,
 } from "@/lib/tracking/hash";
 import { getClientIp, getUserAgent } from "@/lib/tracking/request";
@@ -166,12 +167,13 @@ export async function POST(request: NextRequest) {
 
     await query(
       `insert into visitors (
-         trck_user_id, email, email_hash, phone_hash, external_id_hash,
+         trck_user_id, ticket_code, email, email_hash, phone_hash, external_id_hash,
          fbp, fbc, ga_client_id,
          utm_source, utm_medium, utm_campaign, utm_term, utm_content,
          ip, user_agent
-       ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+       ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
        on conflict (trck_user_id) do update set
+         ticket_code = coalesce(visitors.ticket_code, excluded.ticket_code),
          email = coalesce(excluded.email, visitors.email),
          email_hash = coalesce(excluded.email_hash, visitors.email_hash),
          phone_hash = coalesce(excluded.phone_hash, visitors.phone_hash),
@@ -188,6 +190,7 @@ export async function POST(request: NextRequest) {
          updated_at = now()`,
       [
         trckUserId,
+        newTicketCode(),
         email ?? null,
         hashEmail(email),
         hashPhone(phone),

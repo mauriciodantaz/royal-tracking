@@ -27,7 +27,7 @@ Você pode cadastrar **várias** connections (uma por instância).
 3. Chamamos `POST /webhook/set/{instance}` apontando para:
 
 ```txt
-https://SEU_DOMINIO/api/webhook/in/{connectionId}?token=…
+https://SEU_DOMINIO/api/w/{slug}
 ```
 
 Evento: `MESSAGES_UPSERT`. Header `x-webhook-token` também é enviado.

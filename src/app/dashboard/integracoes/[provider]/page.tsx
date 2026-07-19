@@ -16,6 +16,7 @@ import {
 } from "@/lib/integrations/registry";
 import { metadataRecord } from "@/lib/rd/credentials";
 import { MKT_LIFECYCLE_SLOTS } from "@/lib/rd/mkt";
+import { ensureShortWebhookUrl } from "@/lib/integrations/webhook-slug";
 import { ensureWhatsappWebhook } from "@/lib/whatsapp/register-webhook";
 import { slugTicketName } from "@/lib/whatsapp/ticket";
 
@@ -118,18 +119,44 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
       stackTestEventCode = s.test_event_code ?? "";
     }
 
-    // Migrate RD Conversas to short /api/w/{slug} URLs (no UUID + ?token=).
-    if (provider === "rdstation_conversas" && connections.length > 0) {
-      await Promise.all(
-        connections.map((row) => ensureWhatsappWebhook(row.id).catch(() => null))
-      );
-      const refreshed = await query<IntegrationConnectionRow>(
-        `select * from integration_connections
-         where provider = $1
-         order by created_at desc`,
-        [provider]
-      );
-      connections = refreshed.rows;
+    // Ensure short /api/w/{slug} URLs for inbound connections shown in UI.
+    if (connections.length > 0) {
+      const needsShort = [
+        "rdstation_conversas",
+        "evolution_api",
+        "uazapi",
+        "rdstation_crm",
+        "rdstation_mkt",
+        "hotmart",
+        "kiwify",
+        "eduzz",
+      ].includes(provider);
+      if (needsShort) {
+        await Promise.all(
+          connections.map(async (row) => {
+            try {
+              if (
+                provider === "evolution_api" ||
+                provider === "uazapi" ||
+                provider === "rdstation_conversas"
+              ) {
+                await ensureWhatsappWebhook(row.id);
+              } else {
+                await ensureShortWebhookUrl(row.id);
+              }
+            } catch {
+              /* keep page renderable */
+            }
+          })
+        );
+        const refreshed = await query<IntegrationConnectionRow>(
+          `select * from integration_connections
+           where provider = $1
+           order by created_at desc`,
+          [provider]
+        );
+        connections = refreshed.rows;
+      }
     }
 
     if (isRd && connections.length > 0) {
@@ -229,7 +256,6 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
         provider === "evolution_api" ||
         provider === "uazapi" ||
         provider === "rdstation_conversas";
-      const isRdConversas = provider === "rdstation_conversas";
       const ticketName = slugTicketName(
         cfg.ticket_name || getProjectName() || "rt"
       );
@@ -237,7 +263,10 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
       const metaWebhookUrl =
         typeof whMeta?.url === "string" && whMeta.url ? whMeta.url : null;
       const shortSlug =
-        typeof cfg.webhook_slug === "string" ? cfg.webhook_slug : "";
+        typeof cfg.webhook_slug === "string" &&
+        /^[A-Za-z0-9_-]{8,32}$/.test(cfg.webhook_slug)
+          ? cfg.webhook_slug
+          : "";
       let webhookUrl: string | null = null;
       if (
         (c.direction === "inbound" || c.direction === "both") &&
@@ -246,7 +275,7 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
           isRd ||
           isWhatsapp)
       ) {
-        if (isRdConversas && shortSlug) {
+        if (shortSlug) {
           webhookUrl = `${appUrl}/api/w/${shortSlug}`;
         } else if (metaWebhookUrl) {
           webhookUrl = metaWebhookUrl;

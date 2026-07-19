@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:whatsapp-normalize": "npx --yes tsx --test src/lib/whatsapp/normalize.rd-conversas.test.ts"
+    "test:whatsapp-normalize": "npx --yes tsx --test src/lib/whatsapp/normalize.rd-conversas.test.ts src/lib/whatsapp/ticket.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

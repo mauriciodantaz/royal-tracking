@@ -25,10 +25,10 @@ Várias connections = várias instâncias.
 2. Geramos um webhook secret interno.
 3. Chamamos `POST /webhook` na Base URL com eventos `messages`, excluindo `wasSentByApi` e `isGroupYes` quando a API permitir.
 
-URL inbound:
+URL inbound (curta):
 
 ```txt
-https://SEU_DOMINIO/api/webhook/in/{connectionId}?token=…
+https://SEU_DOMINIO/api/w/{slug}
 ```
 
 Se falhar, a connection fica salva com webhook pendente — use **Reconfigurar webhook**.

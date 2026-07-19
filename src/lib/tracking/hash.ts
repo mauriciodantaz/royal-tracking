@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 /** SHA-256 hex of normalized string (Meta CAPI PII rules). */
 export function sha256(value: string): string {
@@ -39,6 +39,11 @@ export function hashPii(value: string | null | undefined): string | null {
 
 export function newTrckUserId(): string {
   return `trck_${randomUUID().replace(/-/g, "")}`;
+}
+
+/** Short public code for WhatsApp ticket lines (~8 chars, URL-safe). */
+export function newTicketCode(): string {
+  return randomBytes(6).toString("base64url");
 }
 
 export function newEventId(): string {

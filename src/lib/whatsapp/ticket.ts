@@ -1,6 +1,12 @@
-/** Parse / format `[ticket=name:value]` in WhatsApp message text. */
+/** Parse / format short WhatsApp ticket tags: `[name:code]`. */
 
-export const TICKET_LINE_RE = /\[ticket=([^\]:\s]+):([^\]]+)\]/i;
+/** Legacy: `[ticket=name:value]` — still accepted on inbound. */
+export const TICKET_LEGACY_RE = /\[ticket=([^\]:\s]+):([^\]]+)\]/i;
+
+/** Pretty short tag: `[rt:xK9m2pQ7]` (name + short code only). */
+export const TICKET_SHORT_RE = /\[([a-z0-9]{1,48}):([A-Za-z0-9_-]{6,32})\]/;
+
+export const TICKET_LINE_RE = TICKET_LEGACY_RE;
 
 export type ParsedTicket = {
   name: string;
@@ -8,16 +14,26 @@ export type ParsedTicket = {
 };
 
 export function parseTicket(text: string): ParsedTicket | null {
-  const m = TICKET_LINE_RE.exec(text);
-  if (!m) return null;
-  const name = m[1]?.trim();
-  const value = m[2]?.trim();
-  if (!name || !value) return null;
-  return { name, value };
+  const legacy = TICKET_LEGACY_RE.exec(text);
+  if (legacy) {
+    const name = legacy[1]?.trim();
+    const value = legacy[2]?.trim();
+    if (name && value) return { name, value };
+  }
+
+  const short = TICKET_SHORT_RE.exec(text);
+  if (short) {
+    const name = short[1]?.trim();
+    const value = short[2]?.trim();
+    if (name && value) return { name, value };
+  }
+
+  return null;
 }
 
+/** Pretty ticket line for visitor messages — no "ticket=" spam. */
 export function formatTicketLine(name: string, value: string): string {
-  return `[ticket=${name}:${value}]`;
+  return `[${name}:${value}]`;
 }
 
 /** Slug for ticket name from PROJECT_NAME or connection config. */
@@ -36,6 +52,7 @@ export function slugTicketName(raw: string | null | undefined): string {
  * Prefer stable join key first.
  */
 export function coalesceTrackingValue(ids: {
+  ticket_code?: string | null;
   trck_user_id?: string | null;
   fbp?: string | null;
   ga_client_id?: string | null;
@@ -43,6 +60,7 @@ export function coalesceTrackingValue(ids: {
   ttclid?: string | null;
 }): string | null {
   const order = [
+    ids.ticket_code,
     ids.trck_user_id,
     ids.fbp,
     ids.ga_client_id,
@@ -63,7 +81,10 @@ export function appendOrReplaceTicket(
   value: string
 ): string {
   const line = formatTicketLine(name, value);
-  const base = message.replace(TICKET_LINE_RE, "").replace(/\s+$/g, "");
+  const base = message
+    .replace(TICKET_LEGACY_RE, "")
+    .replace(TICKET_SHORT_RE, "")
+    .replace(/\s+$/g, "");
   if (!base) return line;
   return `${base}\n\n${line}`;
 }

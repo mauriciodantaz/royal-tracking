@@ -22,16 +22,19 @@
     window.TRCK_ENDPOINT || "https://tracking.royalgrowth.com.br"
   ).replace(/\/$/, "");
   var STORAGE_KEY = "trck_user_id";
+  var TICKET_CODE_KEY = "trck_ticket_code";
   var GCLID_KEY = "trck_gclid";
   var TTCLID_KEY = "trck_ttclid";
   var COOKIE_DAYS = 365;
   var LEAD_DEDUP_MS = 5000;
-  var TICKET_LINE_RE = /\[ticket=[^\]:\s]+:[^\]]+\]/i;
+  var TICKET_LEGACY_RE = /\[ticket=[^\]:\s]+:[^\]]+\]/i;
+  var TICKET_SHORT_RE = /\[[a-z0-9]{1,48}:[^\]]+\]/;
 
   var metaPixelIds = [];
   var ga4MeasurementIds = [];
   var tagsReady = null;
   var ticketName = window.TRCK_TICKET_NAME || "rt";
+  var ticketCode = null;
 
   var META_STANDARD = {
     PageView: "PageView",
@@ -96,6 +99,24 @@
     setCookie(STORAGE_KEY, id, COOKIE_DAYS);
   }
 
+  function getTicketCode() {
+    if (ticketCode) return ticketCode;
+    try {
+      var fromLs = localStorage.getItem(TICKET_CODE_KEY);
+      if (fromLs) return fromLs;
+    } catch (e) {}
+    return getCookie(TICKET_CODE_KEY) || null;
+  }
+
+  function saveTicketCode(code) {
+    if (!code) return;
+    ticketCode = String(code);
+    try {
+      localStorage.setItem(TICKET_CODE_KEY, ticketCode);
+    } catch (e) {}
+    setCookie(TICKET_CODE_KEY, ticketCode, COOKIE_DAYS);
+  }
+
   function getQuery(name) {
     return new URLSearchParams(window.location.search).get(name) || undefined;
   }
@@ -154,6 +175,7 @@
 
   function coalesceTrackingValue(id) {
     return (
+      getTicketCode() ||
       id ||
       getCookie("_fbp") ||
       getGaClientId() ||
@@ -164,7 +186,21 @@
   }
 
   function formatTicketLine(name, value) {
-    return "[ticket=" + name + ":" + value + "]";
+    return "[" + name + ":" + value + "]";
+  }
+
+  function replaceTicketInText(text, name, value) {
+    var line = formatTicketLine(name, value);
+    if (TICKET_LEGACY_RE.test(text)) {
+      return text.replace(TICKET_LEGACY_RE, line);
+    }
+    if (TICKET_SHORT_RE.test(text)) {
+      return text.replace(TICKET_SHORT_RE, line);
+    }
+    if (text) {
+      return text.replace(/\s+$/g, "") + "\n\n" + line;
+    }
+    return line;
   }
 
   function withWhatsAppTicket(url, id, messageOverride) {
@@ -184,14 +220,7 @@
       try {
         text = decodeURIComponent(text.replace(/\+/g, " "));
       } catch (e) {}
-      var line = formatTicketLine(ticketName, tracking);
-      if (TICKET_LINE_RE.test(text)) {
-        text = text.replace(TICKET_LINE_RE, line);
-      } else if (text) {
-        text = text.replace(/\s+$/g, "") + "\n\n" + line;
-      } else {
-        text = line;
-      }
+      text = replaceTicketInText(text, ticketName, tracking);
       u.searchParams.set("text", text);
       return u.toString();
     } catch (e) {
@@ -540,6 +569,7 @@
       var id = (data && data.trck_user_id) || existing || "trck_" + uuid().replace(/-/g, "");
       saveTrckId(id);
       window.TRCK_USER_ID = id;
+      if (data && data.ticket_code) saveTicketCode(data.ticket_code);
       patchLinks(id);
 
       var eventId = uuid();
