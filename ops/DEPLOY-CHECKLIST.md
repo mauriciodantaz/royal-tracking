@@ -7,7 +7,7 @@ Strategy: docker-swarm-volume-node | Framework: nextjs | Build mode: docker
 - [x] Variáveis de `.env.example` → `environment:` no YAML do Portainer
 - [x] VPS OS = Debian 11; comandos em bash
 - [x] Build via Docker (`node:22-alpine`) — sem npm no host
-- [x] Workflow usa `vars.VPS_PROJECT_DIR` → `ops/deploy.sh`
+- [x] Workflow (`deploy.yml`) dispara só em push `dev` → `vars.VPS_PROJECT_DIR` → `ops/deploy.sh` (`BRANCH=dev`)
 - [x] Service name auto-detect (`^royaltracking_`; fallback legado `^tracking_`)
 - [x] Stack creation = Portainer only
 - [x] Traefik Host = `tracking.royalgrowth.com.br`
@@ -58,11 +58,12 @@ Strategy: docker-swarm-volume-node | Framework: nextjs | Build mode: docker
 
 ## VPS
 
+- [ ] Clone na branch `dev` (`git checkout -B dev origin/dev`)
 - [ ] `chmod +x /root/projects/royaltracking_<slug>/ops/deploy.sh`
 - [ ] Stack `royaltracking_<slug>` no Portainer
 - [ ] `docker service ls | grep royaltracking_`
 - [ ] Deploy manual OK
-- [ ] Actions OK (`VPS_PROJECT_DIR` preenchida)
+- [ ] Actions OK (`VPS_PROJECT_DIR` preenchida; Hub não roda em `dev`)
 - [ ] `curl -I https://tracking.royalgrowth.com.br`
 - [ ] DNS `tracking.royalgrowth.com.br` → VPS
 - [ ] Snippet / webhooks / OAuth redirect no novo host

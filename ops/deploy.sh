@@ -30,7 +30,7 @@ else
   PUBLIC_URL="https://tracking.royalgrowth.com.br"
 fi
 
-BRANCH="main"
+BRANCH="dev"
 NODE_IMAGE="node:22-alpine"
 DOCKER_BUILD_SHELL='rm -rf node_modules .next && npm ci --legacy-peer-deps && npm run build'
 

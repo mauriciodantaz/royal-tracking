@@ -1,7 +1,7 @@
 project:
   repository: "mauriciodantaz/royal-tracking"
   slug: "tracking"
-  branch: "main"
+  branch: "dev"
   framework: "nextjs"
   application_type: "node-ssr-standalone"
 

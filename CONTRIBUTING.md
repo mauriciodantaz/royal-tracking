@@ -12,12 +12,13 @@ Obrigado por contribuir. O artefato publicado é a imagem Docker Hub `mauricioda
 
 ## Canais
 
-| Branch | Docker Hub | SemVer |
-|--------|------------|--------|
-| `beta` | `:beta` + `:X.Y.Z-beta` | não bumpa (usa versão do `package.json`) |
-| `main` | `:X.Y.Z` + `:X.Y.Z-stable` + `:stable` + `:latest` | bump automático no merge |
+| Branch | Docker Hub | VPS (demo interna) | SemVer |
+|--------|------------|--------------------|--------|
+| `dev` | — | build-on-volume via Actions | — |
+| `beta` | `:beta` + `:X.Y.Z-beta` | — | não bumpa (usa versão do `package.json`) |
+| `main` | `:X.Y.Z` + `:X.Y.Z-stable` + `:stable` + `:latest` | — | bump automático no merge |
 
-`latest` é sempre a stable atual. Tags usam só o número (`0.1.0`), sem prefixo `v`.
+`latest` é sempre a stable atual. Tags usam só o número (`0.1.0`), sem prefixo `v`. Teste ao vivo na VPS: push em `dev`.
 
 ## Labels de release (obrigatório no PR para `main`)
 

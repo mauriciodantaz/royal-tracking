@@ -17,6 +17,7 @@ Canais CI:
 
 - push em `beta` → `:beta` + `:X.Y.Z-beta`
 - merge em `main` com label `release:*` → tag git `X.Y.Z` → `:X.Y.Z` + `:X.Y.Z-stable` + `:stable` + `:latest`
+- push em `dev` → **não** publica no Hub (só deploy VPS interno; ver abaixo)
 
 Secrets: ver [`ops/DOCKER-HUB.md`](./ops/DOCKER-HUB.md).
 
@@ -26,13 +27,13 @@ Secrets ficam no `environment:` do YAML Portainer. Inclua `PROJECT_NAME`, `DB_PO
 
 ## Variante avançada — build na VPS (volume Swarm)
 
-Usado quando se quer deploy a partir do git na VPS (ex.: instância Royal Growth via Actions).
+Usado para a demo interna (Royal Growth) via Actions. Canal: branch **`dev`** apenas — `beta`/`main` não disparam deploy na VPS.
 
 - Template: [`deploy/portainer-stack.yml`](./deploy/portainer-stack.yml) (`node:22-alpine` + volume do build)
-- Entrypoint: `ops/deploy.sh` em `/root/projects/royaltracking_<slug>`
+- Entrypoint: `ops/deploy.sh` em `/root/projects/royaltracking_<slug>` (`BRANCH=dev`)
 - YAML preenchido: `bash deploy/print-stack-yml.sh`
 - `ROYAL_TRACKING_BUILD_ON_VPS=1 bash install.sh`
-- GitHub Actions: [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml) + `vars.VPS_PROJECT_DIR`
+- GitHub Actions: push em `dev` → [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml) + `vars.VPS_PROJECT_DIR`
 
 > Fallback legado em `ops/deploy.sh` (sem `.instance`): `/root/projects/tracking` + volume `tracking`. Preferir sempre `royaltracking_<slug>`.
 
