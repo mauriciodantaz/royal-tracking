@@ -1,5 +1,6 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 
 import { requireUser } from "@/lib/auth/session";
@@ -20,6 +21,11 @@ import {
   ensureRdWebhooks,
   syncRdFunnels,
 } from "@/lib/rd/sync";
+import { ensureWhatsappWebhook } from "@/lib/whatsapp/register-webhook";
+
+function isWhatsappProvider(provider: string): boolean {
+  return provider === "evolution_api" || provider === "uazapi";
+}
 
 function revalidateIntegrations(provider?: string) {
   revalidatePath("/dashboard/integracoes");
@@ -30,7 +36,7 @@ function revalidateIntegrations(provider?: string) {
 }
 
 export async function upsertConnection(formData: FormData): Promise<
-  { ok: true } | { ok: false; error: string }
+  { ok: true; warning?: string } | { ok: false; error: string }
 > {
   await requireUser();
   const id = String(formData.get("id") ?? "").trim() || null;
@@ -66,6 +72,7 @@ export async function upsertConnection(formData: FormData): Promise<
     config.pixel_id ||
     config.measurement_id ||
     config.ad_account_id ||
+    config.instance_name ||
     String(formData.get("account_external_id") ?? "").trim() ||
     null;
 
@@ -76,6 +83,9 @@ export async function upsertConnection(formData: FormData): Promise<
   let webhookCipher: string | null = null;
   if (webhookSecret) {
     webhookCipher = await encryptSecret(webhookSecret);
+  } else if (!id && isWhatsappProvider(provider)) {
+    // Inbound secret gerado pela stack (Evolution/UazAPI apontam para nós).
+    webhookCipher = await encryptSecret(randomBytes(24).toString("hex"));
   }
   let refreshCipher: string | null = null;
   if (refreshToken) {
@@ -186,6 +196,7 @@ export async function upsertConnection(formData: FormData): Promise<
     };
   }
 
+  let savedId = id;
   if (id) {
     const sets: string[] = [
       `label = $1`,
@@ -238,14 +249,68 @@ export async function upsertConnection(formData: FormData): Promise<
         active,
       ]
     );
+    savedId = row?.id ?? null;
     if (row && (provider === "meta_pixel" || provider === "ga4")) {
       await seedDefaultMappingsForOutbound(row.id, provider);
+    }
+    if (row && isWhatsappProvider(provider)) {
+      await seedWhatsappLeadMappings(row.id, provider);
     }
     if (row) await syncLegacyTable(provider, row.id);
   }
 
+  let webhookWarning: string | undefined;
+  if (savedId && isWhatsappProvider(provider) && active) {
+    try {
+      const wh = await ensureWhatsappWebhook(savedId);
+      if (!wh.ok) {
+        webhookWarning = wh.error;
+      }
+    } catch (err) {
+      webhookWarning =
+        err instanceof Error
+          ? err.message
+          : "Falha ao registrar webhook no WhatsApp.";
+      console.error("[whatsapp] ensureWhatsappWebhook", err);
+    }
+  }
+
   revalidateIntegrations(provider);
+  if (webhookWarning) {
+    return {
+      ok: true as const,
+      warning: `Integração salva, mas o webhook ficou pendente: ${webhookWarning}`,
+    };
+  }
   return { ok: true as const };
+}
+
+async function seedWhatsappLeadMappings(
+  sourceConnectionId: string,
+  sourceProvider: string
+): Promise<void> {
+  const dests = await query<IntegrationConnectionRow>(
+    `select * from integration_connections
+     where active = true and provider in ('meta_pixel', 'ga4')`
+  );
+  for (const d of dests.rows) {
+    const destEvent =
+      d.provider === "ga4" ? "generate_lead" : "Lead";
+    await query(
+      `insert into integration_event_mappings (
+         source_provider, source_connection_id, source_event,
+         dest_connection_id, dest_event_name, enabled
+       )
+       select $1, $2, 'Lead', $3, $4, true
+       where not exists (
+         select 1 from integration_event_mappings
+         where source_connection_id = $2
+           and source_event = 'Lead'
+           and dest_connection_id = $3
+       )`,
+      [sourceProvider, sourceConnectionId, d.id, destEvent]
+    );
+  }
 }
 
 async function syncLegacyTable(provider: string, connectionId: string) {
@@ -327,6 +392,30 @@ export async function deleteConnection(id: string) {
   }
   revalidateIntegrations(conn?.provider);
   return { ok: true as const };
+}
+
+export async function reconfigureWhatsappWebhookAction(
+  connectionId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireUser();
+  const conn = await queryOne<IntegrationConnectionRow>(
+    `select * from integration_connections where id = $1`,
+    [connectionId]
+  );
+  if (!conn || !isWhatsappProvider(conn.provider)) {
+    return { ok: false, error: "Conexão WhatsApp inválida." };
+  }
+  try {
+    const result = await ensureWhatsappWebhook(connectionId);
+    revalidateIntegrations(conn.provider);
+    if (!result.ok) return { ok: false, error: result.error };
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Falha ao reconfigurar webhook",
+    };
+  }
 }
 
 export async function syncRdFunnelsAction(

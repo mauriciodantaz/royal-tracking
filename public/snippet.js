@@ -22,12 +22,16 @@
     window.TRCK_ENDPOINT || "https://tracking.royalgrowth.com.br"
   ).replace(/\/$/, "");
   var STORAGE_KEY = "trck_user_id";
+  var GCLID_KEY = "trck_gclid";
+  var TTCLID_KEY = "trck_ttclid";
   var COOKIE_DAYS = 365;
   var LEAD_DEDUP_MS = 5000;
+  var TICKET_LINE_RE = /\[ticket=[^\]:\s]+:[^\]]+\]/i;
 
   var metaPixelIds = [];
   var ga4MeasurementIds = [];
   var tagsReady = null;
+  var ticketName = window.TRCK_TICKET_NAME || "rt";
 
   var META_STANDARD = {
     PageView: "PageView",
@@ -108,6 +112,93 @@
     return undefined;
   }
 
+  function lsGet(key) {
+    try {
+      return localStorage.getItem(key) || undefined;
+    } catch (e) {
+      return undefined;
+    }
+  }
+
+  function lsSet(key, value) {
+    try {
+      if (value) localStorage.setItem(key, value);
+    } catch (e) {}
+  }
+
+  function rememberClickId(param, storageKey) {
+    var fromUrl = getQuery(param);
+    if (fromUrl) {
+      lsSet(storageKey, fromUrl);
+      return fromUrl;
+    }
+    return lsGet(storageKey);
+  }
+
+  function getGclid() {
+    return rememberClickId("gclid", GCLID_KEY);
+  }
+
+  function getTtclid() {
+    return rememberClickId("ttclid", TTCLID_KEY);
+  }
+
+  /** Meta fbc from cookie, or build from fbclid when missing. */
+  function getFbc() {
+    var cookie = getCookie("_fbc");
+    if (cookie) return cookie;
+    var fbclid = getQuery("fbclid");
+    if (!fbclid) return undefined;
+    return "fb.1." + Math.floor(Date.now() / 1000) + "." + fbclid;
+  }
+
+  function coalesceTrackingValue(id) {
+    return (
+      id ||
+      getCookie("_fbp") ||
+      getGaClientId() ||
+      getGclid() ||
+      getTtclid() ||
+      undefined
+    );
+  }
+
+  function formatTicketLine(name, value) {
+    return "[ticket=" + name + ":" + value + "]";
+  }
+
+  function withWhatsAppTicket(url, id, messageOverride) {
+    var tracking = coalesceTrackingValue(id);
+    if (!tracking) return withTrck(url, id);
+    try {
+      var u = new URL(url, window.location.origin);
+      var lower = u.hostname.toLowerCase() + u.pathname.toLowerCase();
+      var isWa =
+        lower.indexOf("wa.me") >= 0 ||
+        lower.indexOf("api.whatsapp.com") >= 0;
+      if (id) u.searchParams.set("trck_user_id", id);
+      if (!isWa) return u.toString();
+
+      var text = messageOverride;
+      if (text == null) text = u.searchParams.get("text") || "";
+      try {
+        text = decodeURIComponent(text.replace(/\+/g, " "));
+      } catch (e) {}
+      var line = formatTicketLine(ticketName, tracking);
+      if (TICKET_LINE_RE.test(text)) {
+        text = text.replace(TICKET_LINE_RE, line);
+      } else if (text) {
+        text = text.replace(/\s+$/g, "") + "\n\n" + line;
+      } else {
+        text = line;
+      }
+      u.searchParams.set("text", text);
+      return u.toString();
+    } catch (e) {
+      return withTrck(url, id);
+    }
+  }
+
   function post(path, body) {
     return fetch(ENDPOINT + path, {
       method: "POST",
@@ -153,9 +244,10 @@
         var href = a.getAttribute("href");
         if (!href || href.charAt(0) === "#" || href.indexOf("javascript:") === 0) return;
         var lower = href.toLowerCase();
+        var isWa =
+          lower.indexOf("wa.me") >= 0 || lower.indexOf("api.whatsapp.com") >= 0;
         var interesting =
-          lower.indexOf("wa.me") >= 0 ||
-          lower.indexOf("api.whatsapp.com") >= 0 ||
+          isWa ||
           lower.indexOf("hotmart") >= 0 ||
           lower.indexOf("kiwify") >= 0 ||
           lower.indexOf("eduzz") >= 0 ||
@@ -164,7 +256,7 @@
           a.hasAttribute("data-trck") ||
           a.classList.contains("trck-link");
         if (!interesting) return;
-        a.href = withTrck(href, id);
+        a.href = isWa ? withWhatsAppTicket(href, id) : withTrck(href, id);
       },
       true
     );
@@ -402,8 +494,10 @@
             event_name: eventName,
             event_id: eventId,
             fbp: getCookie("_fbp") || undefined,
-            fbc: getCookie("_fbc") || undefined,
+            fbc: getFbc(),
             ga_client_id: getGaClientId(),
+            gclid: getGclid(),
+            ttclid: getTtclid(),
             client_web: web,
           },
           data,
@@ -413,14 +507,24 @@
     });
   }
 
+  function loadTicketConfig() {
+    return getJson("/api/tracking/config")
+      .then(function (data) {
+        if (data && data.ticket_name) ticketName = String(data.ticket_name);
+      })
+      .catch(function () {});
+  }
+
   function identifyAndTrack() {
     var existing = getTrckId();
     var payload = {
       trck_user_id: existing || undefined,
       fbp: getCookie("_fbp") || undefined,
-      fbc: getCookie("_fbc") || undefined,
+      fbc: getFbc(),
       ga_client_id: getGaClientId(),
       ga_session_id: getGaSessionId(),
+      gclid: getGclid(),
+      ttclid: getTtclid(),
       utm_source: getQuery("utm_source"),
       utm_medium: getQuery("utm_medium"),
       utm_campaign: getQuery("utm_campaign"),
@@ -430,6 +534,7 @@
     };
 
     initBrowserTags().catch(function () {});
+    loadTicketConfig();
 
     return post("/api/identify", payload).then(function (data) {
       var id = (data && data.trck_user_id) || existing || "trck_" + uuid().replace(/-/g, "");
@@ -532,8 +637,10 @@
           page_url: window.location.href,
           fields: fields,
           fbp: getCookie("_fbp") || undefined,
-          fbc: getCookie("_fbc") || undefined,
+          fbc: getFbc(),
           ga_client_id: getGaClientId(),
+          gclid: getGclid(),
+          ttclid: getTtclid(),
           utm_source: getQuery("utm_source"),
           utm_medium: getQuery("utm_medium"),
           utm_campaign: getQuery("utm_campaign"),
@@ -562,6 +669,8 @@
             fbp: payload.fbp,
             fbc: payload.fbc,
             ga_client_id: payload.ga_client_id,
+            gclid: payload.gclid,
+            ttclid: payload.ttclid,
             utm_source: payload.utm_source,
             utm_medium: payload.utm_medium,
             utm_campaign: payload.utm_campaign,
@@ -599,6 +708,9 @@
     withTrckUserId: function (url) {
       var id = this.getId();
       return id ? withTrck(url, id) : url;
+    },
+    withWhatsAppTicket: function (url, message) {
+      return withWhatsAppTicket(url, this.getId(), message);
     },
   };
 

@@ -56,6 +56,8 @@ export type VisitorRow = {
   fbc: string | null;
   ga_client_id: string | null;
   ga_session_id: string | null;
+  gclid: string | null;
+  ttclid: string | null;
   utm_source: string | null;
   utm_medium: string | null;
   utm_campaign: string | null;

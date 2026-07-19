@@ -252,5 +252,19 @@ export async function seedDefaultMappingsForOutbound(
         [src, "Purchase", destConnectionId, destEvent]
       );
     }
+    for (const src of ["evolution_api", "uazapi"] as const) {
+      if (sourceEvent !== "Lead") continue;
+      await query(
+        `insert into integration_event_mappings (
+           source_provider, source_event, dest_connection_id, dest_event_name, enabled
+         )
+         select $1, $2, $3, $4, true
+         where not exists (
+           select 1 from integration_event_mappings
+           where source_provider = $1 and source_event = $2 and dest_connection_id = $3
+         )`,
+        [src, "Lead", destConnectionId, destEvent]
+      );
+    }
   }
 }

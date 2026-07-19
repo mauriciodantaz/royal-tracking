@@ -67,11 +67,11 @@ export async function POST(request: NextRequest) {
       `insert into visitors (
          trck_user_id, email, email_hash, phone_hash,
          first_name_hash, last_name_hash, city_hash, state_hash, country_hash,
-         external_id_hash, fbp, fbc, ga_client_id, ga_session_id,
+         external_id_hash, fbp, fbc, ga_client_id, ga_session_id, gclid, ttclid,
          utm_source, utm_medium, utm_campaign, utm_term, utm_content,
          referrer, ip, user_agent, geo_country, geo_region, geo_city, pixel_id
        ) values (
-         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28
        )
        on conflict (trck_user_id) do update set
          email = coalesce(excluded.email, visitors.email),
@@ -87,6 +87,8 @@ export async function POST(request: NextRequest) {
          fbc = coalesce(excluded.fbc, visitors.fbc),
          ga_client_id = coalesce(excluded.ga_client_id, visitors.ga_client_id),
          ga_session_id = coalesce(excluded.ga_session_id, visitors.ga_session_id),
+         gclid = coalesce(excluded.gclid, visitors.gclid),
+         ttclid = coalesce(excluded.ttclid, visitors.ttclid),
          utm_source = coalesce(excluded.utm_source, visitors.utm_source),
          utm_medium = coalesce(excluded.utm_medium, visitors.utm_medium),
          utm_campaign = coalesce(excluded.utm_campaign, visitors.utm_campaign),
@@ -116,6 +118,8 @@ export async function POST(request: NextRequest) {
         body.fbc ?? null,
         body.ga_client_id ?? null,
         body.ga_session_id ?? null,
+        body.gclid ?? null,
+        body.ttclid ?? null,
         body.utm_source ?? null,
         body.utm_medium ?? null,
         body.utm_campaign ?? null,
