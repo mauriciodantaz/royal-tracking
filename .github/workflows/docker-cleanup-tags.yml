@@ -38,15 +38,19 @@ jobs:
                   body = json.dumps(data).encode()
                   h["Content-Type"] = "application/json"
               r = urllib.request.Request(url, data=body, headers=h, method=method)
-              with urllib.request.urlopen(r) as resp:
-                  raw = resp.read()
-                  return resp.status, raw
+              try:
+                  with urllib.request.urlopen(r) as resp:
+                      return resp.status, resp.read()
+              except urllib.error.HTTPError as e:
+                  return e.code, e.read()
 
-          _, login_raw = req(
+          status, login_raw = req(
               "https://hub.docker.com/v2/users/login/",
               method="POST",
               data={"username": user, "password": password},
           )
+          if status != 200:
+              raise SystemExit(f"login failed: {status} {login_raw!r}")
           token = json.loads(login_raw)["token"]
           auth = {"Authorization": f"JWT {token}"}
 
@@ -56,6 +60,10 @@ jobs:
                   f"https://hub.docker.com/v2/repositories/{image}/tags?page_size=100&page={page}",
                   headers=auth,
               )
+              if status == 404:
+                  break
+              if status != 200:
+                  raise SystemExit(f"list tags failed: {status} {raw!r}")
               data = json.loads(raw)
               results = data.get("results") or []
               if not results:
@@ -66,10 +74,10 @@ jobs:
                       print(f"KEEP {name}")
                       continue
                   url = f"https://hub.docker.com/v2/repositories/{image}/tags/{name}/"
-                  try:
-                      st, _ = req(url, method="DELETE", headers=auth)
+                  st, body = req(url, method="DELETE", headers=auth)
+                  if st in (200, 202, 204):
                       print(f"DELETE {name} -> {st}")
-                  except Exception as e:
-                      print(f"DELETE {name} FAILED: {e}")
+                  else:
+                      print(f"DELETE {name} FAILED: {st} {body!r}")
               page += 1
           PY
