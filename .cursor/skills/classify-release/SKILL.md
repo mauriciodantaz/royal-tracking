@@ -4,7 +4,7 @@ description: >-
   Classifica o tamanho da alteração de um PR como versão (MAJOR), melhoria
   (MINOR), hotfix (PATCH) ou none, e aplica o label release:* correspondente.
   Use ao preparar/revisar PR, perguntar se é versão/melhoria/hotfix, ou antes
-  de merge em main/beta do Royal Tracking.
+  de merge em beta do Royal Tracking (bump SemVer). Promoção beta→main não bumpa.
 ---
 
 # Classify release (SemVer)
@@ -26,7 +26,8 @@ description: >-
 
 ## Rubrica
 
-1. Ler o diff vs a base do PR (`gh pr diff` ou `git diff origin/main...HEAD`).
+1. Ler o diff vs a base do PR (`gh pr diff` ou `git diff origin/beta...HEAD` / `origin/main...HEAD`).
+   Label `release:*` é obrigatório quando a base for **`beta`**.
 2. Classificar:
    - **versão (MAJOR)**: breaking em API/snippet/webhook, migration incompatível, remoção de env ou comportamento público
    - **melhoria (MINOR)**: feature, integração nova, endpoint novo compatível, UX relevante

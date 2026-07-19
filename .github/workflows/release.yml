@@ -1,29 +1,37 @@
 name: Release SemVer
 
-# Promoção beta → main:
-#   PR mergeada em `main` com exatamente um label release:*
-#   → bump SemVer no package.json → tag git X.Y.Z → GitHub Release
-#   → docker-publish.yml publica :X.Y.Z / :stable / :latest
-# Labels: release:versão | release:melhoria | release:hotfix | release:none
-# PR dev → beta NÃO usa este workflow (só push em beta → docker-publish).
+# Canais:
+#   PR mergeada em `beta` + label release:*
+#     -> bump package.json + CHANGELOG -> push em beta
+#     -> dispara docker-publish (:beta + :X.Y.Z-beta)
+#   PR mergeada em `main` (promocao beta -> main)
+#     -> tag git X.Y.Z (mesma versao do package.json) + GitHub Release
+#     -> dispara docker-publish (:X.Y.Z / :stable / :latest)
+# Labels (obrigatorio so em PR para beta):
+#   release:versao | release:melhoria | release:hotfix | release:none
+# Push em `dev` nao usa este workflow.
 
 on:
   pull_request:
     types: [closed]
     branches:
+      - beta
       - main
 
 permissions:
   contents: write
   pull-requests: read
+  actions: write
 
 concurrency:
-  group: release-main
+  group: release-${{ github.event.pull_request.base.ref }}
   cancel-in-progress: false
 
 jobs:
-  release:
-    if: github.event.pull_request.merged == true
+  bump-beta:
+    if: >
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'beta'
     runs-on: ubuntu-latest
     steps:
       - name: Resolve release label
@@ -56,7 +64,7 @@ jobs:
             esac
           done
           if [ "$count" -eq 0 ]; then
-            echo "::error::PR merged to main sem label release:* (versão|melhoria|hotfix|none)"
+            echo "::error::PR merged to beta sem label release:* (versão|melhoria|hotfix|none)"
             exit 1
           fi
           if [ "$count" -gt 1 ]; then
@@ -67,40 +75,32 @@ jobs:
 
       - name: Skip bump for release:none
         if: steps.label.outputs.bump == 'none'
-        run: echo "release:none — sem bump SemVer nem tag."
+        run: echo "release:none — sem bump SemVer (push em beta ainda publica a versao atual do package.json)."
 
-      - name: Checkout
+      - name: Checkout beta
         if: steps.label.outputs.bump != 'none'
         uses: actions/checkout@v4
         with:
+          ref: beta
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Bump version, changelog, tag, release
+      - name: Bump version and changelog
         if: steps.label.outputs.bump != 'none'
         id: bump
         env:
           BUMP: ${{ steps.label.outputs.bump }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Tags estáveis = só X.Y.Z (sem prefixo v, sem -beta)
-          latest="$(git tag -l '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)"
-          if [ -z "$latest" ]; then
-            # legado: tags vX.Y.Z
-            legacy="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
-            if [ -n "$legacy" ]; then
-              base="${legacy#v}"
-            else
-              base="$(node -p "require('./package.json').version")"
-            fi
-          else
-            base="$latest"
+          base="$(node -p "require('./package.json').version")"
+          if ! echo "$base" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::package.json version invalida: $base (esperado X.Y.Z)"
+            exit 1
           fi
 
           IFS='.' read -r major minor patch <<< "$base"
@@ -123,9 +123,7 @@ jobs:
               ;;
           esac
           version="${major}.${minor}.${patch}"
-          tag="$version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
           node -e "
             const fs = require('fs');
@@ -142,7 +140,7 @@ jobs:
           today = os.environ["TODAY"]
           title = os.environ["PR_TITLE"]
           number = os.environ["PR_NUMBER"]
-          section = f"## [{version}] — {today}\n\n### Changed\n\n- {title} (#{number})\n\n"
+          section = f"## [{version}] - {today}\n\n### Changed\n\n- {title} (#{number})\n\n"
           path = "CHANGELOG.md"
           try:
               text = open(path, encoding="utf-8").read()
@@ -157,19 +155,75 @@ jobs:
           PY
 
           git add package.json CHANGELOG.md
-          git commit -m "chore(release): ${tag} (stable)"
-          git tag "$tag"
-          git push origin HEAD:main
-          git push origin "$tag"
+          git commit -m "chore(release): ${version}-beta"
+          git push origin HEAD:beta
 
-          gh release create "$tag" \
-            --title "${tag} (stable)" \
-            --notes "## ${tag} — stable
+      - name: Publish beta image
+        if: steps.label.outputs.bump != 'none'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run docker-publish.yml -f channel=beta
 
-${PR_TITLE} (#${PR_NUMBER})
+  promote-main:
+    if: >
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-Docker Hub:
-- \`mauriciodantaz/royal-tracking:${tag}\`
-- \`mauriciodantaz/royal-tracking:${tag}-stable\`
-- \`mauriciodantaz/royal-tracking:stable\`
-- \`mauriciodantaz/royal-tracking:latest\` (= stable)"
+      - name: Tag stable from package.json
+        id: tag
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          version="$(node -p "require('./package.json').version")"
+          if ! echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::package.json version invalida: $version (esperado X.Y.Z)"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          if git rev-parse "refs/tags/${version}" >/dev/null 2>&1; then
+            echo "Tag ${version} ja existe — nada a promover."
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skipped=false" >> "$GITHUB_OUTPUT"
+
+          git tag "$version"
+          git push origin "$version"
+
+          notes="$(mktemp)"
+          {
+            echo "## ${version} (stable)"
+            echo ""
+            echo "${PR_TITLE} (#${PR_NUMBER})"
+            echo ""
+            echo "Docker Hub:"
+            echo "- \`mauriciodantaz/royal-tracking:${version}\`"
+            echo "- \`mauriciodantaz/royal-tracking:${version}-stable\`"
+            echo "- \`mauriciodantaz/royal-tracking:stable\`"
+            echo "- \`mauriciodantaz/royal-tracking:latest\` (= stable)"
+          } > "$notes"
+
+          gh release create "$version" \
+            --title "${version} (stable)" \
+            --notes-file "$notes"
+
+      - name: Publish stable image
+        if: steps.tag.outputs.skipped != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run docker-publish.yml -f channel=stable

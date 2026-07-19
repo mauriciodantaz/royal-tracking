@@ -1,10 +1,12 @@
 name: Docker publish
 
 # Canais Docker Hub (sem deploy VPS):
-#   push `beta`     → :beta + :X.Y.Z-beta  (versão do package.json)
-#   tag  X.Y.Z      → :X.Y.Z + :X.Y.Z-stable + :stable + :latest
-#                     (tag criada pelo release.yml no merge em main)
-#   `dev` NÃO publica imagem — só VPS via deploy.yml
+#   push `beta` / workflow_dispatch beta
+#     -> :beta + :X.Y.Z-beta (versao do package.json; bump no release.yml em PR->beta)
+#   tag X.Y.Z / workflow_dispatch stable
+#     -> :X.Y.Z + :X.Y.Z-stable + :stable + :latest
+#     (tag criada pelo release.yml no merge beta->main, mesma versao)
+#   `dev` NAO publica imagem — so VPS via deploy.yml
 # latest == sempre a stable atual. Sem prefixo "v", sem tags com sha.
 
 on:

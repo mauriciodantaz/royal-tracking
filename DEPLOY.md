@@ -18,10 +18,10 @@ Canais CI (branches: `dev` · `beta` · `main`):
 | Evento | Hub | VPS |
 |--------|-----|-----|
 | push `dev` | — | build-on-volume ([`deploy.yml`](./.github/workflows/deploy.yml)) |
-| push `beta` (ex.: merge PR `dev` → `beta`) | `:beta` + `:X.Y.Z-beta` | — |
-| merge PR `beta` → `main` + label `release:*` | tag `X.Y.Z` → `:X.Y.Z` / `:stable` / `:latest` | — |
+| merge PR → `beta` + label `release:*` | bump `X.Y.Z` → `:beta` + `:X.Y.Z-beta` | — |
+| merge PR `beta` → `main` | mesma `X.Y.Z` → tag + `:stable` / `:latest` | — |
 
-Promoção: `dev` → PR → `beta` → PR + label → `main`. Detalhes em [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+Promoção: `dev` → PR + label → `beta` → PR → `main`. Detalhes em [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 
 Secrets: ver [`ops/DOCKER-HUB.md`](./ops/DOCKER-HUB.md).
 

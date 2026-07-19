@@ -6,11 +6,11 @@ Imagem: `mauriciodantaz/royal-tracking`
 
 | Tag | Canal | Origem |
 |-----|--------|--------|
-| `X.Y.Z` | stable | release em `main` |
+| `X.Y.Z` | stable | promoção `beta` → `main` (tag = versão do `package.json`) |
 | `X.Y.Z-stable` | stable | mesmo digest de `X.Y.Z` |
 | `stable` | stable | floating = stable atual |
 | `latest` | stable | **sempre** = `stable` |
-| `X.Y.Z-beta` | beta | push / publish da branch `beta` |
+| `X.Y.Z-beta` | beta | bump no merge em `beta` + publish |
 | `beta` | beta | floating = beta atual |
 
 Sem prefixo `v`. Sem tags com sha (`beta-<sha>`).
@@ -31,8 +31,9 @@ gh secret set DOCKERHUB_TOKEN --body "<token>"
 
 | Evento | Tags publicadas |
 |--------|-----------------|
-| push `beta` | `:beta`, `:X.Y.Z-beta` (versão do `package.json`) |
-| tag git `X.Y.Z` | `:X.Y.Z`, `:X.Y.Z-stable`, `:stable`, `:latest` |
+| merge PR → `beta` + `release:*` | bump + `:beta`, `:X.Y.Z-beta` |
+| merge PR → `main` | tag `X.Y.Z` + `:stable` / `:latest` |
+| push `beta` / tag `X.Y.Z` | idem (publish direto) |
 | `workflow_dispatch` | `beta` / `stable` / `both` |
 | `docker-cleanup-tags.yml` | apaga tags fora do padrão |
 
