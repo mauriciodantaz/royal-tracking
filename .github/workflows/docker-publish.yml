@@ -1,18 +1,17 @@
 name: Docker publish
 
 # Canais Docker Hub (sem deploy VPS):
-#   push `beta` / workflow_dispatch beta
-#     -> :beta + :X.Y.Z-beta (versao do package.json; bump no release.yml em PR->beta)
-#   tag X.Y.Z / workflow_dispatch stable
+#   workflow_dispatch channel=beta (disparado por release.yml apos merge em beta)
+#     -> :beta + :X.Y.Z-beta
+#   tag X.Y.Z (humano/PAT) OU workflow_dispatch channel=stable (release.yml)
 #     -> :X.Y.Z + :X.Y.Z-stable + :stable + :latest
-#     (tag criada pelo release.yml no merge beta->main, mesma versao)
+#   Push em `beta` NAO publica mais (evita build pre-bump + build pos-bump).
+#   Push de tag com GITHUB_TOKEN tambem NAO dispara workflows — por isso o dispatch.
 #   `dev` NAO publica imagem — so VPS via deploy.yml
 # latest == sempre a stable atual. Sem prefixo "v", sem tags com sha.
 
 on:
   push:
-    branches:
-      - beta
     tags:
       - "*.*.*"
   workflow_dispatch:
@@ -35,15 +34,14 @@ env:
 jobs:
   publish-beta:
     if: >
-      (github.event_name == 'push' && github.ref == 'refs/heads/beta') ||
-      (github.event_name == 'workflow_dispatch' &&
-       (github.event.inputs.channel == 'beta' || github.event.inputs.channel == 'both'))
+      github.event_name == 'workflow_dispatch' &&
+      (github.event.inputs.channel == 'beta' || github.event.inputs.channel == 'both')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && 'beta' || github.sha }}
+          ref: beta
 
       - name: Resolve version
         id: ver

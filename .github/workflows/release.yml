@@ -3,11 +3,12 @@ name: Release SemVer
 # Canais:
 #   PR mergeada em `beta` + label release:*
 #     -> bump package.json + CHANGELOG -> push em beta
-#     -> dispara docker-publish (:beta + :X.Y.Z-beta)
-#   PR mergeada em `main` (promocao beta -> main)
+#     -> workflow_dispatch docker-publish (:beta + :X.Y.Z-beta)
+#       (push do GITHUB_TOKEN nao dispara outros workflows)
+#   PR mergeada em `main` com head=`beta` (promocao; use merge commit, nao squash)
 #     -> tag git X.Y.Z (mesma versao do package.json) + GitHub Release
-#     -> dispara docker-publish (:X.Y.Z / :stable / :latest)
-# Labels (obrigatorio so em PR para beta):
+#     -> workflow_dispatch docker-publish (:X.Y.Z / :stable / :latest)
+# Labels (obrigatorio em PR para beta — gate tambem em release-label.yml):
 #   release:versao | release:melhoria | release:hotfix | release:none
 # Push em `dev` nao usa este workflow.
 
@@ -79,7 +80,7 @@ jobs:
 
       - name: Skip bump for release:none
         if: steps.label.outputs.bump == 'none'
-        run: echo "release:none — sem bump SemVer (push em beta ainda publica a versao atual do package.json)."
+        run: echo "release:none — sem bump SemVer; docker-publish ainda roda na versao atual do package.json."
 
       - name: Checkout beta
         if: steps.label.outputs.bump != 'none'
@@ -162,8 +163,8 @@ jobs:
           git commit -m "chore(release): ${version}-beta"
           git push origin HEAD:beta
 
+      # GITHUB_TOKEN pushes do not trigger other workflows — always dispatch.
       - name: Publish beta image
-        if: steps.label.outputs.bump != 'none'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh workflow run docker-publish.yml -f channel=beta
@@ -174,6 +175,16 @@ jobs:
       github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
     steps:
+      - name: Require promotion from beta
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          if [ "$HEAD_REF" != "beta" ]; then
+            echo "::error::Promoção para main deve ser PR head=beta (recebeu head=${HEAD_REF}). Use merge commit, não squash."
+            exit 1
+          fi
+
       - name: Checkout main
         uses: actions/checkout@v4
         with:
@@ -226,6 +237,7 @@ jobs:
             --title "${version} (stable)" \
             --notes-file "$notes"
 
+      # Tag push with GITHUB_TOKEN also does not trigger docker-publish.
       - name: Publish stable image
         if: steps.tag.outputs.skipped != 'true'
         env:
