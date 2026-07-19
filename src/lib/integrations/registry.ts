@@ -10,6 +10,8 @@ export type IntegrationProvider =
   | "rdstation_mkt"
   | "rdstation_conversas"
   | "pipedrive"
+  | "evolution_api"
+  | "uazapi"
   | "snippet";
 
 export type IntegrationAuthType =
@@ -21,12 +23,26 @@ export type IntegrationAuthType =
 
 export type IntegrationDirection = "inbound" | "outbound" | "both";
 
+export type IntegrationSegment =
+  | "site_media"
+  | "marketplace"
+  | "crm_marketing"
+  | "whatsapp";
+
+export const INTEGRATION_SEGMENTS = [
+  { id: "site_media", label: "Site e mídia" },
+  { id: "marketplace", label: "Marketplaces" },
+  { id: "crm_marketing", label: "Marketing e vendas" },
+  { id: "whatsapp", label: "WhatsApp" },
+] as const satisfies ReadonlyArray<{ id: IntegrationSegment; label: string }>;
+
 export type IntegrationModuleDef = {
   provider: IntegrationProvider;
   name: string;
   description: string;
   authType: IntegrationAuthType;
   direction: IntegrationDirection;
+  segment: IntegrationSegment;
   connectFields: Array<{
     key: string;
     label: string;
@@ -52,6 +68,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
       "Modo web + server (deduplicação por event_id): Pixel no browser e CAPI no servidor em paralelo.",
     authType: "token",
     direction: "outbound",
+    segment: "site_media",
     docsSlug: "meta-pixel",
     connectFields: [
       { key: "label", label: "Nome", required: true },
@@ -76,6 +93,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     description: "Conta de anúncios para insights e campanhas.",
     authType: "token",
     direction: "outbound",
+    segment: "site_media",
     docsSlug: "meta-ads",
     connectFields: [
       { key: "label", label: "Nome", required: true },
@@ -90,6 +108,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
       "Modo web + server (deduplicação por event_id): gtag no browser e Measurement Protocol no servidor em paralelo.",
     authType: "token",
     direction: "outbound",
+    segment: "site_media",
     docsSlug: "ga4",
     connectFields: [
       { key: "label", label: "Nome", required: true },
@@ -103,6 +122,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     description: "Upload de conversões (OAuth).",
     authType: "oauth",
     direction: "outbound",
+    segment: "site_media",
     connectFields: [{ key: "label", label: "Nome", required: true }],
   },
   {
@@ -111,6 +131,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     description: "Webhook de compras — N contas.",
     authType: "webhook_secret",
     direction: "inbound",
+    segment: "marketplace",
     docsSlug: "hotmart",
     connectFields: [
       { key: "label", label: "Nome", required: true },
@@ -129,6 +150,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     description: "Webhook de compras — N contas.",
     authType: "webhook_secret",
     direction: "inbound",
+    segment: "marketplace",
     docsSlug: "kiwify",
     connectFields: [
       { key: "label", label: "Nome", required: true },
@@ -147,6 +169,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     description: "Webhook de compras.",
     authType: "webhook_secret",
     direction: "inbound",
+    segment: "marketplace",
     docsSlug: "eduzz",
     connectFields: [
       { key: "label", label: "Nome", required: true },
@@ -166,6 +189,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
       "OAuth — funis/estágios via webhooks deal_created/updated → Meta CAPI e GA4 (server).",
     authType: "oauth",
     direction: "both",
+    segment: "crm_marketing",
     docsSlug: "rdstation-crm",
     connectFields: [
       { key: "label", label: "Nome", required: true },
@@ -191,6 +215,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
       "OAuth — conversões (WEBHOOK.CONVERTED) e lifecycle → Meta CAPI e GA4 (server).",
     authType: "oauth",
     direction: "both",
+    segment: "crm_marketing",
     docsSlug: "rdstation-mkt",
     connectFields: [
       { key: "label", label: "Nome", required: true },
@@ -215,6 +240,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     description: "Token / OAuth — conversas.",
     authType: "token",
     direction: "inbound",
+    segment: "crm_marketing",
     docsSlug: "rdstation-conversas",
     // Temporarily hidden for publish-sequence test; restore by removing uiHidden.
     uiHidden: true,
@@ -230,6 +256,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     description: "Token ou OAuth — deals e pessoas.",
     authType: "token",
     direction: "inbound",
+    segment: "crm_marketing",
     docsSlug: "pipedrive",
     // Temporarily hidden for publish-sequence test; restore by removing uiHidden.
     uiHidden: true,
@@ -245,11 +272,82 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     defaultSourceEvents: ["Lead", "deal.won"],
   },
   {
+    provider: "evolution_api",
+    name: "Evolution API",
+    description:
+      "WhatsApp self-hosted (Evolution latest) — ticket na 1ª mensagem → Lead Meta/GA4. Uma connection por instância.",
+    authType: "token",
+    direction: "inbound",
+    segment: "whatsapp",
+    docsSlug: "evolution-api",
+    connectFields: [
+      { key: "label", label: "Nome", required: true },
+      {
+        key: "base_url",
+        label: "URL da Evolution",
+        required: true,
+        placeholder: "https://evolution.seudominio.com",
+      },
+      {
+        key: "instance_name",
+        label: "Nome da instância",
+        required: true,
+        placeholder: "minha-instancia",
+      },
+      {
+        key: "access_token",
+        label: "API key da instância",
+        secret: true,
+        required: true,
+      },
+      {
+        key: "ticket_name",
+        label: "Nome do ticket (opcional)",
+        required: false,
+        placeholder: "Deixe vazio para usar o PROJECT_NAME",
+      },
+    ],
+    defaultSourceEvents: ["Lead"],
+  },
+  {
+    provider: "uazapi",
+    name: "UazAPI Go",
+    description:
+      "WhatsApp cloud (UazAPI Go) — ticket na 1ª mensagem → Lead Meta/GA4. Uma connection por instância.",
+    authType: "token",
+    direction: "inbound",
+    segment: "whatsapp",
+    docsSlug: "uazapi",
+    connectFields: [
+      { key: "label", label: "Nome", required: true },
+      {
+        key: "base_url",
+        label: "Base URL",
+        required: true,
+        placeholder: "https://subdominio.uazapi.com",
+      },
+      {
+        key: "access_token",
+        label: "Token da instância",
+        secret: true,
+        required: true,
+      },
+      {
+        key: "ticket_name",
+        label: "Nome do ticket (opcional)",
+        required: false,
+        placeholder: "Deixe vazio para usar o PROJECT_NAME",
+      },
+    ],
+    defaultSourceEvents: ["Lead"],
+  },
+  {
     provider: "snippet",
     name: "Site / Forms",
     description: "Snippet no site — PageView, Lead e eventos manuais.",
     authType: "none",
     direction: "inbound",
+    segment: "site_media",
     docsSlug: "snippet",
     connectFields: [],
     defaultSourceEvents: ["PageView", "Lead", "InitiateCheckout", "Purchase"],
@@ -267,6 +365,24 @@ export function isIntegrationProvider(v: string): v is IntegrationProvider {
 /** Modules shown in the integrations dashboard (excludes uiHidden). */
 export function listUiModules(): IntegrationModuleDef[] {
   return INTEGRATION_MODULES.filter((m) => !m.uiHidden);
+}
+
+export type UiModuleSegmentGroup = {
+  id: IntegrationSegment;
+  label: string;
+  modules: IntegrationModuleDef[];
+};
+
+/** Visible modules grouped by segment; omits empty segments. */
+export function groupUiModulesBySegment(): UiModuleSegmentGroup[] {
+  const visible = listUiModules();
+  const groups: UiModuleSegmentGroup[] = [];
+  for (const seg of INTEGRATION_SEGMENTS) {
+    const modules = visible.filter((m) => m.segment === seg.id);
+    if (modules.length === 0) continue;
+    groups.push({ id: seg.id, label: seg.label, modules });
+  }
+  return groups;
 }
 
 export function isUiVisibleProvider(v: string): v is IntegrationProvider {
