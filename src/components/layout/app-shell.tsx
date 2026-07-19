@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
+  Bug,
   Cable,
   FileText,
   Globe2,
@@ -40,6 +41,9 @@ const NAV_BASE = [
   { href: "/dashboard/campanhas", label: "Campanhas", icon: Megaphone },
   { href: "/dashboard/geo", label: "Geo", icon: Globe2 },
 ] as const;
+
+const REPORT_BUG_URL =
+  "https://github.com/mauriciodantaz/royal-tracking/issues/new";
 
 function NavLinks({
   onNavigate,
@@ -104,6 +108,20 @@ export function AppSidebar({ showUsersNav }: { showUsersNav: boolean }) {
           <span className="text-xs text-muted-foreground">Tema</span>
           <ThemeToggle />
         </div>
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-2 text-muted-foreground"
+          render={
+            <a
+              href={REPORT_BUG_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+            />
+          }
+        >
+          <Bug className="size-4" />
+          Reportar bug
+        </Button>
         <form action={logoutAction}>
           <Button
             type="submit"
@@ -133,11 +151,40 @@ export function MobileHeader({ showUsersNav }: { showUsersNav: boolean }) {
           >
             <Menu className="size-5" />
           </SheetTrigger>
-          <SheetContent side="left" className="w-72 gap-0 p-4">
+          <SheetContent
+            side="left"
+            className="flex h-full w-72 flex-col gap-0 p-4"
+          >
             <SheetHeader className="mb-4 space-y-0 p-0 text-left">
               <SheetTitle>Menu</SheetTitle>
             </SheetHeader>
             <NavLinks showUsersNav={showUsersNav} />
+            <div className="mt-auto space-y-2 pt-6">
+              <Button
+                variant="ghost"
+                className="w-full justify-start gap-2 text-muted-foreground"
+                render={
+                  <a
+                    href={REPORT_BUG_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  />
+                }
+              >
+                <Bug className="size-4" />
+                Reportar bug
+              </Button>
+              <form action={logoutAction}>
+                <Button
+                  type="submit"
+                  variant="ghost"
+                  className="w-full justify-start gap-2 text-muted-foreground"
+                >
+                  <LogOut className="size-4" />
+                  Sair
+                </Button>
+              </form>
+            </div>
           </SheetContent>
         </Sheet>
       </div>
