@@ -17,7 +17,7 @@ Canais CI:
 - push em `beta` → publica `:beta`
 - merge em `main` com label `release:*` → bump SemVer + `:vX.Y.Z` + `:latest`
 
-Secrets do repositório: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`.
+Secrets do repositório: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` — ver [`ops/DOCKER-HUB.md`](./ops/DOCKER-HUB.md).
 
 ## Regra de env
 
