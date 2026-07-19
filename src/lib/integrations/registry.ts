@@ -238,19 +238,13 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     provider: "rdstation_conversas",
     name: "RD Conversas",
     description:
-      "WhatsApp via RD Conversas (Tallos) — webhook manual → ticket na 1ª mensagem → Lead Meta/GA4.",
-    authType: "token",
+      "WhatsApp via RD Conversas — cole a URL do webhook no Tallos → Lead com ticket (igual UazAPI).",
+    authType: "none",
     direction: "inbound",
     segment: "whatsapp",
     docsSlug: "rdstation-conversas",
     connectFields: [
       { key: "label", label: "Nome", required: true },
-      {
-        key: "access_token",
-        label: "API token Tallos",
-        secret: true,
-        required: true,
-      },
       {
         key: "ticket_name",
         label: "Nome do ticket (opcional)",

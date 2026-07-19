@@ -163,7 +163,7 @@ async function ensureRdConversasWebhook(
     whatsapp_webhook: {
       status: "ok",
       message:
-        "Cole esta URL em Tallos → Integrações → Webhooks (app.tallos.com.br)",
+        "Cole no Tallos: Integração com Webhook (POST) e ative todas as opções",
       url,
       updated_at: new Date().toISOString(),
     },

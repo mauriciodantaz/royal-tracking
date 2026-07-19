@@ -583,7 +583,7 @@ export function ProviderDetailClient({
         {whatsapp && (
           <p className="mt-2 inline-flex rounded-md border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
             {rdConversas
-              ? "Webhook manual no Tallos · Lead só com ticket na mensagem · só mensagens de clientes"
+              ? "Cole a URL no Tallos (Integração com Webhook) · ative todas as opções · Lead só com [ticket=]"
               : "Webhook automático · Lead só com ticket na mensagem · ignore fromMe/grupos"}
           </p>
         )}
@@ -698,7 +698,7 @@ export function ProviderDetailClient({
                           Copiar URL
                         </Button>
                         <p className="w-full text-xs text-muted-foreground">
-                          Cole em{" "}
+                          Em{" "}
                           <a
                             href="https://app.tallos.com.br/app/integrations/webhooks"
                             target="_blank"
@@ -707,7 +707,10 @@ export function ProviderDetailClient({
                           >
                             Tallos → Integrações → Webhooks
                           </a>
-                          .
+                          : escolha Integração com Webhook, método POST, cole
+                          esta URL e ative todas as opções. Só registramos Lead
+                          quando a mensagem tiver{" "}
+                          <code className="text-[10px]">[ticket=…]</code>.
                         </p>
                       </div>
                     ) : null}
@@ -987,7 +990,7 @@ export function ProviderDetailClient({
                           rd
                             ? "Credenciais salvas — clique em Conectar com OAuth na conta"
                             : rdConversas
-                              ? "Salvo — copie a URL e cole no Tallos → Webhooks"
+                              ? "Salvo — copie a URL e cole no Tallos (POST, todas as opções)"
                               : whatsapp
                                 ? "Instância salva e webhook configurado"
                                 : "Conexão validada e integração salva"
@@ -1030,7 +1033,7 @@ export function ProviderDetailClient({
                 {rd
                   ? "Salve Client ID/Secret e depois autorize com OAuth na conta criada."
                   : rdConversas
-                    ? "Use o API token de Apps e Integrações → API no Tallos. Ao salvar, geramos a URL do webhook para você colar em Integrações → Webhooks."
+                    ? "Ao salvar, geramos a URL pronta. Cole no Tallos em Integração com Webhook (POST) e ative todas as opções — só escutamos; Lead só com [ticket=]."
                     : whatsapp
                       ? "Use a key da instância (não a global). Ao salvar, validamos o acesso e registramos o webhook automaticamente."
                       : "Tokens ficam visíveis neste painel. Ao salvar, validamos o acesso na plataforma; se falhar, nada é gravado."}

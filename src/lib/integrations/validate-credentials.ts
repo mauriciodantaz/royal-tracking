@@ -385,53 +385,6 @@ async function validateUazapiInstance(
   return { ok: false, error: lastError };
 }
 
-async function validateRdConversas(token: string): Promise<CredentialValidation> {
-  if (!token) {
-    return { ok: false, error: "Informe o API token do RD Conversas (Tallos)." };
-  }
-
-  // Smoke test Tallos/Conversas API (Bearer JWT).
-  const url = "https://api.tallos.com.br/v2/employees?page=1&limit=1";
-  let res: Response;
-  let body: unknown;
-  try {
-    res = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-    });
-    body = await res.json().catch(() => null);
-  } catch (e) {
-    return {
-      ok: false,
-      error: `Falha ao contatar a API Tallos: ${e instanceof Error ? e.message : "erro de rede"}`,
-    };
-  }
-
-  if (res.status === 401 || res.status === 403) {
-    return {
-      ok: false,
-      error: summarizeJsonError(
-        body,
-        "Sem permissão: token inválido ou sem acesso à API RD Conversas (Tallos)."
-      ),
-    };
-  }
-
-  if (!res.ok) {
-    return {
-      ok: false,
-      error: summarizeJsonError(
-        body,
-        `Tallos recusou a conexão (HTTP ${res.status}).`
-      ),
-    };
-  }
-
-  return { ok: true };
-}
-
 /**
  * Valida credenciais contra a plataforma antes de persistir (estilo n8n).
  * Webhooks inbound só checam formato local — o secret é definido por nós.
@@ -461,7 +414,8 @@ export async function validateIntegrationCredentials(input: {
         cfg.account_external_id || undefined
       );
     case "rdstation_conversas":
-      return validateRdConversas(token);
+      // Só escuta webhook Tallos — secret gerado por nós; sem API remota.
+      return { ok: true };
     case "hotmart":
     case "kiwify":
     case "eduzz": {
