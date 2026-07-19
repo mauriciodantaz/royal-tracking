@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { DocsMarkdown } from "@/components/integrations/docs-markdown";
 import { Button } from "@/components/ui/button";
 import { loadIntegrationDocsMarkdown } from "@/lib/integrations/docs";
-import { isIntegrationProvider } from "@/lib/integrations/registry";
+import { isUiVisibleProvider } from "@/lib/integrations/registry";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ export default async function IntegrationDocsPage({
   params: Promise<{ provider: string }>;
 }) {
   const { provider } = await params;
-  if (!isIntegrationProvider(provider)) notFound();
+  if (!isUiVisibleProvider(provider)) notFound();
 
   const doc = await loadIntegrationDocsMarkdown(provider);
   if (!doc) notFound();

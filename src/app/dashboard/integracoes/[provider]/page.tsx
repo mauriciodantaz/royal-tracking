@@ -12,7 +12,7 @@ import type {
 import { getAppUrl } from "@/lib/env";
 import {
   getModule,
-  isIntegrationProvider,
+  isUiVisibleProvider,
 } from "@/lib/integrations/registry";
 import { metadataRecord } from "@/lib/rd/credentials";
 import { MKT_LIFECYCLE_SLOTS } from "@/lib/rd/mkt";
@@ -63,7 +63,7 @@ const DEAL_STATUS_LABELS: Record<string, string> = {
 
 export default async function ProviderIntegracaoPage({ params }: Props) {
   const { provider } = await params;
-  if (!isIntegrationProvider(provider)) notFound();
+  if (!isUiVisibleProvider(provider)) notFound();
 
   const mod = getModule(provider);
   if (!mod) notFound();

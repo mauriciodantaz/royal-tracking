@@ -37,6 +37,11 @@ export type IntegrationModuleDef = {
   defaultSourceEvents?: string[];
   /** Markdown slug under docs/integrations/ (non-OAuth only) */
   docsSlug?: string;
+  /**
+   * When true, the module stays in the registry/backend but is hidden from
+   * the integrations UI (gallery, detail, docs). Temporary publish test flag.
+   */
+  uiHidden?: boolean;
 };
 
 export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
@@ -211,6 +216,8 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     authType: "token",
     direction: "inbound",
     docsSlug: "rdstation-conversas",
+    // Temporarily hidden for publish-sequence test; restore by removing uiHidden.
+    uiHidden: true,
     connectFields: [
       { key: "label", label: "Nome", required: true },
       { key: "access_token", label: "API token", secret: true, required: true },
@@ -224,6 +231,8 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     authType: "token",
     direction: "inbound",
     docsSlug: "pipedrive",
+    // Temporarily hidden for publish-sequence test; restore by removing uiHidden.
+    uiHidden: true,
     connectFields: [
       { key: "label", label: "Nome", required: true },
       { key: "access_token", label: "API token", secret: true, required: true },
@@ -253,6 +262,16 @@ export function getModule(provider: string): IntegrationModuleDef | undefined {
 
 export function isIntegrationProvider(v: string): v is IntegrationProvider {
   return INTEGRATION_MODULES.some((m) => m.provider === v);
+}
+
+/** Modules shown in the integrations dashboard (excludes uiHidden). */
+export function listUiModules(): IntegrationModuleDef[] {
+  return INTEGRATION_MODULES.filter((m) => !m.uiHidden);
+}
+
+export function isUiVisibleProvider(v: string): v is IntegrationProvider {
+  const mod = getModule(v);
+  return Boolean(mod && !mod.uiHidden);
 }
 
 /** Docs slug for modules that have credential/setup guides. */

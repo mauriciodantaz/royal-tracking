@@ -12,6 +12,7 @@ import {
 import {
   getModule,
   isIntegrationProvider,
+  isUiVisibleProvider,
 } from "@/lib/integrations/registry";
 import { validateIntegrationCredentials } from "@/lib/integrations/validate-credentials";
 import {
@@ -36,6 +37,9 @@ export async function upsertConnection(formData: FormData): Promise<
   const provider = String(formData.get("provider") ?? "").trim();
   if (!isIntegrationProvider(provider)) {
     return { ok: false, error: "Provedor de integração inválido." };
+  }
+  if (!isUiVisibleProvider(provider)) {
+    return { ok: false, error: "Este módulo está temporariamente indisponível." };
   }
 
   const mod = getModule(provider)!;

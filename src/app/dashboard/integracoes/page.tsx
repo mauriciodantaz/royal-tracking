@@ -6,7 +6,10 @@ import {
 import { ensureDbReady } from "@/lib/db/boot";
 import { query } from "@/lib/db/pool";
 import type { IntegrationConnectionRow } from "@/lib/db/types";
-import { INTEGRATION_MODULES } from "@/lib/integrations/registry";
+import {
+  isUiVisibleProvider,
+  listUiModules,
+} from "@/lib/integrations/registry";
 
 export const dynamic = "force-dynamic";
 
@@ -28,11 +31,17 @@ export default async function IntegracoesPage() {
     error = e instanceof Error ? e.message : "Erro ao carregar integrações";
   }
 
-  const active = connections.filter((c) => c.provider !== "snippet" || c.active);
+  const visibleConnections = connections.filter((c) =>
+    isUiVisibleProvider(c.provider)
+  );
+  const active = visibleConnections.filter(
+    (c) => c.provider !== "snippet" || c.active
+  );
   const connectedCounts: Record<string, number> = {};
-  for (const c of connections) {
+  for (const c of visibleConnections) {
     connectedCounts[c.provider] = (connectedCounts[c.provider] ?? 0) + 1;
   }
+  const uiModules = listUiModules();
 
   return (
     <div className="space-y-10">
@@ -78,7 +87,7 @@ export default async function IntegracoesPage() {
               </p>
             </div>
             <ModuleGallery
-              modules={INTEGRATION_MODULES.map((m) => ({
+              modules={uiModules.map((m) => ({
                 provider: m.provider,
                 name: m.name,
                 description: m.description,
