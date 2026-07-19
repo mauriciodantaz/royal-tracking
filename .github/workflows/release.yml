@@ -37,9 +37,13 @@ jobs:
       - name: Resolve release label
         id: label
         env:
-          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
+          # Live labels (not the closed-event snapshot) so a missing label can be
+          # fixed on the PR and the failed Release SemVer run re-run successfully.
+          LABELS="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '[.labels[].name] | join(",")')"
           bump=""
           count=0
           IFS=',' read -ra parts <<< "${LABELS}"
