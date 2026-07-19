@@ -19,14 +19,18 @@ Branches no GitHub: só **`dev`**, **`beta`** e **`main`**.
 ```text
 push em dev                         → VPS
 PR  dev  → beta + label release:*   → bump X.Y.Z + imagem :beta / :X.Y.Z-beta
-PR  beta → main                     → tag X.Y.Z + imagem :stable / :latest
+PR  beta → main (merge commit)      → tag X.Y.Z + imagem :stable / :latest
 ```
 
 1. **Teste ao vivo** — commit/push em `dev`.
 2. **Pré-release Hub** — PR base `beta`, compare `dev`, com **exatamente um** label `release:*`.
+   O check **Release label** bloqueia merge sem o label.
 3. **Stable** — PR base `main`, compare `beta` (sem bump; promove a versão já definida).
+   Use **Create a merge commit** — nunca squash/rebase na promoção (mantém `beta` e `main` alinhados).
 
-Depois de mergear em `main`, sincronize `main` de volta em `dev` (e em `beta` se precisar).
+Depois de mergear em `main`, sincronize `main` de volta em `dev` e em `beta`
+(`git checkout beta && git reset --hard origin/main && git push --force-with-lease`,
+ou merge `main` → `beta` / `dev`).
 
 ## Labels de release (obrigatório no PR para `beta`)
 

@@ -27,7 +27,8 @@ description: >-
 ## Rubrica
 
 1. Ler o diff vs a base do PR (`gh pr diff` ou `git diff origin/beta...HEAD` / `origin/main...HEAD`).
-   Label `release:*` é obrigatório quando a base for **`beta`**.
+   Label `release:*` é obrigatório quando a base for **`beta`** (check CI `Release label`).
+   Promoção `beta`→`main`: sem label; usar **merge commit** (nunca squash).
 2. Classificar:
    - **versão (MAJOR)**: breaking em API/snippet/webhook, migration incompatível, remoção de env ou comportamento público
    - **melhoria (MINOR)**: feature, integração nova, endpoint novo compatível, UX relevante
