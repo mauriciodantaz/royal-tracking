@@ -167,7 +167,6 @@ type Conn = {
   needsReauth?: boolean;
   webhookStatus?: string | null;
   webhookStatusMessage?: string | null;
-  ticketName?: string;
 };
 
 function isWhatsappProvider(provider: string): boolean {
@@ -182,7 +181,7 @@ function isRdConversasProvider(provider: string): boolean {
   return provider === "rdstation_conversas";
 }
 
-function WaMeLinkGenerator({ ticketName }: { ticketName: string }) {
+function WaMeLinkGenerator() {
   const [phone, setPhone] = useState("");
   const [message, setMessage] = useState(
     "Olá! Tudo bem? Quero saber mais."
@@ -195,8 +194,8 @@ function WaMeLinkGenerator({ ticketName }: { ticketName: string }) {
       toast.error("Informe o telefone com DDI (ex.: 5511999999999).");
       return;
     }
-    // Pretty short tag; snippet swaps {{tracking}} for the visitor ticket_code.
-    const ticketLine = `[${ticketName}:{{tracking}}]`;
+    // Keep the message as written; only append [rt:…] at the end.
+    const ticketLine = `[rt:{{tracking}}]`;
     const body = `${message.trim()}\n\n${ticketLine}`;
     const url = `https://wa.me/${digits}?text=${encodeURIComponent(body)}`;
     setLink(url);
@@ -207,9 +206,9 @@ function WaMeLinkGenerator({ ticketName }: { ticketName: string }) {
       <div>
         <h2 className="text-sm font-medium">Gerador de link wa.me</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Use formatação WhatsApp na mensagem (<code className="font-mono">*negrito*</code>,{" "}
-          <code className="font-mono">_itálico_</code>). No clique, o snippet troca{" "}
-          <code className="font-mono">{"{{tracking}}"}</code> por um código curto.
+          Escreva a mensagem como quiser (inclui *negrito* do WhatsApp). No
+          final fica só <code className="font-mono">[rt:…]</code> — o snippet
+          troca pelo código curto no clique.
         </p>
       </div>
       <div className="grid max-w-lg gap-3">
@@ -230,7 +229,7 @@ function WaMeLinkGenerator({ ticketName }: { ticketName: string }) {
             id="wa-msg"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder={"*Sua marca*\n\nOlá! Quero saber mais."}
+            placeholder={"Olá! Quero saber mais."}
             rows={4}
             className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[80px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
           />
@@ -262,12 +261,9 @@ function WaMeLinkGenerator({ ticketName }: { ticketName: string }) {
         </div>
       ) : null}
       <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-foreground/90">
-        <strong className="font-medium">Não remova</strong> a linha{" "}
-        <code className="font-mono">[ticket={ticketName}:…]</code> do texto
-        (nem do link). Sem ela o clique no WhatsApp{" "}
-        <strong className="font-medium">não vira Lead rastreado</strong> no
-        Royal Tracking / Meta / Google. O resto da mensagem pode editar à
-        vontade.
+        Não remova a linha <code className="font-mono">[rt:…]</code> do final.
+        Sem ela o WhatsApp não vira Lead rastreado. O resto da mensagem (incluindo
+        negrito/MD no começo) pode editar à vontade.
       </p>
     </div>
   );
@@ -762,11 +758,7 @@ export function ProviderDetailClient({
                   </div>
                 ) : null}
 
-                {whatsapp ? (
-                  <WaMeLinkGenerator
-                    ticketName={c.ticketName || c.config.ticket_name || "rt"}
-                  />
-                ) : null}
+                {whatsapp ? <WaMeLinkGenerator /> : null}
 
                 {mod.connectFields.length > 0 &&
                 (mod.authType !== "oauth" || rd) ? (

@@ -9,16 +9,15 @@ import type {
   IntegrationConnectionRow,
   IntegrationEventMappingRow,
 } from "@/lib/db/types";
-import { getAppUrl, getProjectName } from "@/lib/env";
+import { getAppUrl } from "@/lib/env";
 import {
   getModule,
   isUiVisibleProvider,
 } from "@/lib/integrations/registry";
+import { ensureShortWebhookUrl } from "@/lib/integrations/webhook-slug";
 import { metadataRecord } from "@/lib/rd/credentials";
 import { MKT_LIFECYCLE_SLOTS } from "@/lib/rd/mkt";
-import { ensureShortWebhookUrl } from "@/lib/integrations/webhook-slug";
 import { ensureWhatsappWebhook } from "@/lib/whatsapp/register-webhook";
-import { slugTicketName } from "@/lib/whatsapp/ticket";
 
 export const dynamic = "force-dynamic";
 
@@ -256,9 +255,6 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
         provider === "evolution_api" ||
         provider === "uazapi" ||
         provider === "rdstation_conversas";
-      const ticketName = slugTicketName(
-        cfg.ticket_name || getProjectName() || "rt"
-      );
       const inboundBase = `${appUrl}/api/webhook/in/${c.id}`;
       const metaWebhookUrl =
         typeof whMeta?.url === "string" && whMeta.url ? whMeta.url : null;
@@ -298,7 +294,6 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
           typeof whMeta?.status === "string" ? whMeta.status : null,
         webhookStatusMessage:
           typeof whMeta?.message === "string" ? whMeta.message : null,
-        ticketName,
       };
     })
   );

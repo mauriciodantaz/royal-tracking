@@ -27,13 +27,11 @@
   var TTCLID_KEY = "trck_ttclid";
   var COOKIE_DAYS = 365;
   var LEAD_DEDUP_MS = 5000;
-  var TICKET_LEGACY_RE = /\[ticket=[^\]:\s]+:[^\]]+\]/i;
-  var TICKET_SHORT_RE = /\[[a-z0-9]{1,48}:[^\]]+\]/;
+  var TICKET_LINE_RE = /\[rt:[^\]]+\]/;
 
   var metaPixelIds = [];
   var ga4MeasurementIds = [];
   var tagsReady = null;
-  var ticketName = window.TRCK_TICKET_NAME || "rt";
   var ticketCode = null;
 
   var META_STANDARD = {
@@ -185,17 +183,15 @@
     );
   }
 
-  function formatTicketLine(name, value) {
-    return "[" + name + ":" + value + "]";
+  function formatTicketLine(value) {
+    return "[rt:" + value + "]";
   }
 
-  function replaceTicketInText(text, name, value) {
-    var line = formatTicketLine(name, value);
-    if (TICKET_LEGACY_RE.test(text)) {
-      return text.replace(TICKET_LEGACY_RE, line);
-    }
-    if (TICKET_SHORT_RE.test(text)) {
-      return text.replace(TICKET_SHORT_RE, line);
+  /** Keep the human message; only put/replace [rt:…] at the end. */
+  function replaceTicketInText(text, value) {
+    var line = formatTicketLine(value);
+    if (TICKET_LINE_RE.test(text)) {
+      return text.replace(TICKET_LINE_RE, line);
     }
     if (text) {
       return text.replace(/\s+$/g, "") + "\n\n" + line;
@@ -220,7 +216,7 @@
       try {
         text = decodeURIComponent(text.replace(/\+/g, " "));
       } catch (e) {}
-      text = replaceTicketInText(text, ticketName, tracking);
+      text = replaceTicketInText(text, tracking);
       u.searchParams.set("text", text);
       return u.toString();
     } catch (e) {
@@ -536,14 +532,6 @@
     });
   }
 
-  function loadTicketConfig() {
-    return getJson("/api/tracking/config")
-      .then(function (data) {
-        if (data && data.ticket_name) ticketName = String(data.ticket_name);
-      })
-      .catch(function () {});
-  }
-
   function identifyAndTrack() {
     var existing = getTrckId();
     var payload = {
@@ -563,7 +551,6 @@
     };
 
     initBrowserTags().catch(function () {});
-    loadTicketConfig();
 
     return post("/api/identify", payload).then(function (data) {
       var id = (data && data.trck_user_id) || existing || "trck_" + uuid().replace(/-/g, "");

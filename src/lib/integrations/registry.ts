@@ -243,15 +243,7 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     direction: "inbound",
     segment: "whatsapp",
     docsSlug: "rdstation-conversas",
-    connectFields: [
-      { key: "label", label: "Nome", required: true },
-      {
-        key: "ticket_name",
-        label: "Nome do ticket (opcional)",
-        required: false,
-        placeholder: "Deixe vazio para usar o PROJECT_NAME",
-      },
-    ],
+    connectFields: [{ key: "label", label: "Nome", required: true }],
     defaultSourceEvents: ["Lead"],
   },
   {
@@ -304,12 +296,6 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
         secret: true,
         required: true,
       },
-      {
-        key: "ticket_name",
-        label: "Nome do ticket (opcional)",
-        required: false,
-        placeholder: "Deixe vazio para usar o PROJECT_NAME",
-      },
     ],
     defaultSourceEvents: ["Lead"],
   },
@@ -335,12 +321,6 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
         label: "Token da instância",
         secret: true,
         required: true,
-      },
-      {
-        key: "ticket_name",
-        label: "Nome do ticket (opcional)",
-        required: false,
-        placeholder: "Deixe vazio para usar o PROJECT_NAME",
       },
     ],
     defaultSourceEvents: ["Lead"],

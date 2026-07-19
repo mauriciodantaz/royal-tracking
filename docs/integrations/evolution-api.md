@@ -1,6 +1,6 @@
 # Evolution API — WhatsApp self-hosted
 
-Cada **instância** Evolution vira uma connection no Royal Tracking. A stack registra o webhook sozinha e só grava Lead quando a mensagem inbound contém `[ticket=nome:valor]`.
+Cada **instância** Evolution vira uma connection no Royal Tracking. A stack registra o webhook sozinha e só grava Lead quando a mensagem inbound contém `[rt:código]`.
 
 ## Pré-requisitos
 
@@ -16,14 +16,13 @@ Cada **instância** Evolution vira uma connection no Royal Tracking. A stack reg
 | **URL da Evolution** | Base da API (ex. `https://evolution.seudominio.com`) |
 | **Nome da instância** | `instance` na Evolution |
 | **API key da instância** | Token/apikey **dessa** instância |
-| **Nome do ticket (opcional)** | Prefixo em `[ticket=NOME:…]`; vazio = slug do `PROJECT_NAME` |
 
 Você pode cadastrar **várias** connections (uma por instância).
 
 ## O que acontece ao salvar
 
 1. Validamos o acesso (`/instance/connectionState/{instance}`).
-2. Geramos um webhook secret interno.
+2. Geramos um webhook secret + slug curto.
 3. Chamamos `POST /webhook/set/{instance}` apontando para:
 
 ```txt
@@ -38,16 +37,16 @@ Se a Evolution recusar, a connection **fica salva** com status de webhook penden
 
 - Ignora mensagens `fromMe` (enviadas pela conta conectada)
 - Ignora grupos
-- Só persiste + dispara Lead se o texto tiver `[ticket=nome:valor]`
+- Só persiste + dispara Lead se o texto tiver `[rt:código]`
 
 ## Ticket e atribuição
 
-O snippet no site coloca o ticket no `text=` do `wa.me`. O valor é a chave de join (`trck_user_id` preferido). Cookies (`fbp`/`fbc`/`ga_client_id`/…) vêm do visitor no banco — não do IP do webhook.
+O snippet no site coloca `[rt:…]` no final do `text=` do `wa.me`. O código curto aponta para o visitor da sessão web.
 
 ## Gerador wa.me
 
 Na página da connection: informe telefone + mensagem → copie o link.  
-**Não remova** a linha `[ticket=…:…]` se quiser Lead rastreado.
+**Não remova** a linha `[rt:…]` se quiser Lead rastreado.
 
 ## Mapear destino
 

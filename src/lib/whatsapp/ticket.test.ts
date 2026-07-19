@@ -8,29 +8,27 @@ import {
 } from "./ticket";
 
 describe("whatsapp ticket format", () => {
-  it("formats pretty short line", () => {
-    assert.equal(formatTicketLine("rt", "xK9m2pQ7"), "[rt:xK9m2pQ7]");
+  it("formats [rt:code]", () => {
+    assert.equal(formatTicketLine("xK9m2pQ7"), "[rt:xK9m2pQ7]");
   });
 
-  it("parses short and legacy", () => {
+  it("parses [rt:code] only", () => {
     assert.deepEqual(parseTicket("oi\n\n[rt:xK9m2pQ7]"), {
       name: "rt",
       value: "xK9m2pQ7",
     });
-    assert.deepEqual(
-      parseTicket("oi [ticket=rt:trck_abc123def456]"),
-      { name: "rt", value: "trck_abc123def456" }
-    );
+    assert.equal(parseTicket("oi [ticket=rt:trck_abc]"), null);
+    assert.equal(parseTicket("oi [md:xK9m2pQ7]"), null);
   });
 
-  it("replaces either form", () => {
+  it("keeps message and puts ticket at the end", () => {
     assert.equal(
-      appendOrReplaceTicket("Olá!\n\n[ticket=rt:old]", "rt", "newCode12"),
-      "Olá!\n\n[rt:newCode12]"
+      appendOrReplaceTicket("*MD*\n\nOlá! Tudo bem?", "xK9m2pQ7"),
+      "*MD*\n\nOlá! Tudo bem?\n\n[rt:xK9m2pQ7]"
     );
     assert.equal(
-      appendOrReplaceTicket("Olá!\n\n[rt:oldCode]", "md", "newCode12"),
-      "Olá!\n\n[md:newCode12]"
+      appendOrReplaceTicket("Olá!\n\n[rt:oldCode]", "newCode12"),
+      "Olá!\n\n[rt:newCode12]"
     );
   });
 });

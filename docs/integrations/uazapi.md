@@ -1,6 +1,6 @@
 # UazAPI Go — WhatsApp cloud
 
-Cada **instância** UazAPI Go (cloud) vira uma connection no Royal Tracking. A stack registra o webhook sozinha e só grava Lead quando a mensagem inbound contém `[ticket=nome:valor]`.
+Cada **instância** UazAPI Go (cloud) vira uma connection no Royal Tracking. A stack registra o webhook sozinha e só grava Lead quando a mensagem inbound contém `[rt:código]`.
 
 ## Pré-requisitos
 
@@ -15,14 +15,13 @@ Cada **instância** UazAPI Go (cloud) vira uma connection no Royal Tracking. A s
 | **Nome** | Rótulo interno (ex.: “WA Ads”) |
 | **Base URL** | Servidor da instância (sem barra no fim) |
 | **Token da instância** | Credencial daquela instância |
-| **Nome do ticket (opcional)** | Prefixo em `[ticket=NOME:…]`; vazio = slug do `PROJECT_NAME` |
 
 Várias connections = várias instâncias.
 
 ## O que acontece ao salvar
 
 1. Validamos o token (`/instance/status` ou `/status`).
-2. Geramos um webhook secret interno.
+2. Geramos um webhook secret + slug curto.
 3. Chamamos `POST /webhook` na Base URL com eventos `messages`, excluindo `wasSentByApi` e `isGroupYes` quando a API permitir.
 
 URL inbound (curta):
@@ -37,16 +36,16 @@ Se falhar, a connection fica salva com webhook pendente — use **Reconfigurar w
 
 - Ignora mensagens da conta / enviadas pela API (`fromMe` / wasSentByApi)
 - Ignora grupos
-- Só persiste + dispara Lead com `[ticket=nome:valor]` no texto
+- Só persiste + dispara Lead com `[rt:código]` no texto
 
 ## Ticket e atribuição
 
-Igual Evolution: ticket = chave; `fbp`/`fbc`/`ga_client_id`/click IDs vêm do visitor da sessão web.
+Igual Evolution: a mensagem fica intacta; `[rt:…]` no final liga ao visitor da sessão web.
 
 ## Gerador wa.me
 
 Na página da connection: telefone + mensagem → link encoded.  
-**Não remova** a linha `[ticket=…:…]` se quiser Lead rastreado.
+**Não remova** a linha `[rt:…]` se quiser Lead rastreado.
 
 ## Links
 
