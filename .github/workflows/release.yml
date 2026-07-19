@@ -1,0 +1,157 @@
+name: Release SemVer
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve release label
+        id: label
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          set -euo pipefail
+          bump=""
+          count=0
+          IFS=',' read -ra parts <<< "${LABELS}"
+          for l in "${parts[@]}"; do
+            case "$l" in
+              release:versão|release:versao)
+                bump="major"
+                count=$((count + 1))
+                ;;
+              release:melhoria)
+                bump="minor"
+                count=$((count + 1))
+                ;;
+              release:hotfix)
+                bump="patch"
+                count=$((count + 1))
+                ;;
+              release:none)
+                bump="none"
+                count=$((count + 1))
+                ;;
+            esac
+          done
+          if [ "$count" -eq 0 ]; then
+            echo "::error::PR merged to main sem label release:* (versão|melhoria|hotfix|none)"
+            exit 1
+          fi
+          if [ "$count" -gt 1 ]; then
+            echo "::error::PR deve ter exatamente um label release:* (encontrou $count)"
+            exit 1
+          fi
+          echo "bump=$bump" >> "$GITHUB_OUTPUT"
+
+      - name: Skip bump for release:none
+        if: steps.label.outputs.bump == 'none'
+        run: echo "release:none — sem bump SemVer nem tag."
+
+      - name: Checkout
+        if: steps.label.outputs.bump != 'none'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bump version, changelog, tag, release
+        if: steps.label.outputs.bump != 'none'
+        id: bump
+        env:
+          BUMP: ${{ steps.label.outputs.bump }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          latest="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
+          if [ -z "$latest" ]; then
+            base="$(node -p "require('./package.json').version")"
+          else
+            base="${latest#v}"
+          fi
+
+          IFS='.' read -r major minor patch <<< "$base"
+          case "$BUMP" in
+            major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            patch)
+              patch=$((patch + 1))
+              ;;
+            *)
+              echo "Unknown bump: $BUMP" >&2
+              exit 1
+              ;;
+          esac
+          version="${major}.${minor}.${patch}"
+          tag="v${version}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+          node -e "
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            p.version = '${version}';
+            fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+          "
+
+          today="$(date -u +%Y-%m-%d)"
+          export VERSION="$version" TODAY="$today" PR_TITLE PR_NUMBER
+          python3 <<'PY'
+          import os, re
+          version = os.environ["VERSION"]
+          today = os.environ["TODAY"]
+          title = os.environ["PR_TITLE"]
+          number = os.environ["PR_NUMBER"]
+          section = f"## [{version}] — {today}\n\n### Changed\n\n- {title} (#{number})\n\n"
+          path = "CHANGELOG.md"
+          try:
+              text = open(path, encoding="utf-8").read()
+          except FileNotFoundError:
+              text = "# Changelog\n\n"
+          m = re.search(r"(?m)^## \[", text)
+          if m:
+              text = text[: m.start()] + section + text[m.start() :]
+          else:
+              text = text.rstrip() + "\n\n" + section
+          open(path, "w", encoding="utf-8").write(text)
+          PY
+
+          git add package.json CHANGELOG.md
+          git commit -m "chore(release): ${tag}"
+          git tag "$tag"
+          git push origin HEAD:main
+          git push origin "$tag"
+
+          gh release create "$tag" \
+            --title "$tag" \
+            --notes "## ${tag}
+
+${PR_TITLE} (#${PR_NUMBER})
+
+Imagem: \`mauriciodantaz/royal-tracking:${tag}\` e \`:latest\`."

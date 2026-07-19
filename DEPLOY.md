@@ -1,29 +1,45 @@
-# Deploy — tracking (Git to VPS)
+# Deploy — Royal Tracking
 
-**URL:** https://tracking.royalgrowth.com.br  
-**Naming:** stack / volume / DB = `royaltracking_<slug>` (ex.: `royaltracking_dev`)  
-**Entrypoint:** `ops/deploy.sh` (com `.instance` do `install.sh`, ou legado `/root/projects/tracking`)  
-**Stack:** Portainer UI only (colar YAML preenchido; nome da stack = `royaltracking_<slug>`)  
-**Volume:** `/var/lib/docker/volumes/royaltracking_<slug>/_data` (só o build standalone)
+**Imagem canônica (OSS):** `mauriciodantaz/royal-tracking` (`:latest` / `:beta` / `:vX.Y.Z`)  
+**Template Portainer (Hub):** [`deploy/royal-tracking-stack.yml`](./deploy/royal-tracking-stack.yml)  
+**Naming:** stack / volume / DB = `royaltracking_<slug>`
+
+Demo interna: https://tracking.royalgrowth.com.br
+
+## Caminho OSS (recomendado)
+
+1. Colar [`deploy/royal-tracking-stack.yml`](./deploy/royal-tracking-stack.yml) no Portainer (preencher env).
+2. Pull da imagem Hub — sem build na VPS.
+3. Atualizar com `docker service update --image mauriciodantaz/royal-tracking:latest royaltracking_<slug>_app`.
+
+Canais CI:
+
+- push em `beta` → publica `:beta`
+- merge em `main` com label `release:*` → bump SemVer + `:vX.Y.Z` + `:latest`
+
+Secrets do repositório: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`.
 
 ## Regra de env
 
-Secrets ficam no `environment:` do YAML Portainer. O volume só tem código (`server.js`, `.next`, `public`, `db/`).  
-Inclua `PROJECT_NAME`, `DB_POSTGRESDB_*` (Postgres estilo n8n) e `ALLOWED_EVENT_DOMAINS` (apex da marca).
+Secrets ficam no `environment:` do YAML Portainer. Inclua `PROJECT_NAME`, `DB_POSTGRESDB_*` e `ALLOWED_EVENT_DOMAINS` (apex da marca).
 
-## Deploys
+## Variante avançada — build na VPS (volume Swarm)
 
-```bash
-/root/projects/tracking/ops/deploy.sh
-```
+Usado quando se quer deploy a partir do git na VPS (ex.: instância Royal Growth via Actions).
 
-GitHub Actions chama o mesmo path após push em `main`.
+- Template: [`deploy/portainer-stack.yml`](./deploy/portainer-stack.yml) (`node:22-alpine` + volume do build)
+- Entrypoint: `ops/deploy.sh` em `/root/projects/royaltracking_<slug>`
+- YAML preenchido: `bash deploy/print-stack-yml.sh`
+- `ROYAL_TRACKING_BUILD_ON_VPS=1 bash install.sh`
+- GitHub Actions: [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml) + `vars.VPS_PROJECT_DIR`
+
+> Fallback legado em `ops/deploy.sh` (sem `.instance`): `/root/projects/tracking` + volume `tracking`. Preferir sempre `royaltracking_<slug>`.
 
 ## Checagem
 
 ```bash
-docker service ls | grep tracking
-curl -I https://tracking.royalgrowth.com.br
+docker service ls | grep royaltracking_
+curl -I https://SEU_DOMINIO
 ```
 
-Detalhes: `ops/DEPLOY-CHECKLIST.md` e entrega Git to VPS no chat.
+Detalhes: [`ops/DEPLOY-CHECKLIST.md`](./ops/DEPLOY-CHECKLIST.md) · [`docs/SELF-HOSTED.md`](./docs/SELF-HOSTED.md).

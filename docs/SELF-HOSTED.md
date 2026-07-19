@@ -11,6 +11,14 @@ apex A  →  stack A  →  postgres A  +  ENCRYPTION_KEY A  +  admin A  +  ALLOW
 apex B  →  stack B  →  postgres B  +  ENCRYPTION_KEY B  +  admin B  +  ALLOWED_EVENT_DOMAINS=B
 ```
 
+## Instalação (canônica — imagem Docker Hub)
+
+1. Postgres + rede Swarm/Traefik (ex.: `RoyalNet`).
+2. Copie [`deploy/royal-tracking-stack.yml`](../deploy/royal-tracking-stack.yml), preencha placeholders.
+3. Deploy no Portainer com a imagem `mauriciodantaz/royal-tracking:latest` (ou `:beta`).
+
+Ou na VPS: `bash install.sh` (padrão puxa Hub; `ROYAL_TRACKING_BUILD_ON_VPS=1` só para build local).
+
 ## URLs por instalação
 
 Substitua `SEU_DOMINIO` pelo host configurado no Traefik:
@@ -27,21 +35,23 @@ No site do cliente, o snippet usa o mesmo domínio (ou `window.TRCK_ENDPOINT`).
 
 ## Atualizar
 
-Produção atual: `deploy.sh` na VPS (git pull + npm build no volume).
-
-Quando a imagem Hub voltar:
+Com imagem Hub (recomendado):
 
 ```bash
-docker service update --image royalserver/royal-tracking:latest NOME_STACK_app
+docker service update --image mauriciodantaz/royal-tracking:latest royaltracking_<slug>_app
 ```
 
-## Migrar de Supabase (legado)
+Pré-release:
 
-1. Exportar tabelas (`visitors`, `events_log`, `purchases`, settings/contas) do projeto antigo.
-2. Subir stack self-hosted limpa **ou** importar SQL no Postgres da stack.
-3. Re-cadastrar tokens Meta/GA4 no painel (cifra mudou de pgcrypto → AES-GCM Node) **ou** re-criptografar offline.
-4. Apontar DNS / Traefik para a nova stack.
-5. Atualizar snippet e webhook nas plataformas de venda.
+```bash
+docker service update --image mauriciodantaz/royal-tracking:beta royaltracking_<slug>_app
+```
 
-Produção: `https://tracking.royalgrowth.com.br` (rede Traefik `RoyalNet`), apex `royalgrowth.com.br`.  
+Variante avançada (build na VPS → volume Swarm): ver [DEPLOY.md](../DEPLOY.md) e [`deploy/portainer-stack.yml`](../deploy/portainer-stack.yml).
+
+```bash
+cd /root/projects/royaltracking_<slug>
+./deploy.sh   # → ops/deploy.sh
+```
+
 Postgres fica em **stack externa** na mesma rede; a stack do app só sobe o Node.

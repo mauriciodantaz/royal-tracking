@@ -1,11 +1,17 @@
 version: "3.8"
 
-# Template — imagem Hub, naming royaltracking_<SLUG>
-# Preferível: ROYAL_TRACKING_BUILD_ON_VPS=0 bash install.sh
+# Template Portainer (OSS) — imagem Docker Hub
+# Imagem: mauriciodantaz/royal-tracking:latest  (estável)
+#         mauriciodantaz/royal-tracking:beta    (pré-release)
+#         mauriciodantaz/royal-tracking:vX.Y.Z  (versão pinada)
+#
+# Naming: stack / serviço / DB = royaltracking_<SLUG>
+# 1) Substitua placeholders  2) Colar no Portainer → Deploy
+# Postgres fica em stack EXTERNA na mesma rede (ex.: RoyalNet).
 
 services:
   app:
-    image: royalserver/royal-tracking:latest
+    image: mauriciodantaz/royal-tracking:latest
     environment:
       # --- Runtime ---
       NODE_ENV: production

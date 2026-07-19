@@ -1,15 +1,14 @@
 # Deploy checklist — tracking
 
 Strategy: docker-swarm-volume-node | Framework: nextjs | Build mode: docker
-<!-- smoke: Actions → ops/deploy.sh (2026-07-13) -->
 
 ## Pós-geração
 
 - [x] Variáveis de `.env.example` → `environment:` no YAML do Portainer
 - [x] VPS OS = Debian 11; comandos em bash
 - [x] Build via Docker (`node:22-alpine`) — sem npm no host
-- [x] Workflow path = `/root/projects/tracking/ops/deploy.sh`
-- [x] Service name auto-detect (`^royaltracking_` ou legado `^tracking_`)
+- [x] Workflow usa `vars.VPS_PROJECT_DIR` → `ops/deploy.sh`
+- [x] Service name auto-detect (`^royaltracking_`; fallback legado `^tracking_`)
 - [x] Stack creation = Portainer only
 - [x] Traefik Host = `tracking.royalgrowth.com.br`
 - [x] `PROJECT_NAME` + `ALLOWED_EVENT_DOMAINS` no YAML
@@ -24,12 +23,20 @@ Strategy: docker-swarm-volume-node | Framework: nextjs | Build mode: docker
 - [x] Estratégia: Swarm volume + `node server.js`
 - [x] URL pública: https://tracking.royalgrowth.com.br
 
+## Docker Hub (OSS)
+
+- [ ] Secrets no GitHub: `DOCKERHUB_USERNAME` = `mauriciodantaz`, `DOCKERHUB_TOKEN` = access token
+- [ ] Imagem: `mauriciodantaz/royal-tracking` (`:latest` / `:beta` / `:vX.Y.Z`)
+- [ ] Template canônico: `deploy/royal-tracking-stack.yml`
+- [ ] Workflows: `docker-publish.yml` + `release.yml`
+
 ## Artefatos
 
-- [x] `ops/stack.yml` (placeholders no Git; YAML preenchido na entrega)
-- [x] Pasta VPS: `/root/projects/royaltracking_<slug>` (legado: `/root/projects/tracking`)
+- [x] Template Portainer Hub: `deploy/royal-tracking-stack.yml`
+- [x] Template Portainer volume/build: `deploy/portainer-stack.yml` + gerador `deploy/print-stack-yml.sh`
+- [x] Pasta VPS: `/root/projects/royaltracking_<slug>`
 - [x] Volume: `/var/lib/docker/volumes/royaltracking_<slug>/_data`
-- [x] Deploy script: `ops/deploy.sh` (lê `.instance` quando existir)
+- [x] Deploy script: `ops/deploy.sh` (lê `.instance`)
 - [x] Sem criação de stack via SSH CLI / sem `PENDING`
 
 ## Migração do legado (stack `tracking` → `royaltracking_<slug>`)
@@ -39,6 +46,7 @@ Strategy: docker-swarm-volume-node | Framework: nextjs | Build mode: docker
 - [ ] Volume antigo → republicar via `ops/deploy.sh` no path novo
 - [ ] Manter o Postgres/user já existente (`DB_POSTGRESDB_*` no YAML de entrega)
 - [ ] Apontar clone para `/root/projects/royaltracking_<slug>`
+- [ ] Definir `VPS_PROJECT_DIR` no GitHub (Settings → Variables) para o path novo
 
 ## Acesso
 
@@ -50,11 +58,11 @@ Strategy: docker-swarm-volume-node | Framework: nextjs | Build mode: docker
 
 ## VPS
 
-- [ ] `chmod +x /root/projects/tracking/ops/deploy.sh`
-- [ ] Stack `tracking` no Portainer
-- [ ] `docker service ls | grep tracking`
+- [ ] `chmod +x /root/projects/royaltracking_<slug>/ops/deploy.sh`
+- [ ] Stack `royaltracking_<slug>` no Portainer
+- [ ] `docker service ls | grep royaltracking_`
 - [ ] Deploy manual OK
-- [ ] Actions OK
+- [ ] Actions OK (`VPS_PROJECT_DIR` preenchida)
 - [ ] `curl -I https://tracking.royalgrowth.com.br`
 - [ ] DNS `tracking.royalgrowth.com.br` → VPS
 - [ ] Snippet / webhooks / OAuth redirect no novo host
@@ -63,4 +71,4 @@ Strategy: docker-swarm-volume-node | Framework: nextjs | Build mode: docker
 
 - Rede Swarm externa: a mesma do YAML de referência da VPS (preservar o nome da rede).
 - Env de produção fica no YAML Portainer, não no volume.
-- Legado: `deploy.sh` / `install.sh` na raiz redirecionam ou ficam obsoletos; o entrypoint oficial é `ops/deploy.sh`.
+- Shims na raiz: `deploy.sh` → `ops/deploy.sh`; `bootstrap-vps.sh` → `install.sh`.

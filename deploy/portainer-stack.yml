@@ -1,8 +1,9 @@
 version: "3.7"
 
-# Template Portainer — Royal Tracking (env no YAML, padrão n8n)
-# Naming: royaltracking_<SLUG>
+# Template Portainer AVANÇADO — build-on-VPS (volume Swarm)
+# Caminho OSS canônico (imagem Hub): deploy/royal-tracking-stack.yml
 #
+# Naming: royaltracking_<SLUG>
 # Preferível gerar com secrets reais:
 #   cd /root/projects/royaltracking_<SLUG>
 #   bash deploy/print-stack-yml.sh

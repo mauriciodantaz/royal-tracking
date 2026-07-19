@@ -2,67 +2,74 @@
 
 Sistema de tracking server-side self-hosted (Meta CAPI + GA4 + webhook de compra) com painel autenticado.
 
-**Produção:** https://tracking.royalgrowth.com.br  
-**Licença:** MIT · Deploy: build na VPS (imagem Docker Hub pausada por enquanto)
+**Licença:** [MIT](./LICENSE)  
+**Imagem:** [`mauriciodantaz/royal-tracking`](https://hub.docker.com/r/mauriciodantaz/royal-tracking) (`:latest` estável · `:beta` pré-release)  
+**Demo:** https://tracking.royalgrowth.com.br
 
-Uma stack por domínio-raiz (apex) = um Postgres + um admin + um `ENCRYPTION_KEY` + allowlist de eventos desse apex (modelo n8n).
+Uma stack por domínio-raiz (apex) = um Postgres + um admin + um `ENCRYPTION_KEY` + allowlist de eventos desse apex.
 
-## Quickstart (Docker Compose)
+## Quickstart (Portainer / Swarm)
+
+1. Tenha Postgres acessível na mesma rede Docker/Swarm (ex.: `RoyalNet`) e um hostname no Traefik.
+2. Copie [`deploy/royal-tracking-stack.yml`](./deploy/royal-tracking-stack.yml), substitua os placeholders (`<SLUG>`, `<DOMAIN>`, senhas, etc.).
+3. No Portainer → Stacks → Add stack → cole o YAML → Deploy.
+4. Tags: `mauriciodantaz/royal-tracking:latest` (estável) ou `:beta` (pré-release).
+
+Atualizar:
+
+```bash
+docker service update --image mauriciodantaz/royal-tracking:latest royaltracking_<slug>_app
+```
+
+Instalação guiada na VPS: `bash install.sh` (padrão: puxa a imagem Hub; `ROYAL_TRACKING_BUILD_ON_VPS=1` só se quiser build local).
+
+Detalhes: [docs/SELF-HOSTED.md](./docs/SELF-HOSTED.md) · [DEPLOY.md](./DEPLOY.md)
+
+## Quickstart (Docker Compose — local)
 
 ```bash
 git clone https://github.com/mauriciodantaz/tracking.git
 cd tracking
-cp .env.example .env   # ou use o docker-compose.yml (já traz Postgres + env de exemplo)
 docker compose up -d --build
 ```
 
 Abra http://localhost:3000 → login `admin@localhost` / `admin123456` (só no compose de exemplo).
-
-## Quickstart (VPS / Swarm + Traefik)
-
-```bash
-# Na VPS — naming automático royaltracking_<projeto>
-./install.sh
-```
-
-O script pergunta o **nome da empresa/projeto** e cria stack, serviço, volume, DB e user como `royaltracking_<slug>`. O nome vira `PROJECT_NAME` (título `{NOME} | Royal Tracking`). Postgres fica na stack externa (`RoyalNet`). **Env vai no YAML da stack Portainer** (não no volume).
-
-Produção: ver [DEPLOY.md](./DEPLOY.md).
 
 ## Variáveis de ambiente
 
 | Variável | Descrição |
 |----------|-----------|
 | `PROJECT_NAME` | Nome da instância (título HTML: `{PROJECT_NAME} \| Royal Tracking`; stack = `royaltracking_<slug>`) |
-| `DB_POSTGRESDB_HOST` / `PORT` / `USER` / `PASSWORD` / `DATABASE` | Postgres (padrão n8n; externo na RoyalNet) |
+| `DB_POSTGRESDB_HOST` / `PORT` / `USER` / `PASSWORD` / `DATABASE` | Postgres (padrão n8n; externo na rede) |
 | `DATABASE_URL` | Fallback legado (só se as vars `DB_POSTGRESDB_*` não existirem) |
 | `ENCRYPTION_KEY` | Chave AES-GCM (≥16 chars) para tokens no banco |
 | `AUTH_SECRET` | Secret Auth.js |
-| `NEXTAUTH_URL` | URL pública (https://tracking.royalgrowth.com.br) |
+| `NEXTAUTH_URL` | URL pública da instância |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Super admin imutável (sync a cada boot; senha só na stack) |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | SMTP para convite, reset de senha e alertas de integração |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | SMTP para convite, reset e alertas |
 | `NEXT_PUBLIC_APP_URL` | URL pública (snippet / links) |
-| `ALLOWED_EVENT_DOMAINS` | Apex da marca (ex.: `royalgrowth.com.br`) — aceita esse host e qualquer subdomínio nas APIs do snippet |
+| `ALLOWED_EVENT_DOMAINS` | Apex da marca (ex.: `exemplo.com.br`) — aceita esse host e subdomínios |
+
+Lista completa com placeholders: [`.env.example`](./.env.example) e a stack Portainer acima.
 
 ## Snippet no site do cliente
 
 ```html
-<script src="https://tracking.royalgrowth.com.br/snippet.js" async></script>
+<script src="https://SEU_DOMINIO/snippet.js" async></script>
 ```
 
-Docs: [docs/SNIPPET.md](./docs/SNIPPET.md)
+Docs: [docs/integrations/snippet.md](./docs/integrations/snippet.md)
 
 ## Webhook de compra
 
 Por conexão em Integrações (Hotmart/Kiwify/Eduzz):
 
-`POST https://tracking.royalgrowth.com.br/api/webhook/in/{connectionId}`  
+`POST https://SEU_DOMINIO/api/webhook/in/{connectionId}`  
 Header: `x-webhook-token: <secret da conexão>`
 
 ## Dev local (sem Docker)
 
 ```bash
-# Postgres rodando + DB_POSTGRESDB_* no .env
 cp .env.example .env
 npm install --legacy-peer-deps
 npm run dev
@@ -70,9 +77,14 @@ npm run dev
 
 Migrations em `db/migrations/` aplicam sozinhas no boot.
 
+## Contribuir
+
+Fork + PR. Labels de release e canais `beta`/`main`: [CONTRIBUTING.md](./CONTRIBUTING.md).
+
 ## Docs
 
 - [CURSOR.md](./CURSOR.md) — arquitetura
 - [DEPLOY.md](./DEPLOY.md) — Portainer / Swarm / Actions
 - [SECURITY.md](./SECURITY.md) — checklist
 - [docs/SELF-HOSTED.md](./docs/SELF-HOSTED.md) — uma stack por domínio
+- [CHANGELOG.md](./CHANGELOG.md) — versões

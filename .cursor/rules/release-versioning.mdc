@@ -1,0 +1,30 @@
+---
+description: SemVer por PR — labels release:* e stack de exemplo
+alwaysApply: true
+---
+
+# Release versioning (Royal Tracking OSS)
+
+## Labels (obrigatório)
+
+Todo PR que altera o produto precisa de **exatamente um** label:
+
+| Label | SemVer | Uso |
+|-------|--------|-----|
+| `release:versão` | MAJOR | breaking |
+| `release:melhoria` | MINOR | feature |
+| `release:hotfix` | PATCH | bugfix |
+| `release:none` | — | docs/CI/chore sem efeito na imagem |
+
+- Em dúvida → `release:hotfix`. Nunca `release:versão` sem breaking explícito.
+- Merge em `main` sem label → CI de release falha.
+- Merge em `beta` → só publica Docker `:beta` (sem bump SemVer).
+- Após merge em `main`, a versão vem do workflow `release.yml`; **não** crie tags manuais.
+
+Use a skill **classify-release** ao preparar ou revisar o PR.
+
+## Stack de exemplo
+
+Se o PR muda env, imagem, rede, Traefik, Postgres, install ou variáveis de runtime → rode a skill **sync-example-stack** no mesmo PR e atualize `deploy/royal-tracking-stack.yml` (+ README/SELF-HOSTED se o fluxo de uso mudou).
+
+Imagem canônica: `mauriciodantaz/royal-tracking`.
