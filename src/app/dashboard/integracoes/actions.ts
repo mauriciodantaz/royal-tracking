@@ -22,7 +22,10 @@ import {
   syncRdFunnels,
 } from "@/lib/rd/sync";
 import { ensureShortWebhookUrl } from "@/lib/integrations/webhook-slug";
-import { ensureWhatsappWebhook } from "@/lib/whatsapp/register-webhook";
+import {
+  cleanupUazapiWebhook,
+  ensureWhatsappWebhook,
+} from "@/lib/whatsapp/register-webhook";
 
 function isWhatsappProvider(provider: string): boolean {
   return (
@@ -404,6 +407,13 @@ export async function deleteConnection(id: string) {
   ) {
     try {
       await cleanupRdWebhooks(conn);
+    } catch {
+      /* best-effort */
+    }
+  }
+  if (conn?.provider === "uazapi") {
+    try {
+      await cleanupUazapiWebhook(conn);
     } catch {
       /* best-effort */
     }

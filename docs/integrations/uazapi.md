@@ -22,7 +22,12 @@ Várias connections = várias instâncias.
 
 1. Validamos o token (`/instance/status` ou `/status`).
 2. Geramos um webhook secret + slug curto.
-3. Chamamos `POST /webhook` na Base URL com eventos `messages`, excluindo `wasSentByApi` e `isGroupYes` quando a API permitir.
+3. Registramos um webhook **próprio** na UazAPI em **modo avançado**:
+   - primeira vez: `action: "add"` (cria um webhook novo; **não** sobrescreve o webhook que você já tinha)
+   - reconfigurar: `action: "update"` só no ID que o Royal Tracking guardou
+4. Guardamos o `id` do webhook na connection (`metadata.whatsapp_webhook.uazapi_webhook_id`).
+
+Eventos: `messages`. Exclusões: `wasSentByApi`, `isGroupYes`.
 
 URL inbound (curta):
 
@@ -31,6 +36,10 @@ https://SEU_DOMINIO/api/w/{slug}
 ```
 
 Se falhar, a connection fica salva com webhook pendente — use **Reconfigurar webhook**.
+
+## Exclusão da integração
+
+Ao remover a connection no Royal Tracking, a stack chama `action: "delete"` com o ID do **nosso** webhook. O(s) webhook(s) que você já tinha na instância **não** são apagados.
 
 ## Filtros
 

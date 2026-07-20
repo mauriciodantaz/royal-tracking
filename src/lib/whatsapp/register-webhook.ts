@@ -4,23 +4,67 @@ import { randomBytes } from "node:crypto";
 
 import { encryptSecret } from "@/lib/crypto/secrets";
 import { query } from "@/lib/db/pool";
-import type { IntegrationConnectionRow } from "@/lib/db/types";
+import type { IntegrationConnectionRow, Json } from "@/lib/db/types";
 import {
   configString,
   decryptAccessToken,
   decryptWebhookSecret,
   getConnection,
 } from "@/lib/integrations/connections";
-import {
-  ensureShortWebhookUrl,
-} from "@/lib/integrations/webhook-slug";
+import { ensureShortWebhookUrl } from "@/lib/integrations/webhook-slug";
+import { metadataRecord } from "@/lib/rd/credentials";
 
 export type WhatsappWebhookResult =
-  | { ok: true; url: string }
+  | { ok: true; url: string; uazapiWebhookId?: string }
   | { ok: false; error: string };
 
 function normalizeBaseUrl(raw: string): string {
   return raw.trim().replace(/\/$/, "");
+}
+
+function asRecord(v: unknown): Record<string, unknown> | null {
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    return v as Record<string, unknown>;
+  }
+  return null;
+}
+
+function readStoredUazapiWebhookId(
+  conn: IntegrationConnectionRow
+): string | null {
+  const meta = metadataRecord(conn.metadata);
+  const wh = asRecord(meta.whatsapp_webhook);
+  if (!wh) return null;
+  const id = wh.uazapi_webhook_id ?? wh.id;
+  return typeof id === "string" && id.trim() ? id.trim() : null;
+}
+
+/** Extract webhook id from UazAPI add/update response shapes. */
+function extractUazapiWebhookId(body: unknown): string | null {
+  const root = asRecord(body);
+  if (!root) return null;
+
+  const direct = root.id ?? root.webhookId ?? root.webhook_id;
+  if (typeof direct === "string" && direct.trim()) return direct.trim();
+
+  const webhook = asRecord(root.webhook);
+  if (webhook) {
+    const nested = webhook.id ?? webhook.webhookId ?? webhook.webhook_id;
+    if (typeof nested === "string" && nested.trim()) return nested.trim();
+  }
+
+  const data = asRecord(root.data);
+  if (data) {
+    const nested = data.id ?? data.webhookId ?? data.webhook_id;
+    if (typeof nested === "string" && nested.trim()) return nested.trim();
+    const dataWh = asRecord(data.webhook);
+    if (dataWh) {
+      const inner = dataWh.id ?? dataWh.webhookId ?? dataWh.webhook_id;
+      if (typeof inner === "string" && inner.trim()) return inner.trim();
+    }
+  }
+
+  return null;
 }
 
 async function ensureWebhookSecret(
@@ -102,21 +146,30 @@ async function registerEvolutionWebhook(opts: {
   return { ok: true, url: opts.url };
 }
 
+/**
+ * Advanced mode only: action add (new) or update (our id).
+ * Never uses simple mode (would overwrite the instance's single webhook).
+ */
 async function registerUazapiWebhook(opts: {
   baseUrl: string;
   instanceToken: string;
   url: string;
+  existingWebhookId?: string | null;
 }): Promise<WhatsappWebhookResult> {
   const endpoint = `${opts.baseUrl}/webhook`;
-  const payload = {
+  const existingId = opts.existingWebhookId?.trim() || null;
+  const payload: Record<string, unknown> = {
     enabled: true,
     url: opts.url,
-    webhookUrl: opts.url,
     events: ["messages"],
     excludeMessages: ["wasSentByApi", "isGroupYes"],
     addUrlEvents: false,
     addUrlTypesMessages: false,
+    action: existingId ? "update" : "add",
   };
+  if (existingId) {
+    payload.id = existingId;
+  }
 
   let res: Response;
   let body: unknown;
@@ -145,7 +198,47 @@ async function registerUazapiWebhook(opts: {
     return { ok: false, error: `UazAPI recusou o webhook: ${msg}` };
   }
 
-  return { ok: true, url: opts.url };
+  const parsedId = extractUazapiWebhookId(body) ?? existingId;
+  if (!parsedId) {
+    return {
+      ok: false,
+      error:
+        "UazAPI aceitou o webhook, mas não devolveu o ID. Não é seguro reconfigurar sem o ID.",
+    };
+  }
+
+  return { ok: true, url: opts.url, uazapiWebhookId: parsedId };
+}
+
+/**
+ * Remove only the webhook created by Royal Tracking (action delete + id).
+ * Best-effort — does not throw if UazAPI is unreachable.
+ */
+export async function cleanupUazapiWebhook(
+  conn: IntegrationConnectionRow
+): Promise<void> {
+  if (conn.provider !== "uazapi") return;
+
+  const webhookId = readStoredUazapiWebhookId(conn);
+  if (!webhookId) return;
+
+  const baseUrlRaw = configString(conn, "base_url");
+  const instanceToken = await decryptAccessToken(conn);
+  if (!baseUrlRaw || !instanceToken) return;
+
+  const endpoint = `${normalizeBaseUrl(baseUrlRaw)}/webhook`;
+  try {
+    await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        token: instanceToken,
+      },
+      body: JSON.stringify({ action: "delete", id: webhookId }),
+    });
+  } catch {
+    /* best-effort */
+  }
 }
 
 /**
@@ -222,6 +315,8 @@ export async function ensureWhatsappWebhook(
   }
 
   const url = await ensureShortWebhookUrl(connectionId);
+  const existingUazapiId =
+    conn.provider === "uazapi" ? readStoredUazapiWebhookId(conn) : null;
 
   let result: WhatsappWebhookResult;
   if (conn.provider === "evolution_api") {
@@ -242,26 +337,33 @@ export async function ensureWhatsappWebhook(
       baseUrl,
       instanceToken,
       url,
+      existingWebhookId: existingUazapiId,
     });
   }
 
   if (result.ok) {
-    await patchMetadata(connectionId, {
-      whatsapp_webhook: {
-        status: "ok",
-        message: "Webhook configurado",
-        url: result.url,
-        updated_at: new Date().toISOString(),
-      },
-    });
+    const wh: Record<string, Json> = {
+      status: "ok",
+      message: "Webhook configurado",
+      url: result.url,
+      updated_at: new Date().toISOString(),
+    };
+    if (result.uazapiWebhookId) {
+      wh.uazapi_webhook_id = result.uazapiWebhookId;
+    } else if (existingUazapiId) {
+      wh.uazapi_webhook_id = existingUazapiId;
+    }
+    await patchMetadata(connectionId, { whatsapp_webhook: wh });
   } else {
-    await patchMetadata(connectionId, {
-      whatsapp_webhook: {
-        status: "pending",
-        message: result.error,
-        updated_at: new Date().toISOString(),
-      },
-    });
+    const wh: Record<string, Json> = {
+      status: "pending",
+      message: result.error,
+      updated_at: new Date().toISOString(),
+    };
+    if (existingUazapiId) {
+      wh.uazapi_webhook_id = existingUazapiId;
+    }
+    await patchMetadata(connectionId, { whatsapp_webhook: wh });
   }
 
   return result;
