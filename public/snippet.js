@@ -1,13 +1,14 @@
 /**
  * Royal Tracking — snippet para o site do cliente.
- * Servido em: https://tracking.royalgrowth.com.br/snippet.js
+ * Servido em: https://SEU_DOMINIO/snippet.js
  *
  * Uso mínimo:
- *   <script src="https://tracking.royalgrowth.com.br/snippet.js" async></script>
+ *   <script src="https://SEU_DOMINIO/snippet.js" async></script>
  *
- * Opcional (antes do script):
- *   <script>window.TRCK_ENDPOINT="https://tracking.royalgrowth.com.br";</script>
+ * Opcional (antes do script) — só se o endpoint for outro host:
+ *   <script>window.TRCK_ENDPOINT="https://SEU_DOMINIO";</script>
  *
+ * Endpoint: TRCK_ENDPOINT → origem do src do script → (legado) tracking.royalgrowth.com.br
  * Fluxo: gera um event_id → dispara Pixel/gtag (web) + POST API (server) em paralelo.
  * Compras via webhook de marketplace são só server (sem pixel neste snippet).
  */
@@ -18,9 +19,32 @@
   if (window.__TRCK_SNIPPET_LOADED) return;
   window.__TRCK_SNIPPET_LOADED = true;
 
-  var ENDPOINT = (
-    window.TRCK_ENDPOINT || "https://tracking.royalgrowth.com.br"
-  ).replace(/\/$/, "");
+  function resolveEndpoint() {
+    if (window.TRCK_ENDPOINT) {
+      return String(window.TRCK_ENDPOINT).replace(/\/$/, "");
+    }
+    // Classic script (incl. async): currentScript está setado durante a avaliação.
+    var el = document.currentScript;
+    if (!el || !el.src) {
+      var scripts = document.getElementsByTagName("script");
+      for (var i = scripts.length - 1; i >= 0; i--) {
+        var s = scripts[i];
+        if (s.src && /\/snippet\.js(\?|#|$)/i.test(s.src)) {
+          el = s;
+          break;
+        }
+      }
+    }
+    if (el && el.src) {
+      try {
+        return new URL(el.src).origin;
+      } catch (e) {}
+    }
+    // Legado: installs Royal Growth sem TRCK_ENDPOINT e sem src resolvível.
+    return "https://tracking.royalgrowth.com.br";
+  }
+
+  var ENDPOINT = resolveEndpoint();
   var STORAGE_KEY = "trck_user_id";
   var TICKET_CODE_KEY = "trck_ticket_code";
   var GCLID_KEY = "trck_gclid";
