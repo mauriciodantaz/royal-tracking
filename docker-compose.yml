@@ -38,6 +38,7 @@ services:
       AUTH_SECRET: local-dev-auth-secret-change-me-32
       NEXTAUTH_URL: http://localhost:3000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
+      ALLOWED_EVENT_DOMAINS: localhost
 
       # --- Super admin ---
       ADMIN_EMAIL: admin@localhost

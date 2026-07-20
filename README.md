@@ -48,7 +48,7 @@ Abra http://localhost:3000 → login `admin@localhost` / `admin123456` (só no c
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Super admin imutável (sync a cada boot; senha só na stack) |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | SMTP para convite, reset e alertas |
 | `NEXT_PUBLIC_APP_URL` | URL pública (snippet / links) |
-| `ALLOWED_EVENT_DOMAINS` | Apex da marca (ex.: `exemplo.com.br`) — aceita esse host e subdomínios |
+| `ALLOWED_EVENT_DOMAINS` | Apex do site (ex.: `exemplo.com.br`) — obrigatório em produção; aceita esse host e subdomínios |
 
 Lista completa com placeholders: [`.env.example`](./.env.example) e a stack Portainer acima.
 
