@@ -22,16 +22,18 @@
     window.TRCK_ENDPOINT || "https://tracking.royalgrowth.com.br"
   ).replace(/\/$/, "");
   var STORAGE_KEY = "trck_user_id";
+  var TICKET_CODE_KEY = "trck_ticket_code";
   var GCLID_KEY = "trck_gclid";
   var TTCLID_KEY = "trck_ttclid";
   var COOKIE_DAYS = 365;
   var LEAD_DEDUP_MS = 5000;
-  var TICKET_LINE_RE = /\[ticket=[^\]:\s]+:[^\]]+\]/i;
+  var TICKET_LINE_RE = /\[rt:[^\]]+\]/;
 
   var metaPixelIds = [];
   var ga4MeasurementIds = [];
+  var ga4ScriptOk = false;
   var tagsReady = null;
-  var ticketName = window.TRCK_TICKET_NAME || "rt";
+  var ticketCode = null;
 
   var META_STANDARD = {
     PageView: "PageView",
@@ -96,6 +98,24 @@
     setCookie(STORAGE_KEY, id, COOKIE_DAYS);
   }
 
+  function getTicketCode() {
+    if (ticketCode) return ticketCode;
+    try {
+      var fromLs = localStorage.getItem(TICKET_CODE_KEY);
+      if (fromLs) return fromLs;
+    } catch (e) {}
+    return getCookie(TICKET_CODE_KEY) || null;
+  }
+
+  function saveTicketCode(code) {
+    if (!code) return;
+    ticketCode = String(code);
+    try {
+      localStorage.setItem(TICKET_CODE_KEY, ticketCode);
+    } catch (e) {}
+    setCookie(TICKET_CODE_KEY, ticketCode, COOKIE_DAYS);
+  }
+
   function getQuery(name) {
     return new URLSearchParams(window.location.search).get(name) || undefined;
   }
@@ -154,6 +174,7 @@
 
   function coalesceTrackingValue(id) {
     return (
+      getTicketCode() ||
       id ||
       getCookie("_fbp") ||
       getGaClientId() ||
@@ -163,8 +184,20 @@
     );
   }
 
-  function formatTicketLine(name, value) {
-    return "[ticket=" + name + ":" + value + "]";
+  function formatTicketLine(value) {
+    return "[rt:" + value + "]";
+  }
+
+  /** Keep the human message; only put/replace [rt:…] at the end. */
+  function replaceTicketInText(text, value) {
+    var line = formatTicketLine(value);
+    if (TICKET_LINE_RE.test(text)) {
+      return text.replace(TICKET_LINE_RE, line);
+    }
+    if (text) {
+      return text.replace(/\s+$/g, "") + "\n\n" + line;
+    }
+    return line;
   }
 
   function withWhatsAppTicket(url, id, messageOverride) {
@@ -184,14 +217,7 @@
       try {
         text = decodeURIComponent(text.replace(/\+/g, " "));
       } catch (e) {}
-      var line = formatTicketLine(ticketName, tracking);
-      if (TICKET_LINE_RE.test(text)) {
-        text = text.replace(TICKET_LINE_RE, line);
-      } else if (text) {
-        text = text.replace(/\s+$/g, "") + "\n\n" + line;
-      } else {
-        text = line;
-      }
+      text = replaceTicketInText(text, tracking);
       u.searchParams.set("text", text);
       return u.toString();
     } catch (e) {
@@ -205,7 +231,7 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
       keepalive: true,
-      credentials: "omit",
+      credentials: "include",
     }).then(function (res) {
       return res.json().catch(function () {
         return {};
@@ -216,7 +242,7 @@
   function getJson(path) {
     return fetch(ENDPOINT + path, {
       method: "GET",
-      credentials: "omit",
+      credentials: "include",
     }).then(function (res) {
       return res.json().catch(function () {
         return {};
@@ -343,15 +369,20 @@
             "https://www.googletagmanager.com/gtag/js?id=" +
               encodeURIComponent(ga4MeasurementIds[0])
           ).then(function (ok) {
-            if (!ok) return false;
+            if (!ok) {
+              ga4ScriptOk = false;
+              return false;
+            }
             try {
               for (var j = 0; j < ga4MeasurementIds.length; j++) {
                 window.gtag("config", ga4MeasurementIds[j], {
                   send_page_view: false,
                 });
               }
+              ga4ScriptOk = true;
               return true;
             } catch (e) {
+              ga4ScriptOk = false;
               return false;
             }
           })
@@ -393,7 +424,11 @@
   }
 
   function trackGa4(name, eventId, params) {
-    if (!ga4MeasurementIds.length || typeof window.gtag !== "function") {
+    if (
+      !ga4ScriptOk ||
+      !ga4MeasurementIds.length ||
+      typeof window.gtag !== "function"
+    ) {
       return false;
     }
     try {
@@ -441,12 +476,14 @@
           event_name: name,
           event_id: eventId,
           event_source_url: window.location.href,
+          ga_client_id: getGaClientId(),
           client_web: web,
         },
         extra
       );
       body.event_id = eventId;
       body.client_web = web;
+      if (!body.ga_client_id) body.ga_client_id = getGaClientId();
       return post("/api/event", body);
     });
   }
@@ -507,14 +544,6 @@
     });
   }
 
-  function loadTicketConfig() {
-    return getJson("/api/tracking/config")
-      .then(function (data) {
-        if (data && data.ticket_name) ticketName = String(data.ticket_name);
-      })
-      .catch(function () {});
-  }
-
   function identifyAndTrack() {
     var existing = getTrckId();
     var payload = {
@@ -534,12 +563,12 @@
     };
 
     initBrowserTags().catch(function () {});
-    loadTicketConfig();
 
     return post("/api/identify", payload).then(function (data) {
       var id = (data && data.trck_user_id) || existing || "trck_" + uuid().replace(/-/g, "");
       saveTrckId(id);
       window.TRCK_USER_ID = id;
+      if (data && data.ticket_code) saveTicketCode(data.ticket_code);
       patchLinks(id);
 
       var eventId = uuid();
@@ -554,6 +583,7 @@
           utm_campaign: payload.utm_campaign,
           utm_term: payload.utm_term,
           utm_content: payload.utm_content,
+          ga_client_id: getGaClientId(),
           client_web: web,
         }).then(function () {
           return id;

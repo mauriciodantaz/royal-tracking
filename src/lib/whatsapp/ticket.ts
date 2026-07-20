@@ -1,68 +1,29 @@
-/** Parse / format `[ticket=name:value]` in WhatsApp message text. */
+/** WhatsApp ticket tag: always `[rt:CODE]` at the end of the message. */
 
-export const TICKET_LINE_RE = /\[ticket=([^\]:\s]+):([^\]]+)\]/i;
+export const TICKET_PREFIX = "rt";
+
+/** `[rt:xK9m2pQ7]` — short code only. */
+export const TICKET_LINE_RE = /\[rt:([A-Za-z0-9_-]{6,32})\]/;
 
 export type ParsedTicket = {
-  name: string;
+  name: typeof TICKET_PREFIX;
   value: string;
 };
 
 export function parseTicket(text: string): ParsedTicket | null {
   const m = TICKET_LINE_RE.exec(text);
-  if (!m) return null;
-  const name = m[1]?.trim();
-  const value = m[2]?.trim();
-  if (!name || !value) return null;
-  return { name, value };
+  const value = m?.[1]?.trim();
+  if (!value) return null;
+  return { name: TICKET_PREFIX, value };
 }
 
-export function formatTicketLine(name: string, value: string): string {
-  return `[ticket=${name}:${value}]`;
+export function formatTicketLine(value: string): string {
+  return `[${TICKET_PREFIX}:${value}]`;
 }
 
-/** Slug for ticket name from PROJECT_NAME or connection config. */
-export function slugTicketName(raw: string | null | undefined): string {
-  const s = (raw ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "")
-    .slice(0, 48);
-  return s || "rt";
-}
-
-/**
- * Coalesce tracking value for the ticket (encode).
- * Prefer stable join key first.
- */
-export function coalesceTrackingValue(ids: {
-  trck_user_id?: string | null;
-  fbp?: string | null;
-  ga_client_id?: string | null;
-  gclid?: string | null;
-  ttclid?: string | null;
-}): string | null {
-  const order = [
-    ids.trck_user_id,
-    ids.fbp,
-    ids.ga_client_id,
-    ids.gclid,
-    ids.ttclid,
-  ];
-  for (const v of order) {
-    const t = typeof v === "string" ? v.trim() : "";
-    if (t) return t;
-  }
-  return null;
-}
-
-/** Ensure message body ends with a ticket line (replace existing if present). */
-export function appendOrReplaceTicket(
-  message: string,
-  name: string,
-  value: string
-): string {
-  const line = formatTicketLine(name, value);
+/** Ensure message body ends with `[rt:code]` (replace existing tag if present). */
+export function appendOrReplaceTicket(message: string, value: string): string {
+  const line = formatTicketLine(value);
   const base = message.replace(TICKET_LINE_RE, "").replace(/\s+$/g, "");
   if (!base) return line;
   return `${base}\n\n${line}`;

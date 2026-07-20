@@ -46,6 +46,23 @@ export async function getConnection(
   );
 }
 
+/** Lookup by short webhook slug (any inbound connection). */
+export async function getConnectionByWebhookSlug(
+  slug: string
+): Promise<IntegrationConnectionRow | null> {
+  await ensureDbReady();
+  const clean = slug.trim();
+  if (!/^[A-Za-z0-9_-]{8,32}$/.test(clean)) return null;
+  return queryOne<IntegrationConnectionRow>(
+    `select * from integration_connections
+     where active = true
+       and direction in ('inbound', 'both')
+       and config->>'webhook_slug' = $1
+     limit 1`,
+    [clean]
+  );
+}
+
 export async function getSnippetConnection(): Promise<IntegrationConnectionRow | null> {
   await ensureDbReady();
   return queryOne<IntegrationConnectionRow>(

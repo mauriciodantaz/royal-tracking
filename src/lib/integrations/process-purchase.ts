@@ -15,6 +15,7 @@ import {
   purchaseEventId,
 } from "@/lib/tracking/hash";
 import { matchVisitor } from "@/lib/tracking/match";
+import { resolveAndPersistGaClientId } from "@/lib/tracking/persist-ga-client-id";
 import {
   parsePurchaseWebhook,
   type NormalizedPurchase,
@@ -72,6 +73,13 @@ export async function processPurchaseEvent(opts: {
   const visitor = match.visitor;
   const trckUserId = purchase.trck_user_id ?? visitor?.trck_user_id ?? null;
   const currency = purchase.currency || settings?.currency || "BRL";
+  const gaResolved = await resolveAndPersistGaClientId({
+    stored: visitor?.ga_client_id,
+    storedSource: visitor?.ga_client_id_source,
+    storedBrowserGa: visitor?.browser_ga_client_id,
+    trckUserId,
+    visitorCreatedAt: visitor?.created_at,
+  });
 
   const saved = await queryOne<PurchaseRow>(
     `insert into purchases (
@@ -119,7 +127,7 @@ export async function processPurchaseEvent(opts: {
       match.match_status,
       match.match_reason,
       metaEventId,
-      visitor?.ga_client_id ?? null,
+      gaResolved.clientId,
       JSON.stringify(opts.raw),
     ]
   );
@@ -157,7 +165,9 @@ export async function processPurchaseEvent(opts: {
       content_name: purchase.product_name ?? undefined,
       content_type: "product",
     },
-    gaClientId: visitor?.ga_client_id,
+    gaClientId: gaResolved.clientId,
+    gaClientIdSource: gaResolved.source,
+    gaIdentityMeta: gaResolved.meta,
     gaSessionId: visitor?.ga_session_id,
   });
 

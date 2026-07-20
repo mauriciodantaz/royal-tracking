@@ -42,7 +42,7 @@ Abra http://localhost:3000 → login `admin@localhost` / `admin123456` (só no c
 | `PROJECT_NAME` | Nome da instância (título HTML: `{PROJECT_NAME} \| Royal Tracking`; stack = `royaltracking_<slug>`) |
 | `DB_POSTGRESDB_HOST` / `PORT` / `USER` / `PASSWORD` / `DATABASE` | Postgres (padrão n8n; externo na rede) |
 | `DATABASE_URL` | Fallback legado (só se as vars `DB_POSTGRESDB_*` não existirem) |
-| `ENCRYPTION_KEY` | Chave AES-GCM (≥16 chars) para tokens no banco |
+| `ENCRYPTION_KEY` | Chave AES-GCM (≥16 chars) para tokens no banco (também HMAC do FPID GA4) |
 | `AUTH_SECRET` | Secret Auth.js |
 | `NEXTAUTH_URL` | URL pública da instância |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Super admin imutável (sync a cada boot; senha só na stack) |

@@ -21,10 +21,30 @@ import {
   ensureRdWebhooks,
   syncRdFunnels,
 } from "@/lib/rd/sync";
-import { ensureWhatsappWebhook } from "@/lib/whatsapp/register-webhook";
+import { ensureShortWebhookUrl } from "@/lib/integrations/webhook-slug";
+import {
+  cleanupEvolutionWebhook,
+  cleanupUazapiWebhook,
+  ensureWhatsappWebhook,
+} from "@/lib/whatsapp/register-webhook";
 
 function isWhatsappProvider(provider: string): boolean {
-  return provider === "evolution_api" || provider === "uazapi";
+  return (
+    provider === "evolution_api" ||
+    provider === "uazapi" ||
+    provider === "rdstation_conversas"
+  );
+}
+
+function needsShortWebhookUrl(provider: string): boolean {
+  return (
+    isWhatsappProvider(provider) ||
+    provider === "rdstation_crm" ||
+    provider === "rdstation_mkt" ||
+    provider === "hotmart" ||
+    provider === "kiwify" ||
+    provider === "eduzz"
+  );
 }
 
 function revalidateIntegrations(provider?: string) {
@@ -84,7 +104,7 @@ export async function upsertConnection(formData: FormData): Promise<
   if (webhookSecret) {
     webhookCipher = await encryptSecret(webhookSecret);
   } else if (!id && isWhatsappProvider(provider)) {
-    // Inbound secret gerado pela stack (Evolution/UazAPI apontam para nós).
+    // Inbound secret gerado pela stack (WA providers apontam para nós).
     webhookCipher = await encryptSecret(randomBytes(24).toString("hex"));
   }
   let refreshCipher: string | null = null;
@@ -273,6 +293,16 @@ export async function upsertConnection(formData: FormData): Promise<
           : "Falha ao registrar webhook no WhatsApp.";
       console.error("[whatsapp] ensureWhatsappWebhook", err);
     }
+  } else if (
+    savedId &&
+    needsShortWebhookUrl(provider) &&
+    !isWhatsappProvider(provider)
+  ) {
+    try {
+      await ensureShortWebhookUrl(savedId);
+    } catch (err) {
+      console.error("[webhook] ensureShortWebhookUrl", err);
+    }
   }
 
   revalidateIntegrations(provider);
@@ -378,6 +408,20 @@ export async function deleteConnection(id: string) {
   ) {
     try {
       await cleanupRdWebhooks(conn);
+    } catch {
+      /* best-effort */
+    }
+  }
+  if (conn?.provider === "uazapi") {
+    try {
+      await cleanupUazapiWebhook(conn);
+    } catch {
+      /* best-effort */
+    }
+  }
+  if (conn?.provider === "evolution_api") {
+    try {
+      await cleanupEvolutionWebhook(conn);
     } catch {
       /* best-effort */
     }

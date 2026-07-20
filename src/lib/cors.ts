@@ -10,6 +10,7 @@ const BASE_CORS: Record<string, string> = {
   "Access-Control-Allow-Headers":
     "Content-Type, Authorization, X-Requested-With",
   "Access-Control-Max-Age": "86400",
+  "Access-Control-Allow-Credentials": "true",
 };
 
 export function corsHeaders(request?: Request): Record<string, string> {
@@ -17,9 +18,7 @@ export function corsHeaders(request?: Request): Record<string, string> {
   const headers: Record<string, string> = { ...BASE_CORS };
   if (allowOrigin) {
     headers["Access-Control-Allow-Origin"] = allowOrigin;
-    if (allowOrigin !== "*") {
-      headers.Vary = "Origin";
-    }
+    headers.Vary = "Origin";
   }
   return headers;
 }

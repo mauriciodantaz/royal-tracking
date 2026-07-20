@@ -1,4 +1,9 @@
-/** Normalize Evolution / UazAPI Go inbound payloads into a common shape. */
+/** Normalize Evolution / UazAPI / RD Conversas inbound payloads into a common shape. */
+
+export type WhatsappInboundProvider =
+  | "evolution_api"
+  | "uazapi"
+  | "rdstation_conversas";
 
 export type NormalizedWhatsappMessage = {
   phone: string | null;
@@ -8,7 +13,7 @@ export type NormalizedWhatsappMessage = {
   fromMe: boolean;
   isGroup: boolean;
   timestamp: number;
-  provider: "evolution_api" | "uazapi";
+  provider: WhatsappInboundProvider;
 };
 
 function asRecord(v: unknown): Record<string, unknown> | null {
@@ -204,8 +209,74 @@ export function normalizeUazapiPayload(
   };
 }
 
+/**
+ * Unwrap Tallos/RD Conversas body from common capture shapes (direct object,
+ * single-element array, or n8n-style `{ body: { content, contact } }`).
+ */
+function unwrapRdConversasRoot(raw: unknown): Record<string, unknown> | null {
+  let cur: unknown = raw;
+  if (Array.isArray(cur)) {
+    if (cur.length === 0) return null;
+    cur = cur[0];
+  }
+  let root = asRecord(cur);
+  if (!root) return null;
+
+  const nestedBody = asRecord(root.body);
+  if (nestedBody && (asRecord(nestedBody.content) || asRecord(nestedBody.contact))) {
+    root = nestedBody;
+  }
+  return root;
+}
+
+/** RD Conversas (Tallos) inbound webhook — client messages only. */
+export function normalizeRdConversasPayload(
+  raw: unknown
+): NormalizedWhatsappMessage | null {
+  const root = unwrapRdConversasRoot(raw);
+  if (!root) return null;
+
+  const content = asRecord(root.content);
+  const contact = asRecord(root.contact);
+  if (!content || !contact) return null;
+
+  const messageId =
+    (typeof content.id === "string" && content.id) ||
+    (typeof content.id === "number" && String(content.id)) ||
+    "";
+  if (!messageId) return null;
+
+  const type = typeof content.type === "string" ? content.type : "text";
+  if (type && type !== "text") return null;
+
+  const text =
+    typeof content.message === "string" ? content.message.trim() : "";
+  if (!text) return null;
+
+  const phone = digitsPhone(
+    typeof contact.phone === "string" ? contact.phone : null
+  );
+  if (!phone) return null;
+
+  const pushName =
+    typeof contact.name === "string" && contact.name.trim()
+      ? contact.name.trim()
+      : null;
+
+  return {
+    phone,
+    pushName,
+    text,
+    messageId,
+    fromMe: false,
+    isGroup: false,
+    timestamp: Date.now(),
+    provider: "rdstation_conversas",
+  };
+}
+
 export function normalizeWhatsappPayload(
-  provider: "evolution_api" | "uazapi",
+  provider: WhatsappInboundProvider,
   raw: unknown
 ): NormalizedWhatsappMessage | null {
   switch (provider) {
@@ -213,6 +284,8 @@ export function normalizeWhatsappPayload(
       return normalizeEvolutionPayload(raw);
     case "uazapi":
       return normalizeUazapiPayload(raw);
+    case "rdstation_conversas":
+      return normalizeRdConversasPayload(raw);
     default: {
       const _exhaustive: never = provider;
       return _exhaustive;

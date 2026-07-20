@@ -43,6 +43,7 @@ export type MetaAdAccountRow = {
 export type VisitorRow = {
   id: string;
   trck_user_id: string;
+  ticket_code: string | null;
   email: string | null;
   email_hash: string | null;
   phone_hash: string | null;
@@ -55,6 +56,10 @@ export type VisitorRow = {
   fbp: string | null;
   fbc: string | null;
   ga_client_id: string | null;
+  ga_client_id_source: string | null;
+  browser_ga_client_id: string | null;
+  ga_client_id_created_at: string | null;
+  ga_client_id_updated_at: string | null;
   ga_session_id: string | null;
   gclid: string | null;
   ttclid: string | null;

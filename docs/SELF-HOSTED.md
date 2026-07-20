@@ -11,6 +11,8 @@ apex A  →  stack A  →  postgres A  +  ENCRYPTION_KEY A  +  admin A  +  ALLOW
 apex B  →  stack B  →  postgres B  +  ENCRYPTION_KEY B  +  admin B  +  ALLOWED_EVENT_DOMAINS=B
 ```
 
+A identidade GA4 (FPID) reutiliza `ENCRYPTION_KEY` — não há secret extra para configurar no install.
+
 ## Instalação (canônica — imagem Docker Hub)
 
 1. Postgres + rede Swarm/Traefik (ex.: `RoyalNet`).

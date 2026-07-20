@@ -6,11 +6,11 @@ import { encryptSecret } from "@/lib/crypto/secrets";
 import { ensureDbReady } from "@/lib/db/boot";
 import { query, queryOne } from "@/lib/db/pool";
 import type { IntegrationConnectionRow } from "@/lib/db/types";
-import { getAppUrl } from "@/lib/env";
 import {
   decryptWebhookSecret,
   getConnection,
 } from "@/lib/integrations/connections";
+import { ensureShortWebhookUrl } from "@/lib/integrations/webhook-slug";
 import { metadataRecord } from "@/lib/rd/credentials";
 import {
   createCrmWebhook,
@@ -206,8 +206,7 @@ export async function ensureRdWebhooks(
 
   const secret = await ensureWebhookSecret(conn);
   conn = (await getConnection(connectionId))!;
-  const appUrl = getAppUrl().replace(/\/$/, "");
-  const inboundUrl = `${appUrl}/api/webhook/in/${conn.id}`;
+  const inboundUrl = await ensureShortWebhookUrl(connectionId);
   const meta = metadataRecord(conn.metadata);
   const webhookIds =
     meta.rd_webhook_ids && typeof meta.rd_webhook_ids === "object"
@@ -233,7 +232,6 @@ export async function ensureRdWebhooks(
       }
     }
   } else if (conn.provider === "rdstation_mkt") {
-    const mktUrl = `${inboundUrl}?token=${encodeURIComponent(secret)}`;
     for (const eventType of [
       "WEBHOOK.CONVERTED",
       "WEBHOOK.MARKED_OPPORTUNITY",
@@ -241,7 +239,7 @@ export async function ensureRdWebhooks(
       if (webhookIds[eventType]) continue;
       const wh = await createMktWebhook(conn, {
         eventType,
-        url: mktUrl,
+        url: inboundUrl,
       });
       if (wh?.uuid) {
         webhookIds[eventType] = wh.uuid;
