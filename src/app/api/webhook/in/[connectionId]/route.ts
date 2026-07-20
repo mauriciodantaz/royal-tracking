@@ -5,12 +5,9 @@ import {
   decryptWebhookSecret,
   getConnection,
 } from "@/lib/integrations/connections";
-import { processPurchaseEvent } from "@/lib/integrations/process-purchase";
-import { processRdWebhook } from "@/lib/rd/process-webhook";
+import { processInboundConnection } from "@/lib/integrations/process-inbound";
 import { rateLimit } from "@/lib/rate-limit/memory";
 import { getClientIp } from "@/lib/tracking/request";
-import { parsePurchaseWebhook } from "@/lib/tracking/webhook-parse";
-import { processWhatsappMessageWebhook } from "@/lib/whatsapp/process-message";
 
 export const runtime = "nodejs";
 
@@ -33,7 +30,7 @@ function extractToken(request: NextRequest): string | null {
 
 type Ctx = { params: Promise<{ connectionId: string }> };
 
-/** Per-connection inbound webhook: /api/webhook/in/{connectionId} */
+/** Legacy per-connection inbound webhook: /api/webhook/in/{connectionId} */
 export async function POST(request: NextRequest, context: Ctx) {
   const ip = getClientIp(request);
   const limited = rateLimit(`webhook-in:${ip}`, 60, 60_000);
@@ -46,9 +43,6 @@ export async function POST(request: NextRequest, context: Ctx) {
     const conn = await getConnection(connectionId);
     if (!conn || !conn.active) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
-    }
-    if (conn.direction === "outbound") {
-      return NextResponse.json({ error: "not_inbound" }, { status: 400 });
     }
 
     const secret = await decryptWebhookSecret(conn);
@@ -64,84 +58,14 @@ export async function POST(request: NextRequest, context: Ctx) {
       return NextResponse.json({ error: "invalid_json" }, { status: 400 });
     }
 
-    const marketplace = ["hotmart", "kiwify", "eduzz"].includes(conn.provider);
-    if (marketplace) {
-      const parsed = parsePurchaseWebhook(raw);
-      const result = await processPurchaseEvent({
-        raw,
-        parsed,
-        sourceProvider: conn.provider,
-        sourceConnectionId: conn.id,
-      });
-      if (!result.ok) {
-        return NextResponse.json(
-          { error: result.error },
-          { status: result.status }
-        );
-      }
-      return NextResponse.json(result);
+    const result = await processInboundConnection({ conn, raw });
+    if (!result.ok) {
+      return NextResponse.json(
+        { error: result.error },
+        { status: result.status }
+      );
     }
-
-    if (
-      conn.provider === "rdstation_crm" ||
-      conn.provider === "rdstation_mkt"
-    ) {
-      const result = await processRdWebhook({ conn, raw });
-      if (!result.ok) {
-        return NextResponse.json(
-          { error: result.error },
-          { status: result.status }
-        );
-      }
-      return NextResponse.json(result);
-    }
-
-    if (conn.provider === "evolution_api" || conn.provider === "uazapi") {
-      const result = await processWhatsappMessageWebhook({ conn, raw });
-      if (!result.ok) {
-        return NextResponse.json(
-          { error: result.error },
-          { status: result.status }
-        );
-      }
-      return NextResponse.json(result);
-    }
-
-    // Generic CRM-style payload: expect { event, email?, phone?, ... }
-    const rec =
-      raw && typeof raw === "object" && !Array.isArray(raw)
-        ? (raw as Record<string, unknown>)
-        : null;
-    const sourceEvent =
-      (typeof rec?.event === "string" && rec.event) ||
-      (typeof rec?.event_name === "string" && rec.event_name) ||
-      "Lead";
-
-    if (
-      sourceEvent.toLowerCase().includes("purchase") ||
-      sourceEvent.toLowerCase().includes("won")
-    ) {
-      const result = await processPurchaseEvent({
-        raw,
-        sourceProvider: conn.provider,
-        sourceConnectionId: conn.id,
-      });
-      if (!result.ok) {
-        return NextResponse.json(
-          { error: result.error },
-          { status: result.status }
-        );
-      }
-      return NextResponse.json(result);
-    }
-
-    return NextResponse.json({
-      ok: true,
-      received: true,
-      provider: conn.provider,
-      source_event: sourceEvent,
-      note: "CRM lead ingest via dedicated adapters in phase 2; purchase parsers active for marketplaces",
-    });
+    return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json(
       {

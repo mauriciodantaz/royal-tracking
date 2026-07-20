@@ -237,18 +237,14 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
   {
     provider: "rdstation_conversas",
     name: "RD Conversas",
-    description: "Token / OAuth — conversas.",
-    authType: "token",
+    description:
+      "WhatsApp via RD Conversas — cole a URL do webhook no Tallos → Lead com ticket (igual UazAPI).",
+    authType: "none",
     direction: "inbound",
-    segment: "crm_marketing",
+    segment: "whatsapp",
     docsSlug: "rdstation-conversas",
-    // Temporarily hidden for publish-sequence test; restore by removing uiHidden.
-    uiHidden: true,
-    connectFields: [
-      { key: "label", label: "Nome", required: true },
-      { key: "access_token", label: "API token", secret: true, required: true },
-    ],
-    defaultSourceEvents: ["Lead", "Message"],
+    connectFields: [{ key: "label", label: "Nome", required: true }],
+    defaultSourceEvents: ["Lead"],
   },
   {
     provider: "pipedrive",
@@ -300,12 +296,6 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
         secret: true,
         required: true,
       },
-      {
-        key: "ticket_name",
-        label: "Nome do ticket (opcional)",
-        required: false,
-        placeholder: "Deixe vazio para usar o PROJECT_NAME",
-      },
     ],
     defaultSourceEvents: ["Lead"],
   },
@@ -331,12 +321,6 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
         label: "Token da instância",
         secret: true,
         required: true,
-      },
-      {
-        key: "ticket_name",
-        label: "Nome do ticket (opcional)",
-        required: false,
-        placeholder: "Deixe vazio para usar o PROJECT_NAME",
       },
     ],
     defaultSourceEvents: ["Lead"],

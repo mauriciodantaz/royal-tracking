@@ -9,6 +9,7 @@ import {
   serverFlagsFromDispatch,
 } from "@/lib/tracking/channel";
 import { hashPhone, hashPii, newEventId } from "@/lib/tracking/hash";
+import { resolveAndPersistGaClientId } from "@/lib/tracking/persist-ga-client-id";
 import { matchVisitorFromTicket } from "@/lib/whatsapp/match-ticket";
 import {
   normalizeWhatsappPayload,
@@ -63,7 +64,11 @@ export async function processWhatsappMessageWebhook(opts: {
 }): Promise<ProcessWhatsappResult> {
   await ensureDbReady();
 
-  if (opts.conn.provider !== "evolution_api" && opts.conn.provider !== "uazapi") {
+  if (
+    opts.conn.provider !== "evolution_api" &&
+    opts.conn.provider !== "uazapi" &&
+    opts.conn.provider !== "rdstation_conversas"
+  ) {
     return { ok: false, error: "invalid_provider", status: 400 };
   }
 
@@ -127,6 +132,14 @@ export async function processNormalizedWhatsappMessage(opts: {
     await enrichVisitorPhone(visitor, msg.phone, msg.pushName);
   }
 
+  const gaResolved = await resolveAndPersistGaClientId({
+    stored: visitor?.ga_client_id,
+    storedSource: visitor?.ga_client_id_source,
+    storedBrowserGa: visitor?.browser_ga_client_id,
+    trckUserId,
+    visitorCreatedAt: visitor?.created_at,
+  });
+
   const phoneHash = hashPhone(msg.phone) ?? visitor?.phone_hash ?? null;
   const fields = {
     ticket_name: ticket.name,
@@ -168,7 +181,7 @@ export async function processNormalizedWhatsappMessage(opts: {
         visitor?.utm_content ?? null,
         visitor?.fbp ?? null,
         visitor?.fbc ?? null,
-        visitor?.ga_client_id ?? null,
+        gaResolved.clientId,
         conn.provider,
         conn.id,
         JSON.stringify(opts.raw),
@@ -210,7 +223,9 @@ export async function processNormalizedWhatsappMessage(opts: {
       clientIpAddress: visitor?.ip,
       clientUserAgent: visitor?.user_agent,
     },
-    gaClientId: visitor?.ga_client_id,
+    gaClientId: gaResolved.clientId,
+    gaClientIdSource: gaResolved.source,
+    gaIdentityMeta: gaResolved.meta,
     gaSessionId: visitor?.ga_session_id,
   });
 
@@ -221,15 +236,22 @@ export async function processNormalizedWhatsappMessage(opts: {
     serverMeta,
     serverGa4,
   });
+  const metaResults = dispatch.results.filter((r) => r.provider === "meta_pixel");
+  const ga4Results = dispatch.results.filter((r) => r.provider === "ga4");
 
   try {
     await query(
       `insert into events_log (
          trck_user_id, event_name, event_id,
          utm_source, utm_medium, utm_campaign, utm_term, utm_content,
-         ip, ingest_path, web_meta, web_ga4, server_meta, server_ga4, channel_class
+         payload_meta, response_meta, payload_ga4, response_ga4,
+         ip, geo_country, geo_region, geo_city,
+         ingest_path, web_meta, web_ga4, server_meta, server_ga4, channel_class
        ) values (
-         $1,'Lead',$2,$3,$4,$5,$6,$7,$8,'webhook',false,false,$9,$10,$11
+         $1,'Lead',$2,$3,$4,$5,$6,$7,
+         $8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb,
+         $12,$13,$14,$15,
+         'webhook',false,false,$16,$17,$18
        )
        on conflict (event_id) do nothing`,
       [
@@ -240,7 +262,14 @@ export async function processNormalizedWhatsappMessage(opts: {
         visitor?.utm_campaign ?? null,
         visitor?.utm_term ?? null,
         visitor?.utm_content ?? null,
+        JSON.stringify(metaResults.map((r) => r.payload)),
+        JSON.stringify(metaResults),
+        JSON.stringify(ga4Results.map((r) => r.payload)),
+        JSON.stringify(ga4Results),
         visitor?.ip ?? null,
+        visitor?.geo_country ?? null,
+        visitor?.geo_region ?? null,
+        visitor?.geo_city ?? null,
         serverMeta,
         serverGa4,
         channelClass,

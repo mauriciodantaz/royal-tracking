@@ -19,6 +19,18 @@ export async function matchVisitorFromTicket(input: {
     return matchVisitor({ phone: input.phone });
   }
 
+  const byCode = await queryOne<VisitorRow>(
+    `select * from visitors where ticket_code = $1 limit 1`,
+    [value]
+  );
+  if (byCode) {
+    return {
+      visitor: byCode,
+      match_status: "matched",
+      match_reason: "ticket_code",
+    };
+  }
+
   const byTrck = await queryOne<VisitorRow>(
     `select * from visitors where trck_user_id = $1 limit 1`,
     [value]

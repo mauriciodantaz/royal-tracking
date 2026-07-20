@@ -62,16 +62,22 @@ export function isRequestOriginAllowed(request: Request): boolean {
   return hostMatchesAnyApex(host, apexes);
 }
 
-/** Echoable Origin value when allowlisted; "*" when open; null when denied / unknown. */
+/**
+ * Echoable Origin for credentialed CORS (never "*").
+ * Empty ALLOWED_EVENT_DOMAINS → echo any Origin (dev / open).
+ * With allowlist → echo only matching Origin; null when denied / missing.
+ */
 export function resolveCorsAllowOrigin(request?: Request): string | null {
-  const apexes = getAllowedEventDomains();
-  if (apexes.length === 0) return "*";
   if (!request) return null;
 
   const origin = request.headers.get("origin");
   if (!origin || origin === "null") return null;
 
   const originHost = hostnameFromUrl(origin);
-  if (!originHost || !hostMatchesAnyApex(originHost, apexes)) return null;
+  if (!originHost) return null;
+
+  const apexes = getAllowedEventDomains();
+  if (apexes.length === 0) return origin;
+  if (!hostMatchesAnyApex(originHost, apexes)) return null;
   return origin;
 }

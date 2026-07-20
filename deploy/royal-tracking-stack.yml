@@ -35,6 +35,9 @@ services:
       # --- Auth / crypto ---
       ENCRYPTION_KEY: CHANGE_ME_ENCRYPTION_KEY_MIN_32_CHARS
       AUTH_SECRET: CHANGE_ME_AUTH_SECRET_MIN_32_CHARS
+      # GA4 FPID usa ENCRYPTION_KEY automaticamente. Avançado (opcional):
+      # GA_CLIENT_ID_SECRET: ...
+      # GA_FPID_COOKIE_DOMAIN: .tracking.<APEX_DOMAIN>
       NEXTAUTH_URL: https://<DOMAIN>
       NEXT_PUBLIC_APP_URL: https://<DOMAIN>
 

@@ -39,6 +39,7 @@ services:
       # --- Auth / crypto ---
       ENCRYPTION_KEY: CHANGE_ME_ENCRYPTION_KEY
       AUTH_SECRET: CHANGE_ME_AUTH_SECRET
+      # GA4 FPID usa ENCRYPTION_KEY automaticamente (sem env extra).
       NEXTAUTH_URL: https://<DOMAIN>
       NEXT_PUBLIC_APP_URL: https://<DOMAIN>
 

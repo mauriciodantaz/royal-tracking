@@ -1,6 +1,6 @@
 # UazAPI Go — WhatsApp cloud
 
-Cada **instância** UazAPI Go (cloud) vira uma connection no Royal Tracking. A stack registra o webhook sozinha e só grava Lead quando a mensagem inbound contém `[ticket=nome:valor]`.
+Cada **instância** UazAPI Go (cloud) vira uma connection no Royal Tracking. A stack registra o webhook sozinha e só grava Lead quando a mensagem inbound contém `[rt:código]`.
 
 ## Pré-requisitos
 
@@ -15,38 +15,49 @@ Cada **instância** UazAPI Go (cloud) vira uma connection no Royal Tracking. A s
 | **Nome** | Rótulo interno (ex.: “WA Ads”) |
 | **Base URL** | Servidor da instância (sem barra no fim) |
 | **Token da instância** | Credencial daquela instância |
-| **Nome do ticket (opcional)** | Prefixo em `[ticket=NOME:…]`; vazio = slug do `PROJECT_NAME` |
 
 Várias connections = várias instâncias.
 
 ## O que acontece ao salvar
 
 1. Validamos o token (`/instance/status` ou `/status`).
-2. Geramos um webhook secret interno.
-3. Chamamos `POST /webhook` na Base URL com eventos `messages`, excluindo `wasSentByApi` e `isGroupYes` quando a API permitir.
+2. Geramos um webhook secret + slug curto.
+3. Registramos um webhook **próprio** na UazAPI em **modo avançado**:
+   - se já existir webhook com a mesma URL do RT → `action: "update"` nesse ID
+   - senão → `action: "add"` (cria um novo; **não** sobrescreve outros webhooks da instância)
+   - após criar, se a resposta não trouxer o ID, consultamos `GET /webhook` e localizamos pela URL
+   - remove duplicatas acidentais com a mesma URL do RT
+4. Guardamos o `id` do webhook na connection (`metadata.whatsapp_webhook.uazapi_webhook_id`).
+5. Abrir a página da integração **não** re-registra o webhook (só gera a URL curta).
 
-URL inbound:
+Eventos: `messages`. Exclusões: `wasSentByApi`, `isGroupYes`.
+
+URL inbound (curta):
 
 ```txt
-https://SEU_DOMINIO/api/webhook/in/{connectionId}?token=…
+https://SEU_DOMINIO/api/w/{slug}
 ```
 
 Se falhar, a connection fica salva com webhook pendente — use **Reconfigurar webhook**.
+
+## Exclusão da integração
+
+Ao remover a connection no Royal Tracking, a stack chama `action: "delete"` com o ID do **nosso** webhook. O(s) webhook(s) que você já tinha na instância **não** são apagados.
 
 ## Filtros
 
 - Ignora mensagens da conta / enviadas pela API (`fromMe` / wasSentByApi)
 - Ignora grupos
-- Só persiste + dispara Lead com `[ticket=nome:valor]` no texto
+- Só persiste + dispara Lead com `[rt:código]` no texto
 
 ## Ticket e atribuição
 
-Igual Evolution: ticket = chave; `fbp`/`fbc`/`ga_client_id`/click IDs vêm do visitor da sessão web.
+Igual Evolution: a mensagem fica intacta; `[rt:…]` no final liga ao visitor da sessão web.
 
 ## Gerador wa.me
 
 Na página da connection: telefone + mensagem → link encoded.  
-**Não remova** a linha `[ticket=…:…]` se quiser Lead rastreado.
+**Não remova** a linha `[rt:…]` se quiser Lead rastreado.
 
 ## Links
 

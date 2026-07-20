@@ -9,14 +9,14 @@ import type {
   IntegrationConnectionRow,
   IntegrationEventMappingRow,
 } from "@/lib/db/types";
-import { getAppUrl, getProjectName } from "@/lib/env";
+import { getAppUrl } from "@/lib/env";
 import {
   getModule,
   isUiVisibleProvider,
 } from "@/lib/integrations/registry";
+import { ensureShortWebhookUrl } from "@/lib/integrations/webhook-slug";
 import { metadataRecord } from "@/lib/rd/credentials";
 import { MKT_LIFECYCLE_SLOTS } from "@/lib/rd/mkt";
-import { slugTicketName } from "@/lib/whatsapp/ticket";
 
 export const dynamic = "force-dynamic";
 
@@ -117,6 +117,41 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
       stackTestEventCode = s.test_event_code ?? "";
     }
 
+    // Ensure short /api/w/{slug} URLs for inbound connections shown in UI.
+    if (connections.length > 0) {
+      const needsShort = [
+        "rdstation_conversas",
+        "evolution_api",
+        "uazapi",
+        "rdstation_crm",
+        "rdstation_mkt",
+        "hotmart",
+        "kiwify",
+        "eduzz",
+      ].includes(provider);
+      if (needsShort) {
+        // Only mint short URLs on page load. Do NOT re-register webhooks here —
+        // UazAPI advanced "add" would create duplicates on every refresh.
+        // Registration runs on save / "Reconfigurar webhook".
+        await Promise.all(
+          connections.map(async (row) => {
+            try {
+              await ensureShortWebhookUrl(row.id);
+            } catch {
+              /* keep page renderable */
+            }
+          })
+        );
+        const refreshed = await query<IntegrationConnectionRow>(
+          `select * from integration_connections
+           where provider = $1
+           order by created_at desc`,
+          [provider]
+        );
+        connections = refreshed.rows;
+      }
+    }
+
     if (isRd && connections.length > 0) {
       const ids = connections.map((x) => x.id);
       const maps = await query<StageMapRow>(
@@ -211,10 +246,33 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
           ? (meta.whatsapp_webhook as Record<string, unknown>)
           : null;
       const isWhatsapp =
-        provider === "evolution_api" || provider === "uazapi";
-      const ticketName = slugTicketName(
-        cfg.ticket_name || getProjectName() || "rt"
-      );
+        provider === "evolution_api" ||
+        provider === "uazapi" ||
+        provider === "rdstation_conversas";
+      const inboundBase = `${appUrl}/api/webhook/in/${c.id}`;
+      const metaWebhookUrl =
+        typeof whMeta?.url === "string" && whMeta.url ? whMeta.url : null;
+      const shortSlug =
+        typeof cfg.webhook_slug === "string" &&
+        /^[A-Za-z0-9_-]{8,32}$/.test(cfg.webhook_slug)
+          ? cfg.webhook_slug
+          : "";
+      let webhookUrl: string | null = null;
+      if (
+        (c.direction === "inbound" || c.direction === "both") &&
+        (mod.authType === "webhook_secret" ||
+          c.webhook_secret_cipher ||
+          isRd ||
+          isWhatsapp)
+      ) {
+        if (shortSlug) {
+          webhookUrl = `${appUrl}/api/w/${shortSlug}`;
+        } else if (metaWebhookUrl) {
+          webhookUrl = metaWebhookUrl;
+        } else {
+          webhookUrl = inboundBase;
+        }
+      }
       return {
         id: c.id,
         label: c.label,
@@ -225,19 +283,11 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
         config: cfg,
         oauthConnected: Boolean(c.access_token_cipher),
         needsReauth: meta.needs_reauth === true,
-        webhookUrl:
-          (c.direction === "inbound" || c.direction === "both") &&
-          (mod.authType === "webhook_secret" ||
-            c.webhook_secret_cipher ||
-            isRd ||
-            isWhatsapp)
-            ? `${appUrl}/api/webhook/in/${c.id}`
-            : null,
+        webhookUrl,
         webhookStatus:
           typeof whMeta?.status === "string" ? whMeta.status : null,
         webhookStatusMessage:
           typeof whMeta?.message === "string" ? whMeta.message : null,
-        ticketName,
       };
     })
   );
