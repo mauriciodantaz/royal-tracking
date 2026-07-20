@@ -134,7 +134,10 @@ export async function processNormalizedWhatsappMessage(opts: {
 
   const gaResolved = await resolveAndPersistGaClientId({
     stored: visitor?.ga_client_id,
+    storedSource: visitor?.ga_client_id_source,
+    storedBrowserGa: visitor?.browser_ga_client_id,
     trckUserId,
+    visitorCreatedAt: visitor?.created_at,
   });
 
   const phoneHash = hashPhone(msg.phone) ?? visitor?.phone_hash ?? null;
@@ -222,6 +225,7 @@ export async function processNormalizedWhatsappMessage(opts: {
     },
     gaClientId: gaResolved.clientId,
     gaClientIdSource: gaResolved.source,
+    gaIdentityMeta: gaResolved.meta,
     gaSessionId: visitor?.ga_session_id,
   });
 

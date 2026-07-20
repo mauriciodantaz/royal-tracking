@@ -231,7 +231,7 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
       keepalive: true,
-      credentials: "omit",
+      credentials: "include",
     }).then(function (res) {
       return res.json().catch(function () {
         return {};
@@ -242,7 +242,7 @@
   function getJson(path) {
     return fetch(ENDPOINT + path, {
       method: "GET",
-      credentials: "omit",
+      credentials: "include",
     }).then(function (res) {
       return res.json().catch(function () {
         return {};

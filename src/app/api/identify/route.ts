@@ -5,7 +5,7 @@ import { ensureDbReady } from "@/lib/db/boot";
 import { isUniqueViolation, queryOne } from "@/lib/db/pool";
 import type { VisitorRow } from "@/lib/db/types";
 import { rateLimit } from "@/lib/rate-limit/memory";
-import { resolveGaClientId } from "@/lib/tracking/ga-client-id";
+import { resolveGaIdentity } from "@/lib/tracking/ga-client-id";
 import { lookupGeo } from "@/lib/tracking/geo";
 import {
   hashEmail,
@@ -15,6 +15,10 @@ import {
   newTrckUserId,
 } from "@/lib/tracking/hash";
 import { getClientIp, getUserAgent } from "@/lib/tracking/request";
+import {
+  appendRtFpidCookie,
+  readRtFpidFromRequest,
+} from "@/lib/tracking/rt-fpid-cookie";
 import { identifySchema } from "@/lib/tracking/schemas";
 
 export const runtime = "nodejs";
@@ -64,19 +68,28 @@ export async function POST(request: NextRequest) {
 
   try {
     await ensureDbReady();
-    const existing = await queryOne<Pick<VisitorRow, "ga_client_id">>(
-      `select ga_client_id from visitors where trck_user_id = $1 limit 1`,
+    const existing = await queryOne<
+      Pick<
+        VisitorRow,
+        | "ga_client_id"
+        | "ga_client_id_source"
+        | "browser_ga_client_id"
+        | "created_at"
+      >
+    >(
+      `select ga_client_id, ga_client_id_source, browser_ga_client_id, created_at
+       from visitors where trck_user_id = $1 limit 1`,
       [trckUserId]
     );
-    const gaResolved = resolveGaClientId({
-      fromCookie: body.ga_client_id,
-      stored: existing?.ga_client_id,
+    const gaResolved = resolveGaIdentity({
+      fromBrowserGa: body.ga_client_id,
+      fromRtFpid: readRtFpidFromRequest(request),
+      storedClientId: existing?.ga_client_id,
+      storedSource: existing?.ga_client_id_source,
+      storedBrowserGa: existing?.browser_ga_client_id,
       trckUserId,
+      visitorCreatedAt: existing?.created_at ?? new Date(),
     });
-    // Cookie overwrites stored; synthetic fills when both missing.
-    // Pass null when reusing stored so coalesce keeps visitors.ga_client_id.
-    const gaClientIdForUpsert =
-      gaResolved.source === "visitor_stored" ? null : gaResolved.clientId;
 
     let data = await queryOne<
       Pick<
@@ -87,11 +100,16 @@ export async function POST(request: NextRequest) {
       `insert into visitors (
          trck_user_id, ticket_code, email, email_hash, phone_hash,
          first_name_hash, last_name_hash, city_hash, state_hash, country_hash,
-         external_id_hash, fbp, fbc, ga_client_id, ga_session_id, gclid, ttclid,
+         external_id_hash, fbp, fbc, ga_client_id, ga_client_id_source,
+         browser_ga_client_id, ga_client_id_created_at, ga_client_id_updated_at,
+         ga_session_id, gclid, ttclid,
          utm_source, utm_medium, utm_campaign, utm_term, utm_content,
          referrer, ip, user_agent, geo_country, geo_region, geo_city, pixel_id
        ) values (
-         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
+         case when $14::text is not null then now() else null end,
+         case when $14::text is not null then now() else null end,
+         $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31
        )
        on conflict (trck_user_id) do update set
          ticket_code = coalesce(visitors.ticket_code, excluded.ticket_code),
@@ -106,7 +124,13 @@ export async function POST(request: NextRequest) {
          external_id_hash = coalesce(excluded.external_id_hash, visitors.external_id_hash),
          fbp = coalesce(excluded.fbp, visitors.fbp),
          fbc = coalesce(excluded.fbc, visitors.fbc),
-         ga_client_id = coalesce(excluded.ga_client_id, visitors.ga_client_id),
+         ga_client_id = coalesce(visitors.ga_client_id, excluded.ga_client_id),
+         ga_client_id_source = coalesce(visitors.ga_client_id_source, excluded.ga_client_id_source),
+         browser_ga_client_id = coalesce(excluded.browser_ga_client_id, visitors.browser_ga_client_id),
+         ga_client_id_created_at = coalesce(visitors.ga_client_id_created_at, excluded.ga_client_id_created_at),
+         ga_client_id_updated_at = case
+           when excluded.ga_client_id is not null or excluded.browser_ga_client_id is not null
+           then now() else visitors.ga_client_id_updated_at end,
          ga_session_id = coalesce(excluded.ga_session_id, visitors.ga_session_id),
          gclid = coalesce(excluded.gclid, visitors.gclid),
          ttclid = coalesce(excluded.ttclid, visitors.ttclid),
@@ -138,7 +162,9 @@ export async function POST(request: NextRequest) {
         hashPii(trckUserId),
         body.fbp ?? null,
         body.fbc ?? null,
-        gaClientIdForUpsert,
+        gaResolved.clientId,
+        gaResolved.source === "none" ? null : gaResolved.source,
+        gaResolved.browserGaClientId,
         body.ga_session_id ?? null,
         body.gclid ?? null,
         body.ttclid ?? null,
@@ -175,7 +201,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return jsonCors(
+    const response = jsonCors(
       {
         ok: true,
         trck_user_id: data.trck_user_id,
@@ -186,6 +212,10 @@ export async function POST(request: NextRequest) {
       undefined,
       request
     );
+    if (gaResolved.writeCookie && gaResolved.clientId) {
+      appendRtFpidCookie(response, gaResolved.clientId);
+    }
+    return response;
   } catch (err) {
     if (isUniqueViolation(err)) {
       // rare race — still ok

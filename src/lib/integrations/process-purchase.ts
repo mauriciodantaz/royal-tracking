@@ -75,7 +75,10 @@ export async function processPurchaseEvent(opts: {
   const currency = purchase.currency || settings?.currency || "BRL";
   const gaResolved = await resolveAndPersistGaClientId({
     stored: visitor?.ga_client_id,
+    storedSource: visitor?.ga_client_id_source,
+    storedBrowserGa: visitor?.browser_ga_client_id,
     trckUserId,
+    visitorCreatedAt: visitor?.created_at,
   });
 
   const saved = await queryOne<PurchaseRow>(
@@ -164,6 +167,7 @@ export async function processPurchaseEvent(opts: {
     },
     gaClientId: gaResolved.clientId,
     gaClientIdSource: gaResolved.source,
+    gaIdentityMeta: gaResolved.meta,
     gaSessionId: visitor?.ga_session_id,
   });
 

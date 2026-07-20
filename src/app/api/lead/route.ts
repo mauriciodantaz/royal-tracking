@@ -14,7 +14,7 @@ import {
   clientWebFromBody,
   serverFlagsFromDispatch,
 } from "@/lib/tracking/channel";
-import { resolveGaClientId } from "@/lib/tracking/ga-client-id";
+import { resolveGaIdentity } from "@/lib/tracking/ga-client-id";
 import {
   hashEmail,
   hashPhone,
@@ -24,6 +24,10 @@ import {
   newTrckUserId,
 } from "@/lib/tracking/hash";
 import { getClientIp, getUserAgent } from "@/lib/tracking/request";
+import {
+  appendRtFpidCookie,
+  readRtFpidFromRequest,
+} from "@/lib/tracking/rt-fpid-cookie";
 import { leadSchema } from "@/lib/tracking/schemas";
 
 export const runtime = "nodejs";
@@ -166,25 +170,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existingVisitor = await queryOne<Pick<VisitorRow, "ga_client_id">>(
-      `select ga_client_id from visitors where trck_user_id = $1 limit 1`,
+    const existingVisitor = await queryOne<
+      Pick<
+        VisitorRow,
+        | "ga_client_id"
+        | "ga_client_id_source"
+        | "browser_ga_client_id"
+        | "created_at"
+      >
+    >(
+      `select ga_client_id, ga_client_id_source, browser_ga_client_id, created_at
+       from visitors where trck_user_id = $1 limit 1`,
       [trckUserId]
     );
-    const gaResolved = resolveGaClientId({
-      fromCookie: body.ga_client_id,
-      stored: existingVisitor?.ga_client_id,
+    const gaResolved = resolveGaIdentity({
+      fromBrowserGa: body.ga_client_id,
+      fromRtFpid: readRtFpidFromRequest(request),
+      storedClientId: existingVisitor?.ga_client_id,
+      storedSource: existingVisitor?.ga_client_id_source,
+      storedBrowserGa: existingVisitor?.browser_ga_client_id,
       trckUserId,
+      visitorCreatedAt: existingVisitor?.created_at ?? new Date(),
     });
-    const gaClientIdForUpsert =
-      gaResolved.source === "visitor_stored" ? null : gaResolved.clientId;
 
     await query(
       `insert into visitors (
          trck_user_id, ticket_code, email, email_hash, phone_hash, external_id_hash,
-         fbp, fbc, ga_client_id,
+         fbp, fbc, ga_client_id, ga_client_id_source, browser_ga_client_id,
+         ga_client_id_created_at, ga_client_id_updated_at,
          utm_source, utm_medium, utm_campaign, utm_term, utm_content,
          ip, user_agent
-       ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+       ) values (
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
+         case when $9::text is not null then now() else null end,
+         case when $9::text is not null then now() else null end,
+         $12,$13,$14,$15,$16,$17,$18
+       )
        on conflict (trck_user_id) do update set
          ticket_code = coalesce(visitors.ticket_code, excluded.ticket_code),
          email = coalesce(excluded.email, visitors.email),
@@ -192,7 +213,13 @@ export async function POST(request: NextRequest) {
          phone_hash = coalesce(excluded.phone_hash, visitors.phone_hash),
          fbp = coalesce(excluded.fbp, visitors.fbp),
          fbc = coalesce(excluded.fbc, visitors.fbc),
-         ga_client_id = coalesce(excluded.ga_client_id, visitors.ga_client_id),
+         ga_client_id = coalesce(visitors.ga_client_id, excluded.ga_client_id),
+         ga_client_id_source = coalesce(visitors.ga_client_id_source, excluded.ga_client_id_source),
+         browser_ga_client_id = coalesce(excluded.browser_ga_client_id, visitors.browser_ga_client_id),
+         ga_client_id_created_at = coalesce(visitors.ga_client_id_created_at, excluded.ga_client_id_created_at),
+         ga_client_id_updated_at = case
+           when excluded.ga_client_id is not null or excluded.browser_ga_client_id is not null
+           then now() else visitors.ga_client_id_updated_at end,
          utm_source = coalesce(excluded.utm_source, visitors.utm_source),
          utm_medium = coalesce(excluded.utm_medium, visitors.utm_medium),
          utm_campaign = coalesce(excluded.utm_campaign, visitors.utm_campaign),
@@ -210,7 +237,9 @@ export async function POST(request: NextRequest) {
         hashPii(trckUserId),
         body.fbp ?? null,
         body.fbc ?? null,
-        gaClientIdForUpsert,
+        gaResolved.clientId,
+        gaResolved.source === "none" ? null : gaResolved.source,
+        gaResolved.browserGaClientId,
         body.utm_source ?? null,
         body.utm_medium ?? null,
         body.utm_campaign ?? null,
@@ -365,6 +394,7 @@ export async function POST(request: NextRequest) {
       },
       gaClientId: gaResolved.clientId,
       gaClientIdSource: gaResolved.source,
+      gaIdentityMeta: gaResolved.meta,
       gaSessionId: visitor?.ga_session_id,
     });
 
@@ -408,7 +438,7 @@ export async function POST(request: NextRequest) {
       ]
     );
 
-    return jsonCors(
+    const response = jsonCors(
       {
         ok: true,
         lead_id: lead?.id ?? null,
@@ -430,6 +460,10 @@ export async function POST(request: NextRequest) {
       undefined,
       request
     );
+    if (gaResolved.writeCookie && gaResolved.clientId) {
+      appendRtFpidCookie(response, gaResolved.clientId);
+    }
+    return response;
   } catch (err) {
     return jsonCors(
       {

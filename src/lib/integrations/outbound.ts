@@ -15,7 +15,11 @@ import { META_GRAPH_BASE_URL } from "@/lib/meta/constants";
 import { ensureDbReady } from "@/lib/db/boot";
 import { queryOne } from "@/lib/db/pool";
 import { notifyIntegrationBroken } from "@/lib/mail/alerts";
-import type { GaClientIdSource } from "@/lib/tracking/ga-client-id";
+import {
+  maskGaClientId,
+  type GaClientIdSource,
+  type GaIdentityMeta,
+} from "@/lib/tracking/ga-client-id";
 
 export type OutboundEventInput = {
   eventId: string;
@@ -25,6 +29,7 @@ export type OutboundEventInput = {
   customData?: MetaCustomData;
   gaClientId?: string | null;
   gaClientIdSource?: GaClientIdSource | null;
+  gaIdentityMeta?: GaIdentityMeta | null;
   gaSessionId?: string | null;
   debug?: boolean;
 };
@@ -40,6 +45,26 @@ export type OutboundResult = {
   /** How GA4 client_id was resolved (GA4 only). */
   clientIdSource?: GaClientIdSource;
 };
+
+function gaIdentityLogFields(
+  input: OutboundEventInput
+): Record<string, unknown> {
+  const meta = input.gaIdentityMeta;
+  const source = input.gaClientIdSource ?? meta?.ga_client_id_source ?? null;
+  return {
+    client_id_source: source,
+    ga_client_id_source: source,
+    ga_client_id_resolution:
+      meta?.ga_client_id_resolution ?? source,
+    ga_client_id_persisted: meta?.ga_client_id_persisted ?? false,
+    ga_client_id_cookie_written: meta?.ga_client_id_cookie_written ?? false,
+    browser_ga_client_id_present:
+      meta?.browser_ga_client_id_present ?? false,
+    ga_identity_mismatch: meta?.ga_identity_mismatch ?? false,
+    ga_client_id_mask:
+      meta?.ga_client_id_mask ?? maskGaClientId(input.gaClientId),
+  };
+}
 
 async function alertIfError(
   result: Pick<OutboundResult, "ok" | "connectionId" | "provider" | "error">
@@ -162,7 +187,9 @@ export async function sendToGa4Connection(
   const measurementId =
     configString(conn, "measurement_id") ?? conn.account_external_id ?? "";
   const secret = await decryptAccessToken(conn);
-  const clientIdSource = input.gaClientIdSource ?? undefined;
+  const clientIdSource =
+    input.gaClientIdSource ?? input.gaIdentityMeta?.ga_client_id_source;
+  const identityLog = gaIdentityLogFields(input);
 
   if (!input.gaClientId) {
     const result: OutboundResult = {
@@ -182,7 +209,7 @@ export async function sendToGa4Connection(
       destEventName: input.eventName,
       status: "skipped",
       error: result.error,
-      requestPayload: { client_id_source: result.clientIdSource },
+      requestPayload: identityLog,
     });
     return result;
   }
@@ -211,7 +238,7 @@ export async function sendToGa4Connection(
   };
   const loggedPayload = {
     ...payload,
-    client_id_source: clientIdSource ?? null,
+    ...identityLog,
   };
 
   if (!measurementId || !secret) {

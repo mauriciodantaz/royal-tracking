@@ -13,8 +13,12 @@ import {
   serverFlagsFromDispatch,
 } from "@/lib/tracking/channel";
 import { newEventId } from "@/lib/tracking/hash";
-import { resolveAndPersistGaClientId } from "@/lib/tracking/persist-ga-client-id";
+import { resolveAndPersistGaIdentity } from "@/lib/tracking/persist-ga-client-id";
 import { getClientIp, getUserAgent } from "@/lib/tracking/request";
+import {
+  appendRtFpidCookie,
+  readRtFpidFromRequest,
+} from "@/lib/tracking/rt-fpid-cookie";
 import { eventSchema } from "@/lib/tracking/schemas";
 
 export const runtime = "nodejs";
@@ -134,10 +138,14 @@ export async function POST(request: NextRequest) {
           }
         : undefined;
 
-    const gaResolved = await resolveAndPersistGaClientId({
-      fromCookie: body.ga_client_id,
-      stored: visitor?.ga_client_id,
+    const gaResolved = await resolveAndPersistGaIdentity({
+      fromBrowserGa: body.ga_client_id,
+      fromRtFpid: readRtFpidFromRequest(request),
+      storedClientId: visitor?.ga_client_id,
+      storedSource: visitor?.ga_client_id_source,
+      storedBrowserGa: visitor?.browser_ga_client_id,
       trckUserId: body.trck_user_id,
+      visitorCreatedAt: visitor?.created_at,
     });
 
     const dispatch = await dispatchEvent({
@@ -165,6 +173,7 @@ export async function POST(request: NextRequest) {
       customData,
       gaClientId: gaResolved.clientId,
       gaClientIdSource: gaResolved.source,
+      gaIdentityMeta: gaResolved.meta,
       gaSessionId: visitor?.ga_session_id,
     });
 
@@ -208,7 +217,7 @@ export async function POST(request: NextRequest) {
       ]
     );
 
-    return jsonCors(
+    const response = jsonCors(
       {
         ok: true,
         event_id: eventId,
@@ -227,6 +236,10 @@ export async function POST(request: NextRequest) {
       undefined,
       request
     );
+    if (gaResolved.writeCookie && gaResolved.clientId) {
+      appendRtFpidCookie(response, gaResolved.clientId);
+    }
+    return response;
   } catch (err) {
     return jsonCors(
       {
