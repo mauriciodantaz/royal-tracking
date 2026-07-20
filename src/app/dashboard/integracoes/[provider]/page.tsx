@@ -17,6 +17,7 @@ import {
 import { ensureShortWebhookUrl } from "@/lib/integrations/webhook-slug";
 import { metadataRecord } from "@/lib/rd/credentials";
 import { MKT_LIFECYCLE_SLOTS } from "@/lib/rd/mkt";
+import { getAllowedEventDomains } from "@/lib/tracking/allowed-origins";
 
 export const dynamic = "force-dynamic";
 
@@ -319,6 +320,7 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
     <ProviderDetailClient
       module={mod}
       appUrl={appUrl}
+      allowedEventDomains={getAllowedEventDomains()}
       connections={connectionsForClient}
       mappings={mappings.map((m) => ({
         id: m.id,

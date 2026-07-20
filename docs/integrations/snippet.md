@@ -23,7 +23,7 @@ No `<head>` (ou antes de `</body>`) de todas as páginas:
 
 Substitua `SEU_DOMINIO` pelo domínio desta instalação (ex.: `tracking.royalgrowth.com.br`).
 
-O snippet resolve o endpoint automaticamente pela origem do `src` do script. Só use override se o host da API for outro:
+O snippet resolve o endpoint automaticamente pela origem do `src` do script. Se não conseguir resolver (e sem `TRCK_ENDPOINT`), ele **não envia** eventos (fail-closed). Só use override se o host da API for outro:
 
 ```html
 <script>window.TRCK_ENDPOINT="https://SEU_DOMINIO";</script>
@@ -31,7 +31,7 @@ O snippet resolve o endpoint automaticamente pela origem do `src` do script. Só
 
 ## Allowlist de origem
 
-Se `ALLOWED_EVENT_DOMAINS` estiver definido no Portainer (ex.: `cliente.com.br`), as APIs públicas só aceitam `Origin`/`Referer` desse apex e subdomínios. Tem que ser o **apex do site onde o snippet roda**, não o host do painel.
+Em produção, `ALLOWED_EVENT_DOMAINS` é **obrigatório** (boot falha se faltar ou for placeholder). Ex.: `cliente.com.br` — as APIs públicas só aceitam `Origin`/`Referer` desse apex e subdomínios. Tem que ser o **apex do site onde o snippet roda**, não o host do painel.
 
 Endpoints: `/api/identify`, `/api/event`, `/api/lead`, `/api/ga4/ids`, `/api/meta/ids`, `/api/tracking/config`.
 

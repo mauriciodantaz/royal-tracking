@@ -2,7 +2,7 @@
 
 Royal Tracking é **single-tenant**: cada marca/apex sobe sua própria stack (app + Postgres + env). Não misture várias marcas no mesmo banco.
 
-O host do painel/snippet costuma ser um subdomínio (`tracking.…`); a allowlist de eventos usa o **apex** da marca (`ALLOWED_EVENT_DOMAINS`), aceitando todos os subdomínios desse apex.
+O host do painel/snippet costuma ser um subdomínio (`tracking.…`); a allowlist de eventos usa o **apex** do site (`ALLOWED_EVENT_DOMAINS`), aceitando todos os subdomínios desse apex. Em produção a variável é obrigatória (boot falha se faltar ou for placeholder).
 
 ## Modelo
 

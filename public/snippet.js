@@ -8,7 +8,7 @@
  * Opcional (antes do script) — só se o endpoint for outro host:
  *   <script>window.TRCK_ENDPOINT="https://SEU_DOMINIO";</script>
  *
- * Endpoint: TRCK_ENDPOINT → origem do src do script → (legado) tracking.royalgrowth.com.br
+ * Endpoint: TRCK_ENDPOINT → origem do src do script (fail-closed se nenhum).
  * Fluxo: gera um event_id → dispara Pixel/gtag (web) + POST API (server) em paralelo.
  * Compras via webhook de marketplace são só server (sem pixel neste snippet).
  */
@@ -17,7 +17,6 @@
 
   // Evita listener/PageView duplicados se o script for injetado 2x (GTM + tema, etc.).
   if (window.__TRCK_SNIPPET_LOADED) return;
-  window.__TRCK_SNIPPET_LOADED = true;
 
   function resolveEndpoint() {
     if (window.TRCK_ENDPOINT) {
@@ -40,11 +39,19 @@
         return new URL(el.src).origin;
       } catch (e) {}
     }
-    // Legado: installs Royal Growth sem TRCK_ENDPOINT e sem src resolvível.
-    return "https://tracking.royalgrowth.com.br";
+    return "";
   }
 
   var ENDPOINT = resolveEndpoint();
+  if (!ENDPOINT) {
+    console.error(
+      "[Royal Tracking] Não foi possível resolver o endpoint. " +
+        "Carregue via <script src=\"https://SEU_DOMINIO/snippet.js\"> " +
+        "ou defina window.TRCK_ENDPOINT antes do script."
+    );
+    return;
+  }
+  window.__TRCK_SNIPPET_LOADED = true;
   var STORAGE_KEY = "trck_user_id";
   var TICKET_CODE_KEY = "trck_ticket_code";
   var GCLID_KEY = "trck_gclid";
