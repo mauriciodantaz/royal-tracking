@@ -12,8 +12,10 @@ import {
   classifyChannel,
   serverFlagsFromDispatch,
 } from "@/lib/tracking/channel";
+import type { GaClientIdSource } from "@/lib/tracking/ga-client-id";
 import { hashEmail, hashPhone, hashPii, sha256 } from "@/lib/tracking/hash";
 import { matchVisitor } from "@/lib/tracking/match";
+import { resolveAndPersistGaClientId } from "@/lib/tracking/persist-ga-client-id";
 import {
   extractContactEmailPhone,
   getCrmContact,
@@ -156,6 +158,7 @@ async function dispatchMapped(opts: {
   userData: Parameters<typeof sendToConnection>[1]["userData"];
   customData?: Parameters<typeof sendToConnection>[1]["customData"];
   gaClientId?: string | null;
+  gaClientIdSource?: GaClientIdSource | null;
   gaSessionId?: string | null;
   eventSourceUrl?: string | null;
 }): Promise<OutboundResult[]> {
@@ -174,6 +177,7 @@ async function dispatchMapped(opts: {
           userData: opts.userData,
           customData: opts.customData,
           gaClientId: opts.gaClientId,
+          gaClientIdSource: opts.gaClientIdSource,
           gaSessionId: opts.gaSessionId,
         })
       );
@@ -193,6 +197,7 @@ async function dispatchMapped(opts: {
           userData: opts.userData,
           customData: opts.customData,
           gaClientId: opts.gaClientId,
+          gaClientIdSource: opts.gaClientIdSource,
           gaSessionId: opts.gaSessionId,
         })
       );
@@ -374,6 +379,10 @@ async function processCrmDealWebhook(
   const match = await matchVisitor({ email, phone });
   const visitor = match.visitor;
   const trckUserId = visitor?.trck_user_id ?? null;
+  const gaResolved = await resolveAndPersistGaClientId({
+    stored: visitor?.ga_client_id,
+    trckUserId,
+  });
   const userData: Parameters<typeof sendToConnection>[1]["userData"] = {
     email: email ?? visitor?.email,
     emailHash: hashEmail(email) ?? visitor?.email_hash,
@@ -426,7 +435,8 @@ async function processCrmDealWebhook(
             value != null
               ? { value, currency: "BRL", content_type: "product" }
               : undefined,
-          gaClientId: visitor?.ga_client_id,
+          gaClientId: gaResolved.clientId,
+          gaClientIdSource: gaResolved.source,
           gaSessionId: visitor?.ga_session_id,
         });
         await persistEventLog({
@@ -471,7 +481,8 @@ async function processCrmDealWebhook(
           customData: includeValue
             ? { value, currency: "BRL", content_type: "product" }
             : undefined,
-          gaClientId: visitor?.ga_client_id,
+          gaClientId: gaResolved.clientId,
+          gaClientIdSource: gaResolved.source,
           gaSessionId: visitor?.ga_session_id,
         });
         await persistEventLog({
@@ -573,6 +584,10 @@ async function processMktWebhook(
   });
   const visitor = match.visitor;
   const trckUserId = visitor?.trck_user_id ?? null;
+  const gaResolved = await resolveAndPersistGaClientId({
+    stored: visitor?.ga_client_id,
+    trckUserId,
+  });
   const eventName = map.meta_event_name || map.ga4_event_name || "Lead";
 
   const results = await dispatchMapped({
@@ -599,7 +614,8 @@ async function processMktWebhook(
       clientIpAddress: visitor?.ip,
       clientUserAgent: visitor?.user_agent,
     },
-    gaClientId: visitor?.ga_client_id,
+    gaClientId: gaResolved.clientId,
+    gaClientIdSource: gaResolved.source,
     gaSessionId: visitor?.ga_session_id,
   });
 

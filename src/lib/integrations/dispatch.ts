@@ -7,6 +7,7 @@ import {
   type OutboundResult,
 } from "@/lib/integrations/outbound";
 import type { MetaCustomData, MetaUserData } from "@/lib/meta/capi";
+import type { GaClientIdSource } from "@/lib/tracking/ga-client-id";
 
 export type DispatchInput = {
   sourceProvider: string;
@@ -17,6 +18,7 @@ export type DispatchInput = {
   userData: MetaUserData;
   customData?: MetaCustomData;
   gaClientId?: string | null;
+  gaClientIdSource?: GaClientIdSource | null;
   gaSessionId?: string | null;
   debug?: boolean;
 };
@@ -47,6 +49,7 @@ export async function dispatchEvent(
       userData: input.userData,
       customData: input.customData,
       gaClientId: input.gaClientId,
+      gaClientIdSource: input.gaClientIdSource,
       gaSessionId: input.gaSessionId,
       debug: input.debug,
     };

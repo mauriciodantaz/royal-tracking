@@ -9,6 +9,7 @@ import {
   serverFlagsFromDispatch,
 } from "@/lib/tracking/channel";
 import { hashPhone, hashPii, newEventId } from "@/lib/tracking/hash";
+import { resolveAndPersistGaClientId } from "@/lib/tracking/persist-ga-client-id";
 import { matchVisitorFromTicket } from "@/lib/whatsapp/match-ticket";
 import {
   normalizeWhatsappPayload,
@@ -131,6 +132,11 @@ export async function processNormalizedWhatsappMessage(opts: {
     await enrichVisitorPhone(visitor, msg.phone, msg.pushName);
   }
 
+  const gaResolved = await resolveAndPersistGaClientId({
+    stored: visitor?.ga_client_id,
+    trckUserId,
+  });
+
   const phoneHash = hashPhone(msg.phone) ?? visitor?.phone_hash ?? null;
   const fields = {
     ticket_name: ticket.name,
@@ -172,7 +178,7 @@ export async function processNormalizedWhatsappMessage(opts: {
         visitor?.utm_content ?? null,
         visitor?.fbp ?? null,
         visitor?.fbc ?? null,
-        visitor?.ga_client_id ?? null,
+        gaResolved.clientId,
         conn.provider,
         conn.id,
         JSON.stringify(opts.raw),
@@ -214,7 +220,8 @@ export async function processNormalizedWhatsappMessage(opts: {
       clientIpAddress: visitor?.ip,
       clientUserAgent: visitor?.user_agent,
     },
-    gaClientId: visitor?.ga_client_id,
+    gaClientId: gaResolved.clientId,
+    gaClientIdSource: gaResolved.source,
     gaSessionId: visitor?.ga_session_id,
   });
 

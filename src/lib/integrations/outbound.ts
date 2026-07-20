@@ -15,6 +15,7 @@ import { META_GRAPH_BASE_URL } from "@/lib/meta/constants";
 import { ensureDbReady } from "@/lib/db/boot";
 import { queryOne } from "@/lib/db/pool";
 import { notifyIntegrationBroken } from "@/lib/mail/alerts";
+import type { GaClientIdSource } from "@/lib/tracking/ga-client-id";
 
 export type OutboundEventInput = {
   eventId: string;
@@ -23,6 +24,7 @@ export type OutboundEventInput = {
   userData: MetaUserData;
   customData?: MetaCustomData;
   gaClientId?: string | null;
+  gaClientIdSource?: GaClientIdSource | null;
   gaSessionId?: string | null;
   debug?: boolean;
 };
@@ -35,6 +37,8 @@ export type OutboundResult = {
   payload: unknown;
   response: unknown;
   error?: string;
+  /** How GA4 client_id was resolved (GA4 only). */
+  clientIdSource?: GaClientIdSource;
 };
 
 async function alertIfError(
@@ -158,6 +162,7 @@ export async function sendToGa4Connection(
   const measurementId =
     configString(conn, "measurement_id") ?? conn.account_external_id ?? "";
   const secret = await decryptAccessToken(conn);
+  const clientIdSource = input.gaClientIdSource ?? undefined;
 
   if (!input.gaClientId) {
     const result: OutboundResult = {
@@ -168,6 +173,7 @@ export async function sendToGa4Connection(
       payload: null,
       response: null,
       error: "missing_ga_client_id",
+      clientIdSource: clientIdSource ?? "none",
     };
     await logDelivery({
       eventId: input.eventId,
@@ -176,6 +182,7 @@ export async function sendToGa4Connection(
       destEventName: input.eventName,
       status: "skipped",
       error: result.error,
+      requestPayload: { client_id_source: result.clientIdSource },
     });
     return result;
   }
@@ -197,9 +204,14 @@ export async function sendToGa4Connection(
     eventParams.transaction_id = input.eventId;
   }
 
+  // Body sent to Google MP (no extra fields — Google may reject unknowns).
   const payload = {
     client_id: input.gaClientId,
     events: [{ name: input.eventName, params: eventParams }],
+  };
+  const loggedPayload = {
+    ...payload,
+    client_id_source: clientIdSource ?? null,
   };
 
   if (!measurementId || !secret) {
@@ -208,9 +220,10 @@ export async function sendToGa4Connection(
       provider: "ga4",
       ok: false,
       status: 0,
-      payload,
+      payload: loggedPayload,
       response: null,
       error: !measurementId ? "missing_measurement_id" : "missing_api_secret",
+      clientIdSource,
     };
     await logDelivery({
       eventId: input.eventId,
@@ -218,7 +231,7 @@ export async function sendToGa4Connection(
       provider: "ga4",
       destEventName: input.eventName,
       status: "error",
-      requestPayload: payload,
+      requestPayload: loggedPayload,
       error: result.error,
     });
     return result;
@@ -247,9 +260,10 @@ export async function sendToGa4Connection(
       provider: "ga4",
       ok: res.ok,
       status: res.status,
-      payload,
+      payload: loggedPayload,
       response: responseBody,
       error: res.ok ? undefined : "ga4_http_error",
+      clientIdSource,
     };
     await logDelivery({
       eventId: input.eventId,
@@ -258,7 +272,7 @@ export async function sendToGa4Connection(
       destEventName: input.eventName,
       status: res.ok ? "ok" : "error",
       httpStatus: res.status,
-      requestPayload: payload,
+      requestPayload: loggedPayload,
       responsePayload: responseBody,
       error: result.error,
     });
@@ -271,7 +285,7 @@ export async function sendToGa4Connection(
       provider: "ga4",
       destEventName: input.eventName,
       status: "error",
-      requestPayload: payload,
+      requestPayload: loggedPayload,
       error,
     });
     return {
@@ -279,9 +293,10 @@ export async function sendToGa4Connection(
       provider: "ga4",
       ok: false,
       status: 0,
-      payload,
+      payload: loggedPayload,
       response: null,
       error,
+      clientIdSource,
     };
   }
 }

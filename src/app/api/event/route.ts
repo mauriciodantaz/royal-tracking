@@ -13,6 +13,7 @@ import {
   serverFlagsFromDispatch,
 } from "@/lib/tracking/channel";
 import { newEventId } from "@/lib/tracking/hash";
+import { resolveAndPersistGaClientId } from "@/lib/tracking/persist-ga-client-id";
 import { getClientIp, getUserAgent } from "@/lib/tracking/request";
 import { eventSchema } from "@/lib/tracking/schemas";
 
@@ -133,6 +134,12 @@ export async function POST(request: NextRequest) {
           }
         : undefined;
 
+    const gaResolved = await resolveAndPersistGaClientId({
+      fromCookie: body.ga_client_id,
+      stored: visitor?.ga_client_id,
+      trckUserId: body.trck_user_id,
+    });
+
     const dispatch = await dispatchEvent({
       sourceProvider: "snippet",
       sourceConnectionId: snippet?.id,
@@ -156,7 +163,8 @@ export async function POST(request: NextRequest) {
         clientUserAgent: visitor?.user_agent ?? userAgent,
       },
       customData,
-      gaClientId: visitor?.ga_client_id,
+      gaClientId: gaResolved.clientId,
+      gaClientIdSource: gaResolved.source,
       gaSessionId: visitor?.ga_session_id,
     });
 

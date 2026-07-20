@@ -46,6 +46,7 @@ export const eventSchema = z.object({
   utm_campaign: z.string().max(200).optional(),
   utm_term: z.string().max(200).optional(),
   utm_content: z.string().max(200).optional(),
+  ga_client_id: z.string().max(128).optional(),
   client_web: clientWebSchema,
 });
 

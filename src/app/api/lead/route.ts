@@ -14,6 +14,7 @@ import {
   clientWebFromBody,
   serverFlagsFromDispatch,
 } from "@/lib/tracking/channel";
+import { resolveGaClientId } from "@/lib/tracking/ga-client-id";
 import {
   hashEmail,
   hashPhone,
@@ -165,6 +166,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const existingVisitor = await queryOne<Pick<VisitorRow, "ga_client_id">>(
+      `select ga_client_id from visitors where trck_user_id = $1 limit 1`,
+      [trckUserId]
+    );
+    const gaResolved = resolveGaClientId({
+      fromCookie: body.ga_client_id,
+      stored: existingVisitor?.ga_client_id,
+      trckUserId,
+    });
+    const gaClientIdForUpsert =
+      gaResolved.source === "visitor_stored" ? null : gaResolved.clientId;
+
     await query(
       `insert into visitors (
          trck_user_id, ticket_code, email, email_hash, phone_hash, external_id_hash,
@@ -197,7 +210,7 @@ export async function POST(request: NextRequest) {
         hashPii(trckUserId),
         body.fbp ?? null,
         body.fbc ?? null,
-        body.ga_client_id ?? null,
+        gaClientIdForUpsert,
         body.utm_source ?? null,
         body.utm_medium ?? null,
         body.utm_campaign ?? null,
@@ -323,7 +336,7 @@ export async function POST(request: NextRequest) {
         body.utm_content ?? visitor?.utm_content ?? null,
         body.fbp ?? visitor?.fbp ?? null,
         body.fbc ?? visitor?.fbc ?? null,
-        body.ga_client_id ?? visitor?.ga_client_id ?? null,
+        gaResolved.clientId,
         "snippet",
         snippet?.id ?? null,
         body.consent ?? null,
@@ -350,7 +363,8 @@ export async function POST(request: NextRequest) {
         clientIpAddress: visitor?.ip ?? ip,
         clientUserAgent: visitor?.user_agent ?? userAgent,
       },
-      gaClientId: body.ga_client_id ?? visitor?.ga_client_id,
+      gaClientId: gaResolved.clientId,
+      gaClientIdSource: gaResolved.source,
       gaSessionId: visitor?.ga_session_id,
     });
 

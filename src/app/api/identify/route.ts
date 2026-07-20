@@ -5,6 +5,7 @@ import { ensureDbReady } from "@/lib/db/boot";
 import { isUniqueViolation, queryOne } from "@/lib/db/pool";
 import type { VisitorRow } from "@/lib/db/types";
 import { rateLimit } from "@/lib/rate-limit/memory";
+import { resolveGaClientId } from "@/lib/tracking/ga-client-id";
 import { lookupGeo } from "@/lib/tracking/geo";
 import {
   hashEmail,
@@ -63,6 +64,20 @@ export async function POST(request: NextRequest) {
 
   try {
     await ensureDbReady();
+    const existing = await queryOne<Pick<VisitorRow, "ga_client_id">>(
+      `select ga_client_id from visitors where trck_user_id = $1 limit 1`,
+      [trckUserId]
+    );
+    const gaResolved = resolveGaClientId({
+      fromCookie: body.ga_client_id,
+      stored: existing?.ga_client_id,
+      trckUserId,
+    });
+    // Cookie overwrites stored; synthetic fills when both missing.
+    // Pass null when reusing stored so coalesce keeps visitors.ga_client_id.
+    const gaClientIdForUpsert =
+      gaResolved.source === "visitor_stored" ? null : gaResolved.clientId;
+
     let data = await queryOne<
       Pick<
         VisitorRow,
@@ -123,7 +138,7 @@ export async function POST(request: NextRequest) {
         hashPii(trckUserId),
         body.fbp ?? null,
         body.fbc ?? null,
-        body.ga_client_id ?? null,
+        gaClientIdForUpsert,
         body.ga_session_id ?? null,
         body.gclid ?? null,
         body.ttclid ?? null,

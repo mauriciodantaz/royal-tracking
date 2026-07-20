@@ -41,12 +41,31 @@ Use estas credenciais para o modo **web + server**: o snippet carrega `gtag` no 
 
 O snippet busca os IDs ativos em `/api/ga4/ids` (sem secrets) para carregar o `gtag` no site do cliente.
 
+## Resolução de `client_id` (Measurement Protocol)
+
+O MP exige `client_id`. A ordem no server é:
+
+1. **Cookie `_ga`** enviado pelo snippet (`ga_client_id`) — formato `XXXX.YYYY` (prefixo `GA1.1.` é removido se vier completo).
+2. **`visitors.ga_client_id`** já persistido.
+3. **Sintético estável** a partir de `trck_user_id` (hash → `{uint32}.{uint32}`), persistido no visitante para reuso.
+4. Sem `trck_user_id` e sem cookie/stored → skip (`missing_ga_client_id`).
+
+No detalhe do evento / delivery log, o campo `client_id_source` indica a origem: `cookie` | `visitor_stored` | `synthetic_trck` | `none`.
+
+### Adblock / cookieless
+
+Se o Adblock bloquear o `gtag.js`, o cookie `_ga` não nasce. O server **ainda envia** o evento ao GA4 com o `client_id` sintético (mesmo `trck_user_id` ⇒ mesmo ID). Isso recupera volume; o stitching com uma sessão gtag futura no mesmo browser pode ficar fraco se depois nascer um `_ga` diferente — quando o cookie chegar, o identify/lead **prefere o cookie** e atualiza o visitante.
+
+O snippet só marca `client_web.ga4` / canal web GA4 quando o script real do gtag carregou (stub sozinho não conta).
+
 ## Como validar
 
 1. No site com o snippet, abra a página (PageView).
 2. No GA4: **Admin → DebugView** (com debug ativo) ou Relatórios em tempo real.
 3. No Royal Tracking: **Eventos** — confira `event_id` e canal (web+server).
-4. Payload do MP deve incluir `params.event_id`.
+4. Payload do MP deve incluir `params.event_id` e `client_id`; no detalhe, `client_id_source`.
+5. Com Adblock (sem `_ga`): segundo PageView deve reutilizar o mesmo `client_id` (`synthetic_trck`).
+6. Sem Adblock: `client_id_source` deve ser `cookie`.
 
 ## Links oficiais
 

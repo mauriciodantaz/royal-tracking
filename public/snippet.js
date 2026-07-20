@@ -31,6 +31,7 @@
 
   var metaPixelIds = [];
   var ga4MeasurementIds = [];
+  var ga4ScriptOk = false;
   var tagsReady = null;
   var ticketCode = null;
 
@@ -368,15 +369,20 @@
             "https://www.googletagmanager.com/gtag/js?id=" +
               encodeURIComponent(ga4MeasurementIds[0])
           ).then(function (ok) {
-            if (!ok) return false;
+            if (!ok) {
+              ga4ScriptOk = false;
+              return false;
+            }
             try {
               for (var j = 0; j < ga4MeasurementIds.length; j++) {
                 window.gtag("config", ga4MeasurementIds[j], {
                   send_page_view: false,
                 });
               }
+              ga4ScriptOk = true;
               return true;
             } catch (e) {
+              ga4ScriptOk = false;
               return false;
             }
           })
@@ -418,7 +424,11 @@
   }
 
   function trackGa4(name, eventId, params) {
-    if (!ga4MeasurementIds.length || typeof window.gtag !== "function") {
+    if (
+      !ga4ScriptOk ||
+      !ga4MeasurementIds.length ||
+      typeof window.gtag !== "function"
+    ) {
       return false;
     }
     try {
@@ -466,12 +476,14 @@
           event_name: name,
           event_id: eventId,
           event_source_url: window.location.href,
+          ga_client_id: getGaClientId(),
           client_web: web,
         },
         extra
       );
       body.event_id = eventId;
       body.client_web = web;
+      if (!body.ga_client_id) body.ga_client_id = getGaClientId();
       return post("/api/event", body);
     });
   }
@@ -571,6 +583,7 @@
           utm_campaign: payload.utm_campaign,
           utm_term: payload.utm_term,
           utm_content: payload.utm_content,
+          ga_client_id: getGaClientId(),
           client_web: web,
         }).then(function () {
           return id;
