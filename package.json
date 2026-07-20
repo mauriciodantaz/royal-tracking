@@ -1,6 +1,6 @@
 {
   "name": "royal-tracking",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:whatsapp-normalize": "npx --yes tsx --test src/lib/whatsapp/normalize.rd-conversas.test.ts src/lib/whatsapp/ticket.test.ts",
-    "test:unit": "npx --yes tsx --test src/lib/whatsapp/normalize.rd-conversas.test.ts src/lib/whatsapp/ticket.test.ts src/lib/tracking/ga-client-id.test.ts"
+    "test:unit": "npx --yes tsx --test src/lib/whatsapp/normalize.rd-conversas.test.ts src/lib/whatsapp/ticket.test.ts src/lib/tracking/ga-client-id.test.ts src/lib/env/assert-runtime.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
