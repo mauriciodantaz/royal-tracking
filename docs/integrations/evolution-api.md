@@ -19,11 +19,19 @@ Cada **instância** Evolution vira uma connection no Royal Tracking. A stack reg
 
 Você pode cadastrar **várias** connections (uma por instância).
 
-## O que acontece ao salvar
+## Webhook (um por instância)
+
+A Evolution só permite **um** webhook por instância. Diferente da UazAPI, não dá para “adicionar o nosso ao lado” do seu.
+
+Comportamento do Royal Tracking:
 
 1. Validamos o acesso (`/instance/connectionState/{instance}`).
 2. Geramos um webhook secret + slug curto.
-3. Chamamos `POST /webhook/set/{instance}` apontando para:
+3. Consultamos `GET /webhook/find/{instance}`:
+   - se **não houver** URL (ou estiver desativado) → configuramos a nossa;
+   - se a URL **já for** a do Royal Tracking → só atualizamos (token/eventos);
+   - se houver **outra URL** (CRM, n8n, etc.) → **não sobrescrevemos**. A connection fica com webhook pendente e a mensagem pede para usar outra instância ou liberar o slot.
+4. Quando configuramos, usamos `POST /webhook/set/{instance}` apontando para:
 
 ```txt
 https://SEU_DOMINIO/api/w/{slug}
@@ -31,7 +39,9 @@ https://SEU_DOMINIO/api/w/{slug}
 
 Evento: `MESSAGES_UPSERT`. Header `x-webhook-token` também é enviado.
 
-Se a Evolution recusar, a connection **fica salva** com status de webhook pendente — use **Reconfigurar webhook**.
+Ao **excluir** a connection no Royal Tracking, se o webhook da instância ainda apontar para a nossa URL, desativamos (`enabled: false`). Webhooks de terceiros não são tocados.
+
+Se a Evolution recusar ou o slot estiver ocupado, a connection **fica salva** com status pendente — use **Reconfigurar webhook** depois de liberar a instância.
 
 ## Filtros
 

@@ -23,9 +23,12 @@ Várias connections = várias instâncias.
 1. Validamos o token (`/instance/status` ou `/status`).
 2. Geramos um webhook secret + slug curto.
 3. Registramos um webhook **próprio** na UazAPI em **modo avançado**:
-   - primeira vez: `action: "add"` (cria um webhook novo; **não** sobrescreve o webhook que você já tinha)
-   - reconfigurar: `action: "update"` só no ID que o Royal Tracking guardou
+   - se já existir webhook com a mesma URL do RT → `action: "update"` nesse ID
+   - senão → `action: "add"` (cria um novo; **não** sobrescreve outros webhooks da instância)
+   - após criar, se a resposta não trouxer o ID, consultamos `GET /webhook` e localizamos pela URL
+   - remove duplicatas acidentais com a mesma URL do RT
 4. Guardamos o `id` do webhook na connection (`metadata.whatsapp_webhook.uazapi_webhook_id`).
+5. Abrir a página da integração **não** re-registra o webhook (só gera a URL curta).
 
 Eventos: `messages`. Exclusões: `wasSentByApi`, `isGroupYes`.
 

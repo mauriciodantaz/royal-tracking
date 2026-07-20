@@ -17,7 +17,6 @@ import {
 import { ensureShortWebhookUrl } from "@/lib/integrations/webhook-slug";
 import { metadataRecord } from "@/lib/rd/credentials";
 import { MKT_LIFECYCLE_SLOTS } from "@/lib/rd/mkt";
-import { ensureWhatsappWebhook } from "@/lib/whatsapp/register-webhook";
 
 export const dynamic = "force-dynamic";
 
@@ -131,18 +130,13 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
         "eduzz",
       ].includes(provider);
       if (needsShort) {
+        // Only mint short URLs on page load. Do NOT re-register webhooks here —
+        // UazAPI advanced "add" would create duplicates on every refresh.
+        // Registration runs on save / "Reconfigurar webhook".
         await Promise.all(
           connections.map(async (row) => {
             try {
-              if (
-                provider === "evolution_api" ||
-                provider === "uazapi" ||
-                provider === "rdstation_conversas"
-              ) {
-                await ensureWhatsappWebhook(row.id);
-              } else {
-                await ensureShortWebhookUrl(row.id);
-              }
+              await ensureShortWebhookUrl(row.id);
             } catch {
               /* keep page renderable */
             }

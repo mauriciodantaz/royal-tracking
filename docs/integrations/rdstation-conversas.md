@@ -33,6 +33,15 @@ https://SEU_DOMINIO/api/w/{slug}
 
 A partir daí o fluxo é o mesmo do UazAPI: escutamos, descartamos o que não tem ticket, e com `[rt:código]` viramos Lead → Meta/GA4.
 
+## Remoção da connection
+
+O Royal Tracking **não** remove o webhook no Tallos (não há API de registro/remoção da nossa parte). Ao excluir a connection:
+
+1. Apague (ou desative) o webhook correspondente em [Tallos → Integrações → Webhooks](https://app.tallos.com.br/app/integrations/webhooks).
+2. Use a mesma URL que estava no painel (`/api/w/{slug}`) para achar o registro certo.
+
+Enquanto o webhook Tallos apontar para uma URL órfã, o Tallos continua enviando POSTs que a stack ignora/404 — limpe no Tallos para evitar ruído.
+
 ## Filtros
 
 - Payload Tallos `{ content, contact }` (texto do cliente)

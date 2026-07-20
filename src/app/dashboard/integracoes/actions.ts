@@ -23,6 +23,7 @@ import {
 } from "@/lib/rd/sync";
 import { ensureShortWebhookUrl } from "@/lib/integrations/webhook-slug";
 import {
+  cleanupEvolutionWebhook,
   cleanupUazapiWebhook,
   ensureWhatsappWebhook,
 } from "@/lib/whatsapp/register-webhook";
@@ -414,6 +415,13 @@ export async function deleteConnection(id: string) {
   if (conn?.provider === "uazapi") {
     try {
       await cleanupUazapiWebhook(conn);
+    } catch {
+      /* best-effort */
+    }
+  }
+  if (conn?.provider === "evolution_api") {
+    try {
+      await cleanupEvolutionWebhook(conn);
     } catch {
       /* best-effort */
     }
