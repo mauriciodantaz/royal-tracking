@@ -528,6 +528,7 @@ export function ProviderDetailClient({
   mappings,
   outboundOptions,
   appUrl,
+  allowedEventDomains = [],
   stackCurrency,
   stackTestEventCode,
   stageMapsByConnection = {},
@@ -538,6 +539,7 @@ export function ProviderDetailClient({
   mappings: Mapping[];
   outboundOptions: OutboundOption[];
   appUrl: string;
+  allowedEventDomains?: string[];
   stackCurrency: string;
   stackTestEventCode: string;
   stageMapsByConnection?: Record<string, StageMapItem[]>;
@@ -906,8 +908,28 @@ export function ProviderDetailClient({
           </pre>
           <p className="mt-3 text-sm text-muted-foreground">
             PageView, forms (Lead) e eventos manuais entram automaticamente e
-            seguem os mapeamentos configurados abaixo.
+            seguem os mapeamentos configurados abaixo. O endpoint é a origem
+            deste script (ou{" "}
+            <code className="text-xs">window.TRCK_ENDPOINT</code>).
           </p>
+          <div className="mt-4 rounded-lg border border-border/50 bg-muted/30 p-3 text-sm">
+            <p className="font-medium">Origens permitidas (eventos)</p>
+            {allowedEventDomains.length > 0 ? (
+              <p className="mt-1 text-muted-foreground">
+                Apex configurado:{" "}
+                <code className="text-xs">{allowedEventDomains.join(", ")}</code>
+                . O site onde o snippet roda precisa ser esse domínio ou um
+                subdomínio (ex.: www., lp.). Não use o host do painel como apex.
+              </p>
+            ) : (
+              <p className="mt-1 text-amber-700 dark:text-amber-400">
+                <code className="text-xs">ALLOWED_EVENT_DOMAINS</code> não está
+                definido — em produção a stack deve falhar no boot. Defina o
+                apex do site no Portainer (ex.:{" "}
+                <code className="text-xs">cliente.com.br</code>).
+              </p>
+            )}
+          </div>
 
           <form
             className="mt-6 grid max-w-xs gap-3 border-t border-border/50 pt-4"

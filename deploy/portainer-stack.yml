@@ -44,6 +44,7 @@ services:
       NEXT_PUBLIC_APP_URL: https://<DOMAIN>
 
       # --- Domínios / eventos ---
+      # Apex do SITE (obrigatório em produção) — não use o host do painel
       ALLOWED_EVENT_DOMAINS: <APEX_DOMAIN>
 
       # --- Super admin (imutável — só stack) ---
