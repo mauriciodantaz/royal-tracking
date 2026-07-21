@@ -64,6 +64,7 @@ docker run --rm \
   -v "${PROJECT_DIR}:/app" \
   -w /app \
   -e NEXT_TELEMETRY_DISABLED=1 \
+  -e RELEASE_CHANNEL=dev \
   "${NODE_IMAGE}" \
   sh -c "${DOCKER_BUILD_SHELL}"
 
