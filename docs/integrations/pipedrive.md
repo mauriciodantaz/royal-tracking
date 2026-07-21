@@ -1,48 +1,70 @@
-# Pipedrive — API token
+# Pipedrive — OAuth (Private app)
 
-Conecte o Pipedrive com **API token** (e domínio da company, opcional) para eventos de deals/pessoas.
+Conecte o Pipedrive com **OAuth 2.0** (Private app no Developer Hub). Após autorizar, o Royal Tracking sincroniza funis/estágios, registra o webhook de deals automaticamente e dispara Meta CAPI / GA4 **uma vez por negociação + estágio** (e uma vez por won/lost).
 
 ## Pré-requisitos
 
-- Conta Pipedrive
-- Usuário com permissão para ver o API token pessoal
-- Company domain Pipedrive (ex.: `minhaempresa` em `minhaempresa.pipedrive.com`)
+- Conta Pipedrive (sandbox de developer ou produção)
+- App **Private** no [Developer Hub](https://pipedrive.readme.io/docs/marketplace-creating-a-proper-app)
+- Escopos mínimos no app: `base`, `deals:read`, `contacts:read`, `webhooks:full` (e admin se o Hub exigir para webhooks do app)
 
 ## Campos no Royal Tracking
 
 | Campo | O que é |
 |---|---|
 | **Nome** | Rótulo interno |
-| **API token** | Personal API token do Pipedrive |
-| **Company domain** | Subdomínio da company (opcional, sem `.pipedrive.com`) |
+| **Client ID** | Do app no Developer Hub |
+| **Client Secret** | Do app no Developer Hub |
 
-## Como obter o API token
+## Como criar o app e obter as credenciais
 
-1. No Pipedrive, clique no avatar → **Preferências pessoais** (Personal preferences).
-2. Abra **API**.
-3. Copie o **Your personal API token** (ou gere um novo se necessário).
-4. Cole em **API token** no Royal Tracking.
-
-## Company domain (opcional)
-
-1. Olhe a URL do Pipedrive: `https://SEUDOMINIO.pipedrive.com`.
-2. Cole só `SEUDOMINIO` no campo **Company domain**.
-
-Útil quando a API precisa do host da company além do token.
+1. Acesse a **developer sandbox** → **Settings → Developer Hub**.
+2. **Create an app** → Private.
+3. Em **Basic info**, preencha o nome e a **OAuth Callback URL** (copie a URL exibida em Integrações → Pipedrive).
+4. Em **OAuth & access scopes**, copie `client_id` e `client_secret` e marque os escopos acima.
+5. Coloque o app em **live** quando for usar em produção (private apps podem ser instalados por link).
 
 ## Configurar no Royal Tracking
 
 1. **Integrações → Pipedrive**.
-2. Preencha Nome, API token e (se souber) o domain.
-3. **Adicionar integração**.
-4. Configure mapeamentos (`Lead`, `deal.won`, etc.) conforme a fase do módulo.
+2. Preencha Nome, Client ID e Client Secret → **Adicionar / Salvar**.
+3. Clique em **Conectar com OAuth** e autorize na Pipedrive.
+4. O sistema:
+   - grava `api_domain`, `company_id` e tokens;
+   - sincroniza pipelines/stages;
+   - cria webhook v2 `*.deal` apontando para `/api/w/{slug}` (HTTP Basic);
+   - seed dos mapas estágio → Meta/GA4 e won → Purchase.
+5. Ajuste os mapeamentos na tabela e **Salvar mapeamentos**. Use **Sincronizar funis** se criar estágios novos no Pipedrive.
+
+## Comportamento dos eventos
+
+- Webhook v2 (`create` / `change` em deal).
+- Disparo **só na primeira vez** que a negociação chega em um estágio (dedup por `deal + pipeline + stage`).
+- Won/lost têm dedup separado.
+- Match do visitante por **e-mail ou telefone** da person do deal (enrich via API só quando o claim de emit vence; retries/duplicatas são descartados sem consultar a API).
+- Alterações de deal que **não** mudam estágio nem status → ignoradas sem chamada à API.
+
+## Desinstalação
+
+Se o usuário desinstalar o app no Pipedrive, a plataforma envia `DELETE` na callback OAuth. A conexão fica inativa e pede reautorização.
 
 ## Segurança
 
-- O token pessoal herda as permissões do usuário — prefira um usuário com escopo mínimo necessário.
-- Se alguém sair da empresa, revogue/regenere o token.
+- Tokens e Client Secret ficam cifrados no banco (`ENCRYPTION_KEY`).
+- O webhook inbound exige HTTP Basic (`royal-tracking` + secret gerado pela stack).
+- Prefira um Private app próprio da sua stack; não compartilhe o Client Secret.
+
+## Env opcional (fallback legado)
+
+```env
+# PIPEDRIVE_CLIENT_ID=
+# PIPEDRIVE_CLIENT_SECRET=
+```
+
+Preferência: credenciais na UI da conexão (igual RD CRM).
 
 ## Links
 
-- [Pipedrive API — Authentication](https://pipedrive.readme.io/docs/core-api-concepts-authentication)
+- [Pipedrive OAuth](https://pipedrive.readme.io/docs/marketplace-oauth-authorization)
+- [Webhooks](https://pipedrive.readme.io/docs/guide-for-webhooks)
 - [INTEGRATIONS.md](../INTEGRATIONS.md)

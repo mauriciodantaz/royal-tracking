@@ -9,6 +9,13 @@ import { getAppUrl } from "@/lib/env";
 import { seedDefaultMappingsForOutbound } from "@/lib/integrations/connections";
 import { getModule, isIntegrationProvider } from "@/lib/integrations/registry";
 import {
+  metadataRecord as pdMetadataRecord,
+  oauthCallbackUrl as pdOauthCallbackUrl,
+  requestPipedriveToken,
+  resolvePipedriveCredentials,
+} from "@/lib/pipedrive/credentials";
+import { postOauthPipedriveSetup } from "@/lib/pipedrive/sync";
+import {
   metadataRecord,
   oauthCallbackUrl,
   requestRdToken,
@@ -39,6 +46,74 @@ function googleTokenEnv(): {
 
 type Ctx = { params: Promise<{ provider: string }> };
 
+/**
+ * Pipedrive uninstall: DELETE to callback with Basic Auth (client_id:client_secret)
+ * and JSON body { client_id, company_id, user_id, timestamp }.
+ */
+export async function DELETE(request: NextRequest, context: Ctx) {
+  const { provider } = await context.params;
+  if (provider !== "pipedrive") {
+    return NextResponse.json({ error: "not_supported" }, { status: 405 });
+  }
+
+  await ensureDbReady();
+
+  const authHeader = request.headers.get("authorization") || "";
+  let body: Record<string, unknown> = {};
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    body = {};
+  }
+
+  const companyId =
+    body.company_id != null ? String(body.company_id) : null;
+  const userId = body.user_id != null ? String(body.user_id) : null;
+
+  const connections = await query<IntegrationConnectionRow>(
+    `select * from integration_connections
+     where provider = 'pipedrive' and active = true`
+  );
+
+  for (const conn of connections.rows) {
+    const creds = await resolvePipedriveCredentials(conn);
+    if (!creds) continue;
+
+    const expected = Buffer.from(
+      `${creds.clientId}:${creds.clientSecret}`,
+      "utf8"
+    ).toString("base64");
+    const okAuth =
+      authHeader === `Basic ${expected}` ||
+      authHeader.toLowerCase() === `basic ${expected.toLowerCase()}`;
+    if (!okAuth) continue;
+
+    const meta = pdMetadataRecord(conn.metadata);
+    const metaCompany =
+      meta.company_id != null ? String(meta.company_id) : null;
+    const metaUser = meta.user_id != null ? String(meta.user_id) : null;
+    if (companyId && metaCompany && companyId !== metaCompany) continue;
+    if (userId && metaUser && userId !== metaUser) continue;
+
+    meta.uninstalled_at = new Date().toISOString();
+    meta.needs_reauth = true;
+    meta.reauth_reason = "pipedrive_uninstalled";
+    await query(
+      `update integration_connections set
+         active = false,
+         access_token_cipher = null,
+         refresh_token_cipher = null,
+         expires_at = null,
+         metadata = $1::jsonb,
+         updated_at = now()
+       where id = $2`,
+      [JSON.stringify(meta), conn.id]
+    );
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
 export async function GET(request: NextRequest, context: Ctx) {
   const session = await auth();
   const base = getAppUrl().replace(/\/$/, "");
@@ -55,9 +130,16 @@ export async function GET(request: NextRequest, context: Ctx) {
 
   const code = request.nextUrl.searchParams.get("code");
   const state = request.nextUrl.searchParams.get("state");
+  const oauthError = request.nextUrl.searchParams.get("error");
   const cookieState = request.cookies.get(`oauth_state_${provider}`)?.value;
   const connectionId =
     request.cookies.get(`oauth_conn_${provider}`)?.value?.trim() || null;
+
+  if (oauthError === "user_denied") {
+    return NextResponse.redirect(
+      new URL("/dashboard/integracoes?error=oauth_denied", base)
+    );
+  }
 
   if (!code || !state || !cookieState || state !== cookieState) {
     return NextResponse.redirect(
@@ -69,6 +151,7 @@ export async function GET(request: NextRequest, context: Ctx) {
   let clientSecret: string;
   let tokenUrl: string;
   let tokenBodyFormat: RdTokenBodyFormat = "json";
+  let usePipedriveBasic = false;
 
   if (provider === "rdstation_crm" || provider === "rdstation_mkt") {
     let conn: IntegrationConnectionRow | null = null;
@@ -88,6 +171,25 @@ export async function GET(request: NextRequest, context: Ctx) {
     clientSecret = creds.clientSecret;
     tokenUrl = creds.tokenUrl;
     tokenBodyFormat = creds.tokenBodyFormat;
+  } else if (provider === "pipedrive") {
+    let conn: IntegrationConnectionRow | null = null;
+    if (connectionId) {
+      conn = await queryOne<IntegrationConnectionRow>(
+        `select * from integration_connections where id = $1 limit 1`,
+        [connectionId]
+      );
+    }
+    const creds = await resolvePipedriveCredentials(conn);
+    if (!creds) {
+      return NextResponse.redirect(
+        new URL("/dashboard/integracoes?error=oauth_not_configured", base)
+      );
+    }
+    clientId = creds.clientId;
+    clientSecret = creds.clientSecret;
+    tokenUrl = creds.tokenUrl;
+    tokenBodyFormat = "form";
+    usePipedriveBasic = true;
   } else if (provider === "google_ads") {
     const env = googleTokenEnv();
     if (!env) {
@@ -105,28 +207,74 @@ export async function GET(request: NextRequest, context: Ctx) {
     );
   }
 
-  const redirectUri = oauthCallbackUrl(provider, base);
-  const tokenExchange = await requestRdToken({
-    tokenUrl,
-    tokenBodyFormat,
-    body: {
-      client_id: clientId,
-      client_secret: clientSecret,
-      code,
-      redirect_uri: redirectUri,
-      grant_type: "authorization_code",
-    },
-  });
-  const tokenJson = tokenExchange.json;
+  const redirectUri =
+    provider === "pipedrive"
+      ? pdOauthCallbackUrl(provider, base)
+      : oauthCallbackUrl(provider, base);
 
-  if (!tokenExchange.ok || !tokenJson?.access_token) {
-    const detail =
-      tokenJson?.error_description ||
-      tokenJson?.error ||
-      `http_${tokenExchange.status}`;
+  let accessToken: string | undefined;
+  let refreshToken: string | undefined;
+  let expiresIn: number | undefined;
+  let apiDomain: string | undefined;
+  let tokenError: string | undefined;
+
+  if (usePipedriveBasic) {
+    const tokenExchange = await requestPipedriveToken({
+      clientId,
+      clientSecret,
+      body: {
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: redirectUri,
+      },
+    });
+    if (!tokenExchange.ok || !tokenExchange.json?.access_token) {
+      tokenError =
+        tokenExchange.json?.error_description ||
+        tokenExchange.json?.error ||
+        `http_${tokenExchange.status}`;
+    } else {
+      accessToken = tokenExchange.json.access_token;
+      refreshToken = tokenExchange.json.refresh_token;
+      expiresIn = tokenExchange.json.expires_in;
+      if (
+        typeof tokenExchange.json.api_domain === "string" &&
+        tokenExchange.json.api_domain
+      ) {
+        apiDomain = tokenExchange.json.api_domain
+          .replace(/^https?:\/\//i, "")
+          .replace(/\/+$/, "");
+      }
+    }
+  } else {
+    const tokenExchange = await requestRdToken({
+      tokenUrl,
+      tokenBodyFormat,
+      body: {
+        client_id: clientId,
+        client_secret: clientSecret,
+        code,
+        redirect_uri: redirectUri,
+        grant_type: "authorization_code",
+      },
+    });
+    const tokenJson = tokenExchange.json;
+    if (!tokenExchange.ok || !tokenJson?.access_token) {
+      tokenError =
+        tokenJson?.error_description ||
+        tokenJson?.error ||
+        `http_${tokenExchange.status}`;
+    } else {
+      accessToken = tokenJson.access_token;
+      refreshToken = tokenJson.refresh_token;
+      expiresIn = tokenJson.expires_in;
+    }
+  }
+
+  if (!accessToken) {
     return NextResponse.redirect(
       new URL(
-        `/dashboard/integracoes?error=oauth_token&detail=${encodeURIComponent(detail)}`,
+        `/dashboard/integracoes?error=oauth_token&detail=${encodeURIComponent(tokenError || "unknown")}`,
         base
       )
     );
@@ -134,16 +282,20 @@ export async function GET(request: NextRequest, context: Ctx) {
 
   await ensureDbReady();
   const mod = getModule(provider)!;
-  const accessCipher = await encryptSecret(tokenJson.access_token);
-  const refreshCipher = tokenJson.refresh_token
-    ? await encryptSecret(tokenJson.refresh_token)
+  const accessCipher = await encryptSecret(accessToken);
+  const refreshCipher = refreshToken
+    ? await encryptSecret(refreshToken)
     : null;
-  const ttlSec =
-    typeof tokenJson.expires_in === "number" && tokenJson.expires_in > 0
-      ? tokenJson.expires_in
+  const ttlDefault =
+    provider === "pipedrive"
+      ? 3_600
       : provider === "rdstation_crm" || provider === "rdstation_mkt"
         ? 86_400
         : null;
+  const ttlSec =
+    typeof expiresIn === "number" && expiresIn > 0
+      ? expiresIn
+      : ttlDefault;
   const expiresAt = ttlSec
     ? new Date(Date.now() + ttlSec * 1000).toISOString()
     : null;
@@ -163,8 +315,10 @@ export async function GET(request: NextRequest, context: Ctx) {
     const meta = metadataRecord(existing.metadata);
     delete meta.needs_reauth;
     delete meta.reauth_reason;
+    delete meta.uninstalled_at;
     meta.connected_via = "oauth";
     meta.connected_at = new Date().toISOString();
+    if (apiDomain) meta.api_domain = apiDomain;
 
     await query(
       `update integration_connections set
@@ -201,6 +355,7 @@ export async function GET(request: NextRequest, context: Ctx) {
         JSON.stringify({
           connected_via: "oauth",
           connected_at: new Date().toISOString(),
+          ...(apiDomain ? { api_domain: apiDomain } : {}),
         }),
       ]
     );
@@ -216,6 +371,14 @@ export async function GET(request: NextRequest, context: Ctx) {
       await postOauthRdSetup(id);
     } catch (err) {
       console.error("[rd] postOauthRdSetup", err);
+    }
+  }
+
+  if (id && provider === "pipedrive") {
+    try {
+      await postOauthPipedriveSetup(id);
+    } catch (err) {
+      console.error("[pipedrive] postOauthPipedriveSetup", err);
     }
   }
 
