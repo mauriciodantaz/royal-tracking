@@ -2,6 +2,7 @@ import "server-only";
 
 import type { IntegrationConnectionRow } from "@/lib/db/types";
 import { processPurchaseEvent } from "@/lib/integrations/process-purchase";
+import { processPipedriveWebhook } from "@/lib/pipedrive/process-webhook";
 import { processRdWebhook } from "@/lib/rd/process-webhook";
 import { parsePurchaseWebhook } from "@/lib/tracking/webhook-parse";
 import { processWhatsappMessageWebhook } from "@/lib/whatsapp/process-message";
@@ -38,6 +39,14 @@ export async function processInboundConnection(opts: {
 
   if (conn.provider === "rdstation_crm" || conn.provider === "rdstation_mkt") {
     const result = await processRdWebhook({ conn, raw });
+    if (!result.ok) {
+      return { ok: false, error: result.error, status: result.status };
+    }
+    return result;
+  }
+
+  if (conn.provider === "pipedrive") {
+    const result = await processPipedriveWebhook({ conn, raw });
     if (!result.ok) {
       return { ok: false, error: result.error, status: result.status };
     }

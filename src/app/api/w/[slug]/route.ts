@@ -1,13 +1,41 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { getConnectionByWebhookSlug } from "@/lib/integrations/connections";
+import type { IntegrationConnectionRow } from "@/lib/db/types";
+import {
+  decryptWebhookSecret,
+  getConnectionByWebhookSlug,
+} from "@/lib/integrations/connections";
 import { processInboundConnection } from "@/lib/integrations/process-inbound";
+import { PIPEDRIVE_WEBHOOK_AUTH_USER } from "@/lib/pipedrive/sync";
 import { rateLimit } from "@/lib/rate-limit/memory";
 import { getClientIp } from "@/lib/tracking/request";
 
 export const runtime = "nodejs";
 
 type Ctx = { params: Promise<{ slug: string }> };
+
+async function assertPipedriveBasicAuth(
+  request: NextRequest,
+  conn: IntegrationConnectionRow
+): Promise<boolean> {
+  const secret = await decryptWebhookSecret(conn);
+  if (!secret) return false;
+
+  const header = request.headers.get("authorization") || "";
+  const m = /^Basic\s+(.+)$/i.exec(header);
+  if (!m?.[1]) return false;
+  let decoded: string;
+  try {
+    decoded = Buffer.from(m[1], "base64").toString("utf8");
+  } catch {
+    return false;
+  }
+  const colon = decoded.indexOf(":");
+  if (colon < 0) return false;
+  const user = decoded.slice(0, colon);
+  const pass = decoded.slice(colon + 1);
+  return user === PIPEDRIVE_WEBHOOK_AUTH_USER && pass === secret;
+}
 
 /**
  * Short listen-only webhook for any inbound connection:
@@ -25,6 +53,13 @@ export async function POST(request: NextRequest, context: Ctx) {
     const conn = await getConnectionByWebhookSlug(slug);
     if (!conn) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+
+    if (conn.provider === "pipedrive") {
+      const ok = await assertPipedriveBasicAuth(request, conn);
+      if (!ok) {
+        return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+      }
     }
 
     let raw: unknown;
