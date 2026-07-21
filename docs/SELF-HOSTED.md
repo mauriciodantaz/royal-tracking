@@ -18,6 +18,7 @@ A identidade GA4 (FPID) reutiliza `ENCRYPTION_KEY` — não há secret extra par
 1. Postgres + rede Swarm/Traefik (ex.: `RoyalNet`).
 2. Copie [`deploy/royal-tracking-stack.yml`](../deploy/royal-tracking-stack.yml), preencha placeholders.
 3. Deploy no Portainer com a imagem `mauriciodantaz/royal-tracking:latest` (= `:stable`) ou `:beta`.
+   O rodapé do painel mostra a versão e o canal (LATEST/BETA); em build VPS aparece Ambiente DEV.
 
 Ou na VPS: `bash install.sh` (padrão puxa Hub; `ROYAL_TRACKING_BUILD_ON_VPS=1` só para build local).
 

@@ -19,6 +19,7 @@ import {
 
 import { logoutAction } from "@/app/login/actions";
 import { BrandLogo } from "@/components/brand-logo";
+import { VersionLabel } from "@/components/layout/version-label";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -30,6 +31,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import type { VersionStatus } from "@/lib/version/types";
 
 const NAV_BASE = [
   { href: "/dashboard", label: "Visão geral", icon: LayoutDashboard },
@@ -97,7 +99,13 @@ function Brand() {
   );
 }
 
-export function AppSidebar({ showUsersNav }: { showUsersNav: boolean }) {
+export function AppSidebar({
+  showUsersNav,
+  versionStatus,
+}: {
+  showUsersNav: boolean;
+  versionStatus: VersionStatus;
+}) {
   return (
     <aside className="glass sticky top-0 hidden h-svh w-60 shrink-0 flex-col border-r p-4 md:flex">
       <Brand />
@@ -132,12 +140,19 @@ export function AppSidebar({ showUsersNav }: { showUsersNav: boolean }) {
             Sair
           </Button>
         </form>
+        <VersionLabel status={versionStatus} />
       </div>
     </aside>
   );
 }
 
-export function MobileHeader({ showUsersNav }: { showUsersNav: boolean }) {
+export function MobileHeader({
+  showUsersNav,
+  versionStatus,
+}: {
+  showUsersNav: boolean;
+  versionStatus: VersionStatus;
+}) {
   return (
     <header className="glass sticky top-0 z-40 flex h-14 items-center justify-between border-b px-3 md:hidden">
       <Brand />
@@ -184,6 +199,7 @@ export function MobileHeader({ showUsersNav }: { showUsersNav: boolean }) {
                   Sair
                 </Button>
               </form>
+              <VersionLabel status={versionStatus} />
             </div>
           </SheetContent>
         </Sheet>

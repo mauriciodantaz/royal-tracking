@@ -14,6 +14,7 @@ Uma stack por domínio-raiz (apex) = um Postgres + um admin + um `ENCRYPTION_KEY
 2. Copie [`deploy/royal-tracking-stack.yml`](./deploy/royal-tracking-stack.yml), substitua os placeholders (`<SLUG>`, `<DOMAIN>`, senhas, etc.).
 3. No Portainer → Stacks → Add stack → cole o YAML → Deploy.
 4. Tags: `:latest` / `:stable` (produção), `:beta` (pré-release), ou pin `:X.Y.Z` / `:X.Y.Z-stable`.
+   O painel mostra a versão/canal no rodapé da sidebar (e quantas SemVer o deploy está atrás no mesmo canal).
 
 Atualizar:
 
