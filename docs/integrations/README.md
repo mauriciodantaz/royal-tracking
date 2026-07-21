@@ -21,4 +21,4 @@ URL: `/dashboard/integracoes/{provider}/docs`
 | UazAPI Go | [uazapi.md](./uazapi.md) | `uazapi` |
 | Site / Forms | [snippet.md](./snippet.md) | `snippet` |
 
-RD CRM/MKT: Client ID/Secret na UI (Portainer só como fallback). Google Ads OAuth ainda usa env — ver [INTEGRATIONS.md](../INTEGRATIONS.md).
+RD CRM/MKT e Pipedrive: Client ID/Secret na UI (Portainer só como fallback). Google Ads OAuth ainda usa env — ver [INTEGRATIONS.md](../INTEGRATIONS.md).

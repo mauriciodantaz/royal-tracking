@@ -17,6 +17,11 @@ import {
 } from "@/lib/integrations/registry";
 import { validateIntegrationCredentials } from "@/lib/integrations/validate-credentials";
 import {
+  cleanupPipedriveWebhooks,
+  ensurePipedriveWebhooks,
+  syncPipedriveFunnels,
+} from "@/lib/pipedrive/sync";
+import {
   cleanupRdWebhooks,
   ensureRdWebhooks,
   syncRdFunnels,
@@ -36,11 +41,20 @@ function isWhatsappProvider(provider: string): boolean {
   );
 }
 
+function isCrmOAuthProvider(provider: string): boolean {
+  return (
+    provider === "rdstation_crm" ||
+    provider === "rdstation_mkt" ||
+    provider === "pipedrive"
+  );
+}
+
 function needsShortWebhookUrl(provider: string): boolean {
   return (
     isWhatsappProvider(provider) ||
     provider === "rdstation_crm" ||
     provider === "rdstation_mkt" ||
+    provider === "pipedrive" ||
     provider === "hotmart" ||
     provider === "kiwify" ||
     provider === "eduzz"
@@ -85,8 +99,7 @@ export async function upsertConnection(formData: FormData): Promise<
   }
 
   const clientSecret = String(formData.get("client_secret") ?? "").trim();
-  const isRdOAuth =
-    provider === "rdstation_crm" || provider === "rdstation_mkt";
+  const isCrmOAuth = isCrmOAuthProvider(provider);
 
   const accountExternalId =
     config.pixel_id ||
@@ -155,7 +168,7 @@ export async function upsertConnection(formData: FormData): Promise<
       ) {
         config.ad_account_id = existing.account_external_id;
       }
-      if (isRdOAuth) {
+      if (isCrmOAuth) {
         const cfg =
           existing.config &&
           typeof existing.config === "object" &&
@@ -172,7 +185,11 @@ export async function upsertConnection(formData: FormData): Promise<
     }
   }
 
-  if (isRdOAuth) {
+  if (isCrmOAuth) {
+    const secretLabel =
+      provider === "pipedrive"
+        ? "app Pipedrive (Developer Hub)"
+        : "app RD App Store";
     if (clientSecret) {
       config.client_secret_cipher = await encryptSecret(clientSecret);
     } else if (existingClientSecretCipher) {
@@ -180,11 +197,14 @@ export async function upsertConnection(formData: FormData): Promise<
     } else {
       return {
         ok: false,
-        error: "Informe o Client Secret do app RD App Store.",
+        error: `Informe o Client Secret do ${secretLabel}.`,
       };
     }
     if (!config.client_id?.trim()) {
-      return { ok: false, error: "Informe o Client ID do app RD App Store." };
+      return {
+        ok: false,
+        error: `Informe o Client ID do ${secretLabel}.`,
+      };
     }
   }
 
@@ -412,6 +432,13 @@ export async function deleteConnection(id: string) {
       /* best-effort */
     }
   }
+  if (conn?.provider === "pipedrive") {
+    try {
+      await cleanupPipedriveWebhooks(conn);
+    } catch {
+      /* best-effort */
+    }
+  }
   if (conn?.provider === "uazapi") {
     try {
       await cleanupUazapiWebhook(conn);
@@ -467,17 +494,31 @@ export async function syncRdFunnelsAction(
 ): Promise<{ ok: true; pipelines: number; stages: number } | { ok: false; error: string }> {
   await requireUser();
   try {
-    const result = await syncRdFunnels(connectionId);
-    try {
-      await ensureRdWebhooks(connectionId);
-    } catch (err) {
-      console.error("[rd] ensureRdWebhooks", err);
-    }
     const conn = await queryOne<IntegrationConnectionRow>(
-      `select provider from integration_connections where id = $1`,
+      `select * from integration_connections where id = $1`,
       [connectionId]
     );
-    revalidateIntegrations(conn?.provider);
+    if (!conn) {
+      return { ok: false, error: "Conexão não encontrada" };
+    }
+
+    let result: { pipelines: number; stages: number };
+    if (conn.provider === "pipedrive") {
+      result = await syncPipedriveFunnels(connectionId);
+      try {
+        await ensurePipedriveWebhooks(connectionId);
+      } catch (err) {
+        console.error("[pipedrive] ensurePipedriveWebhooks", err);
+      }
+    } else {
+      result = await syncRdFunnels(connectionId);
+      try {
+        await ensureRdWebhooks(connectionId);
+      } catch (err) {
+        console.error("[rd] ensureRdWebhooks", err);
+      }
+    }
+    revalidateIntegrations(conn.provider);
     return { ok: true, ...result };
   } catch (e) {
     return {
@@ -502,10 +543,17 @@ export async function saveRdStageMapsAction(
   );
   if (
     !conn ||
-    (conn.provider !== "rdstation_crm" && conn.provider !== "rdstation_mkt")
+    (conn.provider !== "rdstation_crm" &&
+      conn.provider !== "rdstation_mkt" &&
+      conn.provider !== "pipedrive")
   ) {
-    return { ok: false, error: "Conexão RD inválida" };
+    return { ok: false, error: "Conexão CRM inválida" };
   }
+
+  const mapsTable =
+    conn.provider === "pipedrive"
+      ? "pipedrive_stage_event_maps"
+      : "rd_stage_event_maps";
 
   const mapsJson = String(formData.get("maps") ?? "").trim();
   let maps: Array<{
@@ -538,7 +586,7 @@ export async function saveRdStageMapsAction(
 
     if (m.id) {
       await query(
-        `update rd_stage_event_maps set
+        `update ${mapsTable} set
            meta_event_name = $1,
            ga4_event_name = $2,
            updated_at = now()
@@ -547,12 +595,12 @@ export async function saveRdStageMapsAction(
       );
     } else if (m.stage_external_id) {
       await query(
-        `insert into rd_stage_event_maps (
+        `insert into ${mapsTable} (
            connection_id, stage_external_id, meta_event_name, ga4_event_name, updated_at
          ) values ($1,$2,$3,$4, now())`,
         [connectionId, m.stage_external_id, meta, ga4]
       );
-    } else if (m.mkt_lifecycle) {
+    } else if (m.mkt_lifecycle && conn.provider !== "pipedrive") {
       await query(
         `insert into rd_stage_event_maps (
            connection_id, mkt_lifecycle, meta_event_name, ga4_event_name, updated_at
@@ -561,13 +609,13 @@ export async function saveRdStageMapsAction(
       );
     } else if (dealStatus) {
       const existing = await queryOne<{ id: string }>(
-        `select id from rd_stage_event_maps
+        `select id from ${mapsTable}
          where connection_id = $1 and deal_status = $2 limit 1`,
         [connectionId, dealStatus]
       );
       if (existing) {
         await query(
-          `update rd_stage_event_maps set
+          `update ${mapsTable} set
              meta_event_name = $1,
              ga4_event_name = $2,
              updated_at = now()
@@ -576,7 +624,7 @@ export async function saveRdStageMapsAction(
         );
       } else {
         await query(
-          `insert into rd_stage_event_maps (
+          `insert into ${mapsTable} (
              connection_id, deal_status, meta_event_name, ga4_event_name, updated_at
            ) values ($1,$2,$3,$4, now())`,
           [connectionId, dealStatus, meta, ga4]
@@ -586,9 +634,13 @@ export async function saveRdStageMapsAction(
   }
 
   try {
-    await ensureRdWebhooks(connectionId);
+    if (conn.provider === "pipedrive") {
+      await ensurePipedriveWebhooks(connectionId);
+    } else {
+      await ensureRdWebhooks(connectionId);
+    }
   } catch (err) {
-    console.error("[rd] ensureRdWebhooks after maps", err);
+    console.error("[crm] ensureWebhooks after maps", err);
   }
 
   revalidateIntegrations(conn.provider);

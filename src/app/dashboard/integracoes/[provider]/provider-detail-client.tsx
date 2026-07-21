@@ -294,8 +294,12 @@ function fieldDefaultValue(
   return conn.config[key] || "";
 }
 
-function isRdProvider(provider: string): boolean {
-  return provider === "rdstation_crm" || provider === "rdstation_mkt";
+function isFunnelCrmProvider(provider: string): boolean {
+  return (
+    provider === "rdstation_crm" ||
+    provider === "rdstation_mkt" ||
+    provider === "pipedrive"
+  );
 }
 
 function groupStageMapsByPipeline(
@@ -547,7 +551,8 @@ export function ProviderDetailClient({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const rd = isRdProvider(mod.provider);
+  const rd = isFunnelCrmProvider(mod.provider);
+  const pipedrive = mod.provider === "pipedrive";
   const whatsapp = isWhatsappProvider(mod.provider);
   const rdConversas = isRdConversasProvider(mod.provider);
 
@@ -594,7 +599,9 @@ export function ProviderDetailClient({
         <section className="rounded-xl border border-border/60 p-4">
           <h2 className="text-sm font-medium">URL de callback OAuth</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Cadastre esta URL no app da RD App Store (redirect URI).
+            {pipedrive
+              ? "Cadastre esta URL no app Pipedrive (Developer Hub → OAuth Callback URL)."
+              : "Cadastre esta URL no app da RD App Store (redirect URI)."}
           </p>
           <p className="mt-2 break-all rounded-lg bg-muted/50 px-3 py-2 font-mono text-[11px]">
             {oauthCallbackUrl}

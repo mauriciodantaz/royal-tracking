@@ -228,59 +228,6 @@ async function validateGa4(
   return { ok: true };
 }
 
-async function validatePipedrive(
-  token: string,
-  companyDomain?: string
-): Promise<CredentialValidation> {
-  if (!token) {
-    return { ok: false, error: "Informe o API token do Pipedrive." };
-  }
-
-  const base = companyDomain
-    ? `https://${companyDomain.replace(/\.pipedrive\.com$/i, "").replace(/[^a-z0-9-]/gi, "")}.pipedrive.com/api/v1`
-    : "https://api.pipedrive.com/v1";
-
-  const url = `${base}/users/me?api_token=${encodeURIComponent(token)}`;
-  let res: Response;
-  let body: unknown;
-  try {
-    res = await fetch(url);
-    body = await res.json().catch(() => null);
-  } catch (e) {
-    return {
-      ok: false,
-      error: `Falha ao contatar o Pipedrive: ${e instanceof Error ? e.message : "erro de rede"}`,
-    };
-  }
-
-  if (!res.ok) {
-    return {
-      ok: false,
-      error: summarizeJsonError(
-        body,
-        `Pipedrive recusou o token (HTTP ${res.status}). Sem permissão ou token inválido.`
-      ),
-    };
-  }
-
-  if (
-    body &&
-    typeof body === "object" &&
-    "success" in body &&
-    (body as { success?: boolean }).success === false
-  ) {
-    return {
-      ok: false,
-      error: summarizeJsonError(
-        body,
-        "Pipedrive recusou o token. Sem permissão ou token inválido."
-      ),
-    };
-  }
-
-  return { ok: true };
-}
-
 function normalizeBaseUrl(raw: string): string {
   return raw.trim().replace(/\/$/, "");
 }
@@ -408,11 +355,16 @@ export async function validateIntegrationCredentials(input: {
       return validateMetaAds(cfg.ad_account_id || "", token);
     case "ga4":
       return validateGa4(cfg.measurement_id || "", token);
-    case "pipedrive":
-      return validatePipedrive(
-        token,
-        cfg.account_external_id || undefined
-      );
+    case "pipedrive": {
+      const clientId = cfg.client_id?.trim() || "";
+      if (!clientId) {
+        return {
+          ok: false,
+          error: "Informe o Client ID do app Pipedrive (Developer Hub).",
+        };
+      }
+      return { ok: true };
+    }
     case "rdstation_conversas":
       // Só escuta webhook Tallos — secret gerado por nós; sem API remota.
       return { ok: true };

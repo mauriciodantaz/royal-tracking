@@ -6,6 +6,7 @@ import { ensureDbReady } from "@/lib/db/boot";
 import { getAppUrl } from "@/lib/env";
 import { getConnection } from "@/lib/integrations/connections";
 import { isIntegrationProvider } from "@/lib/integrations/registry";
+import { resolvePipedriveCredentials } from "@/lib/pipedrive/credentials";
 import {
   oauthCallbackUrl,
   resolveRdCredentials,
@@ -76,6 +77,27 @@ export async function GET(request: NextRequest, context: Ctx) {
     clientId = creds.clientId;
     authorizeUrl = creds.authorizeUrl;
     authorizeQuery = creds.authorizeQuery;
+  } else if (provider === "pipedrive") {
+    const conn = connectionId ? await getConnection(connectionId) : null;
+    if (connectionId && (!conn || conn.provider !== provider)) {
+      return NextResponse.json(
+        { error: "connection_not_found" },
+        { status: 404 }
+      );
+    }
+    const creds = await resolvePipedriveCredentials(conn);
+    if (!creds) {
+      return NextResponse.json(
+        {
+          error: "oauth_not_configured",
+          message:
+            "Salve Client ID e Client Secret na conexão antes de autorizar.",
+        },
+        { status: 501 }
+      );
+    }
+    clientId = creds.clientId;
+    authorizeUrl = creds.authorizeUrl;
   } else if (provider === "google_ads") {
     const env = googleOAuthEnv();
     if (!env) {
