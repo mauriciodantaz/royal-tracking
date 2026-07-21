@@ -249,23 +249,28 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
   {
     provider: "pipedrive",
     name: "Pipedrive",
-    description: "Token ou OAuth — deals e pessoas.",
-    authType: "token",
-    direction: "inbound",
+    description:
+      "OAuth — funis/estágios via webhook deal create/change → Meta CAPI e GA4 (server).",
+    authType: "oauth",
+    direction: "both",
     segment: "crm_marketing",
     docsSlug: "pipedrive",
-    // Temporarily hidden for publish-sequence test; restore by removing uiHidden.
-    uiHidden: true,
     connectFields: [
       { key: "label", label: "Nome", required: true },
-      { key: "access_token", label: "API token", secret: true, required: true },
       {
-        key: "account_external_id",
-        label: "Company domain (opcional)",
-        required: false,
+        key: "client_id",
+        label: "Client ID",
+        required: true,
+        placeholder: "App Pipedrive Developer Hub",
+      },
+      {
+        key: "client_secret",
+        label: "Client Secret",
+        secret: true,
+        required: true,
       },
     ],
-    defaultSourceEvents: ["Lead", "deal.won"],
+    defaultSourceEvents: ["Lead", "InitiateCheckout", "Purchase"],
   },
   {
     provider: "evolution_api",

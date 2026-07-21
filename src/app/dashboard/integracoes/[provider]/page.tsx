@@ -82,6 +82,8 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
 
   const isRd =
     provider === "rdstation_crm" || provider === "rdstation_mkt";
+  const isPipedrive = provider === "pipedrive";
+  const isFunnelCrm = isRd || isPipedrive;
 
   try {
     await ensureDbReady();
@@ -126,6 +128,7 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
         "uazapi",
         "rdstation_crm",
         "rdstation_mkt",
+        "pipedrive",
         "hotmart",
         "kiwify",
         "eduzz",
@@ -153,51 +156,35 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
       }
     }
 
-    if (isRd && connections.length > 0) {
+    if (isFunnelCrm && connections.length > 0) {
       const ids = connections.map((x) => x.id);
-      const maps = await query<StageMapRow>(
-        `select
-           m.id,
-           m.connection_id,
-           m.stage_external_id,
-           m.mkt_lifecycle,
-           m.deal_status,
-           m.meta_event_name,
-           m.ga4_event_name,
-           s.name as stage_name,
-           p.name as pipeline_name,
-           s.stage_order
-         from rd_stage_event_maps m
-         left join rd_stages s
-           on s.connection_id = m.connection_id
-          and s.external_id = m.stage_external_id
-         left join rd_pipelines p on p.id = s.pipeline_id
-         where m.connection_id = any($1::uuid[])
-         order by m.connection_id,
-           case when m.deal_status is not null then 1 else 0 end,
-           p.name nulls last,
-           s.stage_order nulls last,
-           m.mkt_lifecycle,
-           m.deal_status`,
-        [ids]
-      );
-      stageMaps = maps.rows;
-
-      if (provider === "rdstation_mkt") {
-        const labels = Object.fromEntries(
-          MKT_LIFECYCLE_SLOTS.map((x) => [x.key, x.label])
+      if (isPipedrive) {
+        const maps = await query<StageMapRow>(
+          `select
+             m.id,
+             m.connection_id,
+             m.stage_external_id,
+             null::text as mkt_lifecycle,
+             m.deal_status,
+             m.meta_event_name,
+             m.ga4_event_name,
+             s.name as stage_name,
+             p.name as pipeline_name,
+             s.stage_order
+           from pipedrive_stage_event_maps m
+           left join pipedrive_stages s
+             on s.connection_id = m.connection_id
+            and s.external_id = m.stage_external_id
+           left join pipedrive_pipelines p on p.id = s.pipeline_id
+           where m.connection_id = any($1::uuid[])
+           order by m.connection_id,
+             case when m.deal_status is not null then 1 else 0 end,
+             p.name nulls last,
+             s.stage_order nulls last,
+             m.deal_status`,
+          [ids]
         );
-        stageMaps = stageMaps.map((row) => ({
-          ...row,
-          stage_name: row.mkt_lifecycle
-            ? labels[row.mkt_lifecycle] || row.mkt_lifecycle
-            : row.stage_name,
-          pipeline_name: row.mkt_lifecycle ? "Lifecycle MKT" : row.pipeline_name,
-        }));
-      }
-
-      if (provider === "rdstation_crm") {
-        stageMaps = stageMaps.map((row) =>
+        stageMaps = maps.rows.map((row) =>
           row.deal_status
             ? {
                 ...row,
@@ -207,6 +194,62 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
               }
             : row
         );
+      } else {
+        const maps = await query<StageMapRow>(
+          `select
+             m.id,
+             m.connection_id,
+             m.stage_external_id,
+             m.mkt_lifecycle,
+             m.deal_status,
+             m.meta_event_name,
+             m.ga4_event_name,
+             s.name as stage_name,
+             p.name as pipeline_name,
+             s.stage_order
+           from rd_stage_event_maps m
+           left join rd_stages s
+             on s.connection_id = m.connection_id
+            and s.external_id = m.stage_external_id
+           left join rd_pipelines p on p.id = s.pipeline_id
+           where m.connection_id = any($1::uuid[])
+           order by m.connection_id,
+             case when m.deal_status is not null then 1 else 0 end,
+             p.name nulls last,
+             s.stage_order nulls last,
+             m.mkt_lifecycle,
+             m.deal_status`,
+          [ids]
+        );
+        stageMaps = maps.rows;
+
+        if (provider === "rdstation_mkt") {
+          const labels = Object.fromEntries(
+            MKT_LIFECYCLE_SLOTS.map((x) => [x.key, x.label])
+          );
+          stageMaps = stageMaps.map((row) => ({
+            ...row,
+            stage_name: row.mkt_lifecycle
+              ? labels[row.mkt_lifecycle] || row.mkt_lifecycle
+              : row.stage_name,
+            pipeline_name: row.mkt_lifecycle
+              ? "Lifecycle MKT"
+              : row.pipeline_name,
+          }));
+        }
+
+        if (provider === "rdstation_crm") {
+          stageMaps = stageMaps.map((row) =>
+            row.deal_status
+              ? {
+                  ...row,
+                  stage_name:
+                    DEAL_STATUS_LABELS[row.deal_status] || row.deal_status,
+                  pipeline_name: "Status da negociação",
+                }
+              : row
+          );
+        }
       }
     }
   } catch (e) {
@@ -263,7 +306,7 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
         (c.direction === "inbound" || c.direction === "both") &&
         (mod.authType === "webhook_secret" ||
           c.webhook_secret_cipher ||
-          isRd ||
+          isFunnelCrm ||
           isWhatsapp)
       ) {
         if (shortSlug) {
@@ -339,7 +382,7 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
       stackTestEventCode={stackTestEventCode}
       stageMapsByConnection={stageMapsByConnection}
       oauthCallbackUrl={
-        isRd
+        isFunnelCrm
           ? `${appUrl}/api/integrations/${provider}/oauth/callback`
           : null
       }

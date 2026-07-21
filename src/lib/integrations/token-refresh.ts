@@ -5,6 +5,10 @@ import { ensureDbReady } from "@/lib/db/boot";
 import { query, queryOne } from "@/lib/db/pool";
 import type { IntegrationConnectionRow } from "@/lib/db/types";
 import {
+  requestPipedriveToken,
+  resolvePipedriveCredentials,
+} from "@/lib/pipedrive/credentials";
+import {
   metadataRecord,
   requestRdToken,
   resolveRdCredentials,
@@ -126,6 +130,15 @@ async function doRefresh(
     clientSecret = creds.clientSecret;
     tokenUrl = creds.tokenUrl;
     tokenBodyFormat = creds.tokenBodyFormat;
+  } else if (latest.provider === "pipedrive") {
+    const creds = await resolvePipedriveCredentials(latest);
+    if (!creds) {
+      return markNeedsReauth(latest, "missing_oauth_app_credentials");
+    }
+    clientId = creds.clientId;
+    clientSecret = creds.clientSecret;
+    tokenUrl = creds.tokenUrl;
+    tokenBodyFormat = "form";
   } else if (latest.provider === "google_ads") {
     clientId = process.env.GOOGLE_ADS_CLIENT_ID;
     clientSecret = process.env.GOOGLE_ADS_CLIENT_SECRET;
@@ -141,6 +154,7 @@ async function doRefresh(
   let accessToken: string | undefined;
   let newRefresh: string | undefined;
   let expiresIn: number | undefined;
+  let apiDomain: string | undefined;
 
   if (
     latest.provider === "rdstation_crm" ||
@@ -168,6 +182,29 @@ async function doRefresh(
     accessToken = json.access_token;
     newRefresh = json.refresh_token;
     expiresIn = json.expires_in;
+  } else if (latest.provider === "pipedrive") {
+    const { ok, status, json } = await requestPipedriveToken({
+      clientId,
+      clientSecret,
+      body: {
+        grant_type: "refresh_token",
+        refresh_token: refresh,
+      },
+    });
+    if (!ok || !json?.access_token) {
+      console.error("[oauth] Pipedrive refresh failed", {
+        connectionId: latest.id,
+        status,
+        error: json?.error ?? json?.error_description ?? null,
+      });
+      return recoverOrMarkReauth(latest, refreshCipherBefore, "refresh_failed");
+    }
+    accessToken = json.access_token;
+    newRefresh = json.refresh_token;
+    expiresIn = json.expires_in;
+    if (typeof json.api_domain === "string" && json.api_domain) {
+      apiDomain = json.api_domain.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+    }
   } else {
     const res = await fetch(tokenUrl, {
       method: "POST",
@@ -203,9 +240,10 @@ async function doRefresh(
   const refreshCipher = newRefresh
     ? await encryptSecret(newRefresh)
     : refreshCipherBefore;
-  // RD usually returns expires_in (e.g. 86400). Default avoids refreshing on every call.
+  // RD usually returns expires_in (e.g. 86400); Pipedrive ~3600.
+  const ttlDefault = latest.provider === "pipedrive" ? 3_600 : 86_400;
   const ttlSec =
-    typeof expiresIn === "number" && expiresIn > 0 ? expiresIn : 86_400;
+    typeof expiresIn === "number" && expiresIn > 0 ? expiresIn : ttlDefault;
   const expiresAt = new Date(Date.now() + ttlSec * 1000).toISOString();
 
   // Conditional update: only win if nobody else rotated the refresh_token first.
@@ -213,6 +251,7 @@ async function doRefresh(
   delete meta.needs_reauth;
   delete meta.reauth_reason;
   meta.last_refresh_at = new Date().toISOString();
+  if (apiDomain) meta.api_domain = apiDomain;
 
   const updated = await queryOne<IntegrationConnectionRow>(
     `update integration_connections set
