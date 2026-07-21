@@ -8,6 +8,9 @@ version: "3.8"
 #         mauriciodantaz/royal-tracking:X.Y.Z-stable
 #         mauriciodantaz/royal-tracking:X.Y.Z-beta
 #
+# Versão/canal do label na sidebar vêm bakeados na imagem (APP_VERSION +
+# RELEASE_CHANNEL). Override opcional via env — ver .env.example.
+#
 # Naming: stack / serviço / DB = royaltracking_<SLUG>
 # 1) Substitua placeholders  2) Colar no Portainer → Deploy
 # Postgres fica em stack EXTERNA na mesma rede (ex.: RoyalNet).
