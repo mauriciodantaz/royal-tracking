@@ -69,6 +69,9 @@ jobs:
         with:
           context: .
           push: true
+          build-args: |
+            APP_VERSION=${{ steps.ver.outputs.version }}
+            RELEASE_CHANNEL=beta
           tags: |
             ${{ env.IMAGE_NAME }}:beta
             ${{ env.IMAGE_NAME }}:${{ steps.ver.outputs.version_beta }}
@@ -110,6 +113,9 @@ jobs:
         with:
           context: .
           push: true
+          build-args: |
+            APP_VERSION=${{ steps.ver.outputs.version }}
+            RELEASE_CHANNEL=latest
           tags: |
             ${{ env.IMAGE_NAME }}:${{ steps.ver.outputs.version }}
             ${{ env.IMAGE_NAME }}:${{ steps.ver.outputs.version }}-stable
@@ -150,6 +156,9 @@ jobs:
         with:
           context: .
           push: true
+          build-args: |
+            APP_VERSION=${{ steps.ver.outputs.version }}
+            RELEASE_CHANNEL=latest
           tags: |
             ${{ env.IMAGE_NAME }}:${{ steps.ver.outputs.version }}
             ${{ env.IMAGE_NAME }}:${{ steps.ver.outputs.version }}-stable
