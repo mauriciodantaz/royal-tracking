@@ -34,6 +34,16 @@ O **painel Royal Tracking** é a verdade operacional. Ads Manager pode não atri
 2. WhatsApp com ticket → Lead matched, sem gclid/ctwa.
 3. Confirme que não polui Ads com upload sem click ID (`missing_click_id` = skipped).
 
+## 5. WhatsApp sem `[rt:…]` (lead apagou o ticket)
+
+1. Landing com snippet → identify grava visitor + telefone (se houver form) **ou** só sessão web.
+2. Usuário abre `wa.me`, **apaga** a linha `[rt:…]` e envia a mensagem.
+3. Webhook deve criar Lead mesmo assim:
+   - Se o telefone já existir em `visitors` → badge **phone** (atribuição do visitor).
+   - Se for a 1ª vez desse telefone na base → badge **organic**, Lead só com dados da plataforma (telefone, push name).
+4. Segunda mensagem do mesmo telefone sem ticket **não** gera outro Lead CAPI.
+5. Conversão (Purchase / estágio CRM) dentro de 30 dias da `first_lead_at` usa first-touch (`ft_*`).
+
 ## Consentimento (CMP)
 
 ```html
