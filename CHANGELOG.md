@@ -5,6 +5,12 @@ All notable changes to Royal Tracking are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-07-23
+
+### Changed
+
+- feat: Elementor WA ticket, remove Geo, beta GitHub Releases (#29)
+
 ## [0.8.0] - 2026-07-23
 
 ### Changed
