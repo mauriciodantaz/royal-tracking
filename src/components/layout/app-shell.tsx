@@ -7,7 +7,6 @@ import {
   Bug,
   Cable,
   FileText,
-  Globe2,
   LayoutDashboard,
   Link2,
   LogOut,
@@ -43,7 +42,6 @@ const NAV_BASE = [
   { href: "/dashboard/eventos", label: "Eventos", icon: Activity },
   { href: "/dashboard/faturamento", label: "Faturamento", icon: Receipt },
   { href: "/dashboard/campanhas", label: "Campanhas", icon: Megaphone },
-  { href: "/dashboard/geo", label: "Geo", icon: Globe2 },
 ] as const;
 
 const REPORT_BUG_URL =

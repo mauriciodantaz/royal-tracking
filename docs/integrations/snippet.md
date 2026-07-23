@@ -12,6 +12,7 @@ O módulo **Site / Forms** não pede token. O snippet já está ativo na stack: 
 - Em `wa.me` / `api.whatsapp.com`, coloca `[rt:código]` no final do `text=` (código curto do visitor; não altera o resto da mensagem)
 - Captura `gclid` / `ttclid` / `wbraid` / `gbraid` e monta `fbc` a partir de `fbclid` quando o cookie `_fbc` não existir
 - Helper: `trck.withWhatsAppTicket(url, message?)`
+- Preenche campos hidden convencionais com o ticket (`trck.fillTrackingFields`) — útil no redirect do Elementor
 - Consentimento CMP: `window.TRCK_CONSENT` (boolean). Default `true` (legado). Se `false`, não envia click IDs / `fbp`/`fbc` e grava `consent: false` no Lead. Veja [ATTRIBUTION-CHECKLIST.md](../ATTRIBUTION-CHECKLIST.md).
 - Links first-party: painel **Links** → `/r/{slug}` (captura visitor + ticket e abre WhatsApp)
 
@@ -57,6 +58,37 @@ window.trck.lead({ fields: { email: "a@b.com" }, form_label: "Newsletter" });
 ```
 
 Ignorar um form: atributo `data-trck-ignore` no `<form>`.
+
+## Elementor popup → redirect WhatsApp
+
+O redirect “After Submit” do Elementor **não** passa pelo clique em `<a>`, então o patch automático de `wa.me` não roda. Use um **campo Hidden** + shortcode na URL de redirect.
+
+1. No formulário do popup, adicione um campo **Hidden** com ID `rt_ticket` (deixe o valor vazio).
+2. Action **Redirect** — o ticket precisa ir **dentro de `text=`** (WhatsApp ignora outros query params na mensagem):
+
+```text
+https://wa.me/5511999999999?text=Olá! Quero saber mais [field id="rt_ticket"]
+```
+
+3. O snippet preenche o hidden com `[rt:código]` (após identify, no submit e quando o popup abre).
+
+Campos reconhecidos: `rt_ticket`, `trck_ticket`, `form_fields[rt_ticket]` (Elementor), `data-trck="ticket"`, classe `trck-ticket`.
+
+### Alternativa: link first-party `/r/{slug}`
+
+Hidden com ID `trck_user_id` + redirect:
+
+```text
+https://SEU_DOMINIO/r/SLUG?trck_user_id=[field id="trck_user_id"]
+```
+
+O `/r/{slug}` monta o `wa.me` com o ticket na mensagem.
+
+### Checklist
+
+1. Abrir o popup → inspecionar o hidden: valor `[rt:…]`
+2. Submit → URL do WhatsApp contém `[rt:…]` no `text=`
+3. Webhook casa o visitor pelo ticket
 
 ## Moeda padrão
 
