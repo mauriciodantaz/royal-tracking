@@ -297,6 +297,91 @@
     }
   }
 
+  /** Elementor: form_fields[rt_ticket] / form-field-rt_ticket → rt_ticket */
+  function normalizeFormFieldKey(raw) {
+    var s = String(raw || "").trim();
+    var m = /^form_fields\[([^\]]+)\]$/i.exec(s);
+    if (m && m[1]) return m[1].toLowerCase();
+    return s.replace(/^form-field-/i, "").toLowerCase();
+  }
+
+  function isTrackingTicketField(el) {
+    if (!el) return false;
+    if (el.getAttribute && el.getAttribute("data-trck") === "ticket") return true;
+    if (el.classList && el.classList.contains("trck-ticket")) return true;
+    var name = normalizeFormFieldKey(el.name || "");
+    var id = normalizeFormFieldKey(el.id || "");
+    return (
+      name === "rt_ticket" ||
+      name === "trck_ticket" ||
+      id === "rt_ticket" ||
+      id === "trck_ticket"
+    );
+  }
+
+  function isTrckUserIdField(el) {
+    if (!el) return false;
+    if (el.getAttribute && el.getAttribute("data-trck") === "user_id") return true;
+    var name = normalizeFormFieldKey(el.name || "");
+    var id = normalizeFormFieldKey(el.id || "");
+    return name === "trck_user_id" || id === "trck_user_id";
+  }
+
+  /**
+   * Preenche hidden fields para redirect Elementor → WhatsApp.
+   * rt_ticket / trck_ticket → "[rt:CODE]"; trck_user_id → id cru.
+   */
+  function fillTrackingFields(root) {
+    var scope = root && root.querySelectorAll ? root : document;
+    var code = getTicketCode();
+    var id = getTrckId() || window.TRCK_USER_ID || null;
+    var ticketValue = code ? formatTicketLine(code) : "";
+    var els = scope.querySelectorAll("input, textarea");
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (ticketValue && isTrackingTicketField(el)) {
+        el.value = ticketValue;
+      } else if (id && isTrckUserIdField(el)) {
+        el.value = id;
+      }
+    }
+  }
+
+  var fillFieldsTimer = null;
+  function scheduleFillTrackingFields() {
+    if (fillFieldsTimer) clearTimeout(fillFieldsTimer);
+    fillFieldsTimer = setTimeout(function () {
+      fillFieldsTimer = null;
+      fillTrackingFields();
+    }, 50);
+  }
+
+  function watchTrackingFields() {
+    if (window.__TRCK_FIELDS_WATCH) return;
+    window.__TRCK_FIELDS_WATCH = true;
+
+    if (typeof MutationObserver !== "undefined" && document.documentElement) {
+      var mo = new MutationObserver(function () {
+        scheduleFillTrackingFields();
+      });
+      mo.observe(document.documentElement, { childList: true, subtree: true });
+    }
+
+    document.addEventListener("elementor/popup/show", scheduleFillTrackingFields);
+    document.addEventListener(
+      "elementor/popup/after_show",
+      scheduleFillTrackingFields
+    );
+    if (window.jQuery) {
+      try {
+        window.jQuery(document).on(
+          "elementor/popup/show elementor/popup/after_show",
+          scheduleFillTrackingFields
+        );
+      } catch (e) {}
+    }
+  }
+
   function post(path, body) {
     return fetch(ENDPOINT + path, {
       method: "POST",
@@ -646,6 +731,8 @@
       window.TRCK_USER_ID = id;
       if (data && data.ticket_code) saveTicketCode(data.ticket_code);
       patchLinks(id);
+      fillTrackingFields();
+      watchTrackingFields();
 
       var eventId = uuid();
       return trackBrowser("PageView", eventId, {}).then(function (web) {
@@ -721,6 +808,8 @@
       function (ev) {
         var form = ev.target;
         if (!form || form.tagName !== "FORM") return;
+        // Sempre preenche ticket/hidden antes do redirect (Elementor), mesmo com ignore.
+        fillTrackingFields(form);
         if (form.getAttribute("data-trck-ignore") != null) return;
         if (wasLeadRecentlySent(form)) return;
 
@@ -807,6 +896,8 @@
           saveTrckId(res.trck_user_id);
           window.TRCK_USER_ID = res.trck_user_id;
         }
+        if (res && res.ticket_code) saveTicketCode(res.ticket_code);
+        fillTrackingFields();
         return res;
       });
     },
@@ -823,15 +914,20 @@
     withWhatsAppTicket: function (url, message) {
       return withWhatsAppTicket(url, this.getId(), message);
     },
+    fillTrackingFields: function (root) {
+      fillTrackingFields(root);
+    },
   };
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
       identifyAndTrack().catch(function () {});
       captureForms();
+      watchTrackingFields();
     });
   } else {
     identifyAndTrack().catch(function () {});
     captureForms();
+    watchTrackingFields();
   }
 })();
