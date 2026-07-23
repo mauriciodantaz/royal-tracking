@@ -18,10 +18,10 @@ Todo PR que altera o produto e entra em `beta` precisa de **exatamente um** labe
 
 - Em dúvida → `release:hotfix`. Nunca `release:versão` sem breaking explícito.
 - Merge em `beta` sem label → CI de release falha.
-- Merge em `beta` + label → bump SemVer no `package.json` → Docker `:beta` + `:X.Y.Z-beta`.
-- Merge `beta` → `main` → tag git `X.Y.Z` (mesma versão do `package.json`) → Docker `:X.Y.Z`, `:X.Y.Z-stable`, `:stable`, `:latest`.
+- Merge em `beta` + label → bump SemVer no `package.json` → tag git `X.Y.Z-beta` + GitHub Release **prerelease** (título `X.Y.Z (beta)`) → Docker `:beta` + `:X.Y.Z-beta`.
+- Merge `beta` → `main` → tag git `X.Y.Z` (mesma versão do `package.json`) + GitHub Release (título `X.Y.Z`; badge Latest marca a tip) → Docker `:X.Y.Z`, `:X.Y.Z-stable`, `:stable`, `:latest`.
 - Push em `dev` → deploy VPS interno (build-on-volume); **sem** Docker Hub. `beta`/`main` não disparam VPS.
-- `latest` = sempre stable. Após merge em `beta`, a versão vem do `release.yml`; **não** crie tags manuais.
+- `latest` = sempre stable. Após merge em `beta`, a versão vem do `release.yml`; **não** crie tags manuais (exceto backfill pontual documentado).
 
 Use a skill **classify-release** ao preparar ou revisar o PR.
 

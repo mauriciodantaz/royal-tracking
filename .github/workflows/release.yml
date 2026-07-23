@@ -3,10 +3,11 @@ name: Release SemVer
 # Canais:
 #   PR mergeada em `beta` + label release:*
 #     -> bump package.json + CHANGELOG -> push em beta
+#     -> tag git X.Y.Z-beta + GitHub Release (--prerelease, titulo "X.Y.Z (beta)")
 #     -> workflow_dispatch docker-publish (:beta + :X.Y.Z-beta)
 #       (push do GITHUB_TOKEN nao dispara outros workflows)
 #   PR mergeada em `main` com head=`beta` (promocao; use merge commit, nao squash)
-#     -> tag git X.Y.Z (mesma versao do package.json) + GitHub Release
+#     -> tag git X.Y.Z (mesma versao do package.json) + GitHub Release (titulo "X.Y.Z")
 #     -> workflow_dispatch docker-publish (:X.Y.Z / :stable / :latest)
 # Labels (obrigatorio em PR para beta — gate tambem em release-label.yml):
 #   release:versao | release:melhoria | release:hotfix | release:none
@@ -163,6 +164,39 @@ jobs:
           git commit -m "chore(release): ${version}-beta"
           git push origin HEAD:beta
 
+      - name: Publish beta GitHub Release
+        if: steps.label.outputs.bump != 'none'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.bump.outputs.version }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          tag="${VERSION}-beta"
+          if git rev-parse "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "Tag ${tag} ja existe — skip release."
+            exit 0
+          fi
+          git tag "$tag"
+          git push origin "$tag"
+
+          notes="$(mktemp)"
+          {
+            echo "## ${VERSION} (beta)"
+            echo ""
+            echo "${PR_TITLE} (#${PR_NUMBER})"
+            echo ""
+            echo "Docker Hub:"
+            echo "- \`mauriciodantaz/royal-tracking:${VERSION}-beta\`"
+            echo "- \`mauriciodantaz/royal-tracking:beta\`"
+          } > "$notes"
+
+          gh release create "$tag" \
+            --prerelease \
+            --title "${VERSION} (beta)" \
+            --notes-file "$notes"
+
       # GITHUB_TOKEN pushes do not trigger other workflows — always dispatch.
       # Use -R: release:none skips checkout, so cwd is not a git repo.
       - name: Publish beta image
@@ -223,7 +257,7 @@ jobs:
 
           notes="$(mktemp)"
           {
-            echo "## ${version} (stable)"
+            echo "## ${version}"
             echo ""
             echo "${PR_TITLE} (#${PR_NUMBER})"
             echo ""
@@ -235,7 +269,7 @@ jobs:
           } > "$notes"
 
           gh release create "$version" \
-            --title "${version} (stable)" \
+            --title "${version}" \
             --notes-file "$notes"
 
       # Tag push with GITHUB_TOKEN also does not trigger docker-publish.
