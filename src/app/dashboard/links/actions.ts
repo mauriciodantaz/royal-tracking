@@ -39,39 +39,59 @@ export async function createTrackedLinkAction(
     return { ok: false, error: "Slug muito curto." };
   }
 
-  await ensureDbReady();
-  const existing = await queryOne<{ id: string }>(
-    `select id from tracked_links where slug = $1 limit 1`,
-    [slug]
-  );
-  if (existing) {
-    return { ok: false, error: `Slug "${slug}" já existe.` };
+  const uuidRe =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const createdBy = uuidRe.test(session.user.id) ? session.user.id : null;
+
+  try {
+    await ensureDbReady();
+    const existing = await queryOne<{ id: string }>(
+      `select id from tracked_links where slug = $1 limit 1`,
+      [slug]
+    );
+    if (existing) {
+      return { ok: false, error: `Slug "${slug}" já existe.` };
+    }
+
+    const row = await queryOne<TrackedLinkRow>(
+      `insert into tracked_links (
+         slug, label, phone_digits, message_template,
+         utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+         created_by
+       ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       returning *`,
+      [
+        slug,
+        label || null,
+        phone,
+        message,
+        String(formData.get("utm_source") ?? "").trim() || null,
+        String(formData.get("utm_medium") ?? "").trim() || null,
+        String(formData.get("utm_campaign") ?? "").trim() || null,
+        String(formData.get("utm_term") ?? "").trim() || null,
+        String(formData.get("utm_content") ?? "").trim() || null,
+        createdBy,
+      ]
+    );
+
+    if (!row) return { ok: false, error: "db_error" };
+    revalidatePath("/dashboard/links");
+    return { ok: true, slug: row.slug };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/tracked_links/i.test(msg) && /does not exist/i.test(msg)) {
+      return {
+        ok: false,
+        error:
+          "Tabela tracked_links ainda não existe — reinicie o app para aplicar migrations.",
+      };
+    }
+    if (/unique|duplicate/i.test(msg)) {
+      return { ok: false, error: `Slug "${slug}" já existe.` };
+    }
+    console.error("[links] create failed", err);
+    return { ok: false, error: msg.slice(0, 200) || "db_error" };
   }
-
-  const row = await queryOne<TrackedLinkRow>(
-    `insert into tracked_links (
-       slug, label, phone_digits, message_template,
-       utm_source, utm_medium, utm_campaign, utm_term, utm_content,
-       created_by
-     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-     returning *`,
-    [
-      slug,
-      label || null,
-      phone,
-      message,
-      String(formData.get("utm_source") ?? "").trim() || null,
-      String(formData.get("utm_medium") ?? "").trim() || null,
-      String(formData.get("utm_campaign") ?? "").trim() || null,
-      String(formData.get("utm_term") ?? "").trim() || null,
-      String(formData.get("utm_content") ?? "").trim() || null,
-      session.user.id,
-    ]
-  );
-
-  if (!row) return { ok: false, error: "db_error" };
-  revalidatePath("/dashboard/links");
-  return { ok: true, slug: row.slug };
 }
 
 export async function toggleTrackedLinkAction(
@@ -84,13 +104,19 @@ export async function toggleTrackedLinkAction(
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return { ok: false, error: "missing_id" };
 
-  await ensureDbReady();
-  await query(
-    `update tracked_links set active = not active, updated_at = now() where id = $1`,
-    [id]
-  );
-  revalidatePath("/dashboard/links");
-  return { ok: true };
+  try {
+    await ensureDbReady();
+    await query(
+      `update tracked_links set active = not active, updated_at = now() where id = $1`,
+      [id]
+    );
+    revalidatePath("/dashboard/links");
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "db_error";
+    console.error("[links] toggle failed", err);
+    return { ok: false, error: msg.slice(0, 200) };
+  }
 }
 
 export async function deleteTrackedLinkAction(
@@ -103,8 +129,14 @@ export async function deleteTrackedLinkAction(
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return { ok: false, error: "missing_id" };
 
-  await ensureDbReady();
-  await query(`delete from tracked_links where id = $1`, [id]);
-  revalidatePath("/dashboard/links");
-  return { ok: true };
+  try {
+    await ensureDbReady();
+    await query(`delete from tracked_links where id = $1`, [id]);
+    revalidatePath("/dashboard/links");
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "db_error";
+    console.error("[links] delete failed", err);
+    return { ok: false, error: msg.slice(0, 200) };
+  }
 }

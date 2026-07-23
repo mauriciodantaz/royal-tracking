@@ -56,15 +56,22 @@ export function LinksClient({
             className="grid gap-3 sm:grid-cols-2"
             onSubmit={(e) => {
               e.preventDefault();
-              const fd = new FormData(e.currentTarget);
+              const form = e.currentTarget;
+              const fd = new FormData(form);
               start(async () => {
-                const r = await createTrackedLinkAction(fd);
-                if (!r.ok) {
-                  toast.error(r.error);
-                  return;
+                try {
+                  const r = await createTrackedLinkAction(fd);
+                  if (!r.ok) {
+                    toast.error(r.error);
+                    return;
+                  }
+                  toast.success(`Link /r/${r.slug} criado`);
+                  form.reset();
+                } catch (err) {
+                  toast.error(
+                    err instanceof Error ? err.message : "Falha ao criar link"
+                  );
                 }
-                toast.success(`Link /r/${r.slug} criado`);
-                e.currentTarget.reset();
               });
             }}
           >
