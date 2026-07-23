@@ -63,6 +63,9 @@ export type VisitorRow = {
   ga_session_id: string | null;
   gclid: string | null;
   ttclid: string | null;
+  ctwa_clid: string | null;
+  wbraid: string | null;
+  gbraid: string | null;
   utm_source: string | null;
   utm_medium: string | null;
   utm_campaign: string | null;
@@ -177,6 +180,9 @@ export type FormLeadRow = {
   utm_content: string | null;
   fbp: string | null;
   fbc: string | null;
+  gclid: string | null;
+  ttclid: string | null;
+  ctwa_clid: string | null;
   ga_client_id: string | null;
   source_provider: string;
   source_connection_id: string | null;

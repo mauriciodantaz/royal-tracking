@@ -187,6 +187,12 @@ function WaMeLinkGenerator() {
     "Olá! Tudo bem? Quero saber mais."
   );
   const [link, setLink] = useState("");
+  const [campaignCopy, setCampaignCopy] = useState("");
+
+  function ticketBody() {
+    const ticketLine = `[rt:{{tracking}}]`;
+    return `${message.trim()}\n\n${ticketLine}`;
+  }
 
   function build() {
     const digits = phone.replace(/\D/g, "");
@@ -194,11 +200,10 @@ function WaMeLinkGenerator() {
       toast.error("Informe o telefone com DDI (ex.: 5511999999999).");
       return;
     }
-    // Keep the message as written; only append [rt:…] at the end.
-    const ticketLine = `[rt:{{tracking}}]`;
-    const body = `${message.trim()}\n\n${ticketLine}`;
+    const body = ticketBody();
     const url = `https://wa.me/${digits}?text=${encodeURIComponent(body)}`;
     setLink(url);
+    setCampaignCopy(body);
   }
 
   return (
@@ -260,6 +265,47 @@ function WaMeLinkGenerator() {
           </Button>
         </div>
       ) : null}
+
+      <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-3">
+        <h3 className="text-sm font-medium">Campanha de mensagem / CTWA</h3>
+        <p className="text-xs text-muted-foreground">
+          Cole esta mensagem no criativo Meta (Click-to-WhatsApp). O placeholder{" "}
+          <code className="font-mono">[rt:&#123;&#123;tracking&#125;&#125;]</code>{" "}
+          só funciona em links do site com snippet; em CTWA nativo prefira o
+          metadata <code className="font-mono">ctwa_clid</code> do webhook ou um{" "}
+          <a href="/dashboard/links" className="underline underline-offset-2">
+            link rastreado /r/…
+          </a>
+          .
+        </p>
+        {campaignCopy ? (
+          <>
+            <pre className="whitespace-pre-wrap rounded-md bg-background/80 px-3 py-2 font-mono text-[11px]">
+              {campaignCopy}
+            </pre>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(campaignCopy);
+                  toast.success("Mensagem copiada");
+                } catch {
+                  toast.error("Não foi possível copiar");
+                }
+              }}
+            >
+              Copiar mensagem da campanha
+            </Button>
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Gere o link acima para ver a mensagem pronta.
+          </p>
+        )}
+      </div>
+
       <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-foreground/90">
         Não remova a linha <code className="font-mono">[rt:…]</code> do final.
         Sem ela o WhatsApp não vira Lead rastreado. O resto da mensagem (incluindo

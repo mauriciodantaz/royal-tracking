@@ -155,6 +155,7 @@ export async function processPurchaseEvent(opts: {
         visitor?.external_id_hash ?? (trckUserId ? hashPii(trckUserId) : null),
       fbp: visitor?.fbp,
       fbc: visitor?.fbc,
+      ctwaClid: visitor?.ctwa_clid,
       clientIpAddress: visitor?.ip,
       clientUserAgent: visitor?.user_agent,
     },
@@ -169,6 +170,9 @@ export async function processPurchaseEvent(opts: {
     gaClientIdSource: gaResolved.source,
     gaIdentityMeta: gaResolved.meta,
     gaSessionId: visitor?.ga_session_id,
+    gclid: visitor?.gclid,
+    wbraid: visitor?.wbraid,
+    gbraid: visitor?.gbraid,
   });
 
   const now = new Date().toISOString();

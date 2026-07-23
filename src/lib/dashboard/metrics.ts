@@ -136,6 +136,100 @@ function pct(a: number, b: number) {
   return b > 0 ? (a / b) * 100 : 0;
 }
 
+const WA_PROVIDERS = [
+  "evolution_api",
+  "uazapi",
+  "rdstation_conversas",
+] as const;
+
+export type WhatsappQualityMetrics = {
+  range: VolumeRange;
+  total: number;
+  withTicketPct: number;
+  withCtwaPct: number;
+  withGclidPct: number;
+  withFbcPct: number;
+  matchedPct: number;
+  unmatchedPct: number;
+  avgSecondsIdentifyToLead: number | null;
+};
+
+/** Quality of WhatsApp inbound leads (ticket / CTWA / click IDs). */
+export async function getWhatsappQualityMetrics(
+  range: VolumeRange = "7d"
+): Promise<WhatsappQualityMetrics> {
+  await ensureDbReady();
+  const interval = RANGE_INTERVAL[range];
+
+  const row = await queryOne<{
+    total: string;
+    with_ticket: string;
+    with_ctwa: string;
+    with_gclid: string;
+    with_fbc: string;
+    matched: string;
+    unmatched: string;
+    avg_sec: string | null;
+  }>(
+    `select
+       count(*)::text as total,
+       count(*) filter (
+         where coalesce(match_reason, '') ilike '%ticket%'
+            or (fields ? 'ticket_value' and nullif(fields->>'ticket_value', '') is not null)
+       )::text as with_ticket,
+       count(*) filter (
+         where ctwa_clid is not null
+            or coalesce(match_reason, '') ilike '%ctwa%'
+       )::text as with_ctwa,
+       count(*) filter (where gclid is not null)::text as with_gclid,
+       count(*) filter (where fbc is not null)::text as with_fbc,
+       count(*) filter (where match_status = 'matched')::text as matched,
+       count(*) filter (
+         where match_status = 'unmatched'
+            or coalesce(match_reason, '') ilike '%unmatched%'
+            or coalesce(match_reason, '') ilike '%no_visitor%'
+       )::text as unmatched,
+       (
+         select avg(extract(epoch from (l.created_at - v.created_at)))::text
+         from form_leads l
+         join visitors v on v.trck_user_id = l.trck_user_id
+         where l.source_provider = any($2::text[])
+           and l.created_at >= now() - $1::interval
+           and l.trck_user_id is not null
+           and l.created_at >= v.created_at
+       ) as avg_sec
+     from form_leads
+     where source_provider = any($2::text[])
+       and created_at >= now() - $1::interval`,
+    [interval, [...WA_PROVIDERS]]
+  );
+
+  const total = Number(row?.total ?? 0);
+  const withTicket = Number(row?.with_ticket ?? 0);
+  const withCtwa = Number(row?.with_ctwa ?? 0);
+  const withGclid = Number(row?.with_gclid ?? 0);
+  const withFbc = Number(row?.with_fbc ?? 0);
+  const matched = Number(row?.matched ?? 0);
+  const unmatched = Number(row?.unmatched ?? 0);
+  const avgSec =
+    row?.avg_sec != null && row.avg_sec !== ""
+      ? Number(row.avg_sec)
+      : null;
+
+  return {
+    range,
+    total,
+    withTicketPct: pct(withTicket, total),
+    withCtwaPct: pct(withCtwa, total),
+    withGclidPct: pct(withGclid, total),
+    withFbcPct: pct(withFbc, total),
+    matchedPct: pct(matched, total),
+    unmatchedPct: pct(unmatched, total),
+    avgSecondsIdentifyToLead:
+      avgSec != null && Number.isFinite(avgSec) ? avgSec : null,
+  };
+}
+
 export async function getVolumeMetrics(
   range: VolumeRange = "7d"
 ): Promise<VolumeMetrics> {

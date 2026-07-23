@@ -6,7 +6,11 @@ import {
   type OutboundEventInput,
   type OutboundResult,
 } from "@/lib/integrations/outbound";
-import type { MetaCustomData, MetaUserData } from "@/lib/meta/capi";
+import type {
+  MetaActionSource,
+  MetaCustomData,
+  MetaUserData,
+} from "@/lib/meta/capi";
 import type {
   GaClientIdSource,
   GaIdentityMeta,
@@ -25,6 +29,11 @@ export type DispatchInput = {
   gaIdentityMeta?: GaIdentityMeta | null;
   gaSessionId?: string | null;
   debug?: boolean;
+  actionSource?: MetaActionSource;
+  gclid?: string | null;
+  wbraid?: string | null;
+  gbraid?: string | null;
+  conversionDateTime?: string | null;
 };
 
 export type DispatchResult = {
@@ -57,6 +66,11 @@ export async function dispatchEvent(
       gaIdentityMeta: input.gaIdentityMeta,
       gaSessionId: input.gaSessionId,
       debug: input.debug,
+      actionSource: input.actionSource,
+      gclid: input.gclid,
+      wbraid: input.wbraid,
+      gbraid: input.gbraid,
+      conversionDateTime: input.conversionDateTime,
     };
     results.push(await sendToConnection(t.dest, outbound));
   }

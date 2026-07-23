@@ -10,6 +10,7 @@ URL: `/dashboard/integracoes/{provider}/docs`
 | Meta (CAPI / Pixel) | [meta-pixel.md](./meta-pixel.md) | `meta_pixel` |
 | Meta Ads | [meta-ads.md](./meta-ads.md) | `meta_ads` |
 | Google Analytics 4 | [ga4.md](./ga4.md) | `ga4` |
+| Google Ads | [google-ads.md](./google-ads.md) | `google_ads` |
 | Hotmart | [hotmart.md](./hotmart.md) | `hotmart` |
 | Kiwify | [kiwify.md](./kiwify.md) | `kiwify` |
 | Eduzz | [eduzz.md](./eduzz.md) | `eduzz` |
