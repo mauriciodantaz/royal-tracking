@@ -1,5 +1,6 @@
 import "server-only";
 
+import { listAccessibleCustomers } from "@/lib/google-ads/upload";
 import { META_GRAPH_BASE_URL } from "@/lib/meta/constants";
 import { newEventId } from "@/lib/tracking/hash";
 
@@ -382,8 +383,55 @@ export async function validateIntegrationCredentials(input: {
       return { ok: true };
     }
     case "snippet":
-    case "google_ads":
       return { ok: true };
+    case "google_ads": {
+      const customerId = (cfg.customer_id || "").replace(/\D/g, "");
+      const conversionActionId = (cfg.conversion_action_id || "").replace(
+        /\D/g,
+        ""
+      );
+      // OAuth create often só tem label; customer/action vêm no update pós-OAuth.
+      if (!customerId && !conversionActionId) return { ok: true };
+      if (!customerId || customerId.length < 6) {
+        return {
+          ok: false,
+          error: "Informe o Customer ID da conta Google Ads (números).",
+        };
+      }
+      if (!conversionActionId) {
+        return {
+          ok: false,
+          error: "Informe o Conversion Action ID (numérico).",
+        };
+      }
+      const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN?.trim();
+      if (!developerToken) {
+        return {
+          ok: false,
+          error:
+            "Defina GOOGLE_ADS_DEVELOPER_TOKEN na stack (Portainer) para enviar conversões.",
+        };
+      }
+      if (token) {
+        const listed = await listAccessibleCustomers(token, developerToken);
+        if (!listed.ok) {
+          return {
+            ok: false,
+            error: `Google Ads OAuth ok, mas API falhou: ${listed.error ?? "erro"}`,
+          };
+        }
+        if (
+          listed.customerIds.length > 0 &&
+          !listed.customerIds.includes(customerId)
+        ) {
+          return {
+            ok: false,
+            error: `Customer ID ${customerId} não está nas contas acessíveis deste OAuth.`,
+          };
+        }
+      }
+      return { ok: true };
+    }
     case "rdstation_crm":
     case "rdstation_mkt": {
       const clientId = cfg.client_id?.trim() || "";

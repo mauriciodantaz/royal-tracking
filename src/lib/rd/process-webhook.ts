@@ -165,6 +165,9 @@ async function dispatchMapped(opts: {
   gaIdentityMeta?: GaIdentityMeta | null;
   gaSessionId?: string | null;
   eventSourceUrl?: string | null;
+  gclid?: string | null;
+  wbraid?: string | null;
+  gbraid?: string | null;
 }): Promise<OutboundResult[]> {
   const results: OutboundResult[] = [];
   if (opts.metaEventName) {
@@ -184,6 +187,9 @@ async function dispatchMapped(opts: {
           gaClientIdSource: opts.gaClientIdSource,
           gaIdentityMeta: opts.gaIdentityMeta,
           gaSessionId: opts.gaSessionId,
+          gclid: opts.gclid,
+          wbraid: opts.wbraid,
+          gbraid: opts.gbraid,
         })
       );
     }
@@ -205,6 +211,34 @@ async function dispatchMapped(opts: {
           gaClientIdSource: opts.gaClientIdSource,
           gaIdentityMeta: opts.gaIdentityMeta,
           gaSessionId: opts.gaSessionId,
+          gclid: opts.gclid,
+          wbraid: opts.wbraid,
+          gbraid: opts.gbraid,
+        })
+      );
+    }
+  }
+  const adsEventName = opts.metaEventName || opts.ga4EventName;
+  if (adsEventName) {
+    const ads = await listConnections({
+      provider: "google_ads",
+      activeOnly: true,
+    });
+    for (const dest of ads) {
+      results.push(
+        await sendToConnection(dest, {
+          eventId: opts.eventId,
+          eventName: adsEventName,
+          eventSourceUrl: opts.eventSourceUrl,
+          userData: opts.userData,
+          customData: opts.customData,
+          gaClientId: opts.gaClientId,
+          gaClientIdSource: opts.gaClientIdSource,
+          gaIdentityMeta: opts.gaIdentityMeta,
+          gaSessionId: opts.gaSessionId,
+          gclid: opts.gclid,
+          wbraid: opts.wbraid,
+          gbraid: opts.gbraid,
         })
       );
     }
@@ -448,6 +482,9 @@ async function processCrmDealWebhook(
           gaClientIdSource: gaResolved.source,
           gaIdentityMeta: gaResolved.meta,
           gaSessionId: visitor?.ga_session_id,
+          gclid: visitor?.gclid,
+          wbraid: visitor?.wbraid,
+          gbraid: visitor?.gbraid,
         });
         await persistEventLog({
           trckUserId,
@@ -495,6 +532,9 @@ async function processCrmDealWebhook(
           gaClientIdSource: gaResolved.source,
           gaIdentityMeta: gaResolved.meta,
           gaSessionId: visitor?.ga_session_id,
+          gclid: visitor?.gclid,
+          wbraid: visitor?.wbraid,
+          gbraid: visitor?.gbraid,
         });
         await persistEventLog({
           trckUserId,
@@ -632,6 +672,9 @@ async function processMktWebhook(
     gaClientIdSource: gaResolved.source,
     gaIdentityMeta: gaResolved.meta,
     gaSessionId: visitor?.ga_session_id,
+    gclid: visitor?.gclid,
+    wbraid: visitor?.wbraid,
+    gbraid: visitor?.gbraid,
   });
 
   await persistEventLog({

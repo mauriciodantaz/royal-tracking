@@ -102,14 +102,14 @@ export async function POST(request: NextRequest) {
          first_name_hash, last_name_hash, city_hash, state_hash, country_hash,
          external_id_hash, fbp, fbc, ga_client_id, ga_client_id_source,
          browser_ga_client_id, ga_client_id_created_at, ga_client_id_updated_at,
-         ga_session_id, gclid, ttclid,
+         ga_session_id, gclid, ttclid, ctwa_clid, wbraid, gbraid,
          utm_source, utm_medium, utm_campaign, utm_term, utm_content,
          referrer, ip, user_agent, geo_country, geo_region, geo_city, pixel_id
        ) values (
          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
          case when $14::text is not null then now() else null end,
          case when $14::text is not null then now() else null end,
-         $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31
+         $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34
        )
        on conflict (trck_user_id) do update set
          ticket_code = coalesce(visitors.ticket_code, excluded.ticket_code),
@@ -134,6 +134,9 @@ export async function POST(request: NextRequest) {
          ga_session_id = coalesce(excluded.ga_session_id, visitors.ga_session_id),
          gclid = coalesce(excluded.gclid, visitors.gclid),
          ttclid = coalesce(excluded.ttclid, visitors.ttclid),
+         ctwa_clid = coalesce(excluded.ctwa_clid, visitors.ctwa_clid),
+         wbraid = coalesce(excluded.wbraid, visitors.wbraid),
+         gbraid = coalesce(excluded.gbraid, visitors.gbraid),
          utm_source = coalesce(excluded.utm_source, visitors.utm_source),
          utm_medium = coalesce(excluded.utm_medium, visitors.utm_medium),
          utm_campaign = coalesce(excluded.utm_campaign, visitors.utm_campaign),
@@ -168,6 +171,9 @@ export async function POST(request: NextRequest) {
         body.ga_session_id ?? null,
         body.gclid ?? null,
         body.ttclid ?? null,
+        body.ctwa_clid ?? null,
+        body.wbraid ?? null,
+        body.gbraid ?? null,
         body.utm_source ?? null,
         body.utm_medium ?? null,
         body.utm_campaign ?? null,

@@ -5,6 +5,13 @@ export type WhatsappInboundProvider =
   | "uazapi"
   | "rdstation_conversas";
 
+export type WhatsappReferral = {
+  ctwaClid: string | null;
+  sourceId: string | null;
+  sourceUrl: string | null;
+  sourceType: string | null;
+};
+
 export type NormalizedWhatsappMessage = {
   phone: string | null;
   pushName: string | null;
@@ -14,6 +21,10 @@ export type NormalizedWhatsappMessage = {
   isGroup: boolean;
   timestamp: number;
   provider: WhatsappInboundProvider;
+  ctwaClid: string | null;
+  referralSourceId: string | null;
+  referralSourceUrl: string | null;
+  referralSourceType: string | null;
 };
 
 function asRecord(v: unknown): Record<string, unknown> | null {
@@ -53,6 +64,131 @@ function extractTextFromMessageObj(msg: Record<string, unknown> | null): string 
 function jidIsGroup(jid: string | null | undefined): boolean {
   if (!jid) return false;
   return jid.includes("@g.us") || jid.includes("@newsletter");
+}
+
+function strField(
+  obj: Record<string, unknown> | null,
+  ...keys: string[]
+): string | null {
+  if (!obj) return null;
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return null;
+}
+
+/** Parse Meta-style referral object (Official API / mirrored by middlewares). */
+export function parseReferralObject(raw: unknown): WhatsappReferral {
+  const empty: WhatsappReferral = {
+    ctwaClid: null,
+    sourceId: null,
+    sourceUrl: null,
+    sourceType: null,
+  };
+  const ref = asRecord(raw);
+  if (!ref) return empty;
+  return {
+    ctwaClid: strField(ref, "ctwa_clid", "ctwaClid", "ctwaClId"),
+    sourceId: strField(ref, "source_id", "sourceId"),
+    sourceUrl: strField(ref, "source_url", "sourceUrl"),
+    sourceType: strField(ref, "source_type", "sourceType"),
+  };
+}
+
+/**
+ * Deep-scan common nesting for referral / ctwa_clid (Evolution, UazAPI, wrappers).
+ */
+export function extractReferralFromRaw(raw: unknown): WhatsappReferral {
+  const empty: WhatsappReferral = {
+    ctwaClid: null,
+    sourceId: null,
+    sourceUrl: null,
+    sourceType: null,
+  };
+  if (!raw || typeof raw !== "object") return empty;
+
+  const queue: unknown[] = [raw];
+  const seen = new Set<unknown>();
+  let best: WhatsappReferral = empty;
+
+  while (queue.length > 0) {
+    const cur = queue.shift();
+    if (!cur || typeof cur !== "object" || seen.has(cur)) continue;
+    seen.add(cur);
+
+    if (Array.isArray(cur)) {
+      for (const item of cur.slice(0, 40)) queue.push(item);
+      continue;
+    }
+
+    const rec = cur as Record<string, unknown>;
+    if (rec.referral) {
+      const parsed = parseReferralObject(rec.referral);
+      if (parsed.ctwaClid || parsed.sourceId) {
+        return parsed;
+      }
+    }
+    const directClid = strField(rec, "ctwa_clid", "ctwaClid", "ctwaClId");
+    if (directClid && !best.ctwaClid) {
+      best = {
+        ctwaClid: directClid,
+        sourceId: strField(rec, "source_id", "sourceId") ?? best.sourceId,
+        sourceUrl: strField(rec, "source_url", "sourceUrl") ?? best.sourceUrl,
+        sourceType: strField(rec, "source_type", "sourceType") ?? best.sourceType,
+      };
+    }
+
+    const ctx = asRecord(rec.contextInfo) ?? asRecord(rec.context_info);
+    if (ctx) {
+      const external = asRecord(ctx.externalAdReply) ?? asRecord(ctx.external_ad_reply);
+      if (external) {
+        const clid = strField(
+          external,
+          "ctwa_clid",
+          "ctwaClid",
+          "sourceId",
+          "source_id"
+        );
+        if (clid && (clid.length > 20 || strField(external, "ctwa_clid"))) {
+          const fromExt = parseReferralObject({
+            ctwa_clid: strField(external, "ctwa_clid", "ctwaClid"),
+            source_id: strField(external, "source_id", "sourceId"),
+            source_url: strField(external, "source_url", "sourceUrl", "sourceUrl"),
+            source_type: strField(external, "source_type", "sourceType") ?? "ad",
+          });
+          if (fromExt.ctwaClid) return fromExt;
+        }
+      }
+      queue.push(ctx);
+    }
+
+    for (const v of Object.values(rec)) {
+      if (v && typeof v === "object") queue.push(v);
+    }
+    if (seen.size > 200) break;
+  }
+
+  return best;
+}
+
+function withReferral(
+  base: Omit<
+    NormalizedWhatsappMessage,
+    | "ctwaClid"
+    | "referralSourceId"
+    | "referralSourceUrl"
+    | "referralSourceType"
+  >,
+  referral: WhatsappReferral
+): NormalizedWhatsappMessage {
+  return {
+    ...base,
+    ctwaClid: referral.ctwaClid,
+    referralSourceId: referral.sourceId,
+    referralSourceUrl: referral.sourceUrl,
+    referralSourceType: referral.sourceType,
+  };
 }
 
 /** Evolution API messages.upsert (and similar wrappers). */
@@ -105,16 +241,21 @@ export function normalizeEvolutionPayload(
     }
   }
 
-  return {
-    phone: digitsPhone(remoteJid),
-    pushName,
-    text: text.trim(),
-    messageId,
-    fromMe,
-    isGroup: jidIsGroup(remoteJid),
-    timestamp,
-    provider: "evolution_api",
-  };
+  const referral = extractReferralFromRaw(raw);
+
+  return withReferral(
+    {
+      phone: digitsPhone(remoteJid),
+      pushName,
+      text: text.trim(),
+      messageId,
+      fromMe,
+      isGroup: jidIsGroup(remoteJid),
+      timestamp,
+      provider: "evolution_api",
+    },
+    referral
+  );
 }
 
 /** UazAPI Go message webhook. */
@@ -197,16 +338,21 @@ export function normalizeUazapiPayload(
     if (Number.isFinite(n)) timestamp = n < 1e12 ? n * 1000 : n;
   }
 
-  return {
-    phone: digitsPhone(chatId),
-    pushName,
-    text: text.trim(),
-    messageId,
-    fromMe,
-    isGroup,
-    timestamp,
-    provider: "uazapi",
-  };
+  const referral = extractReferralFromRaw(raw);
+
+  return withReferral(
+    {
+      phone: digitsPhone(chatId),
+      pushName,
+      text: text.trim(),
+      messageId,
+      fromMe,
+      isGroup,
+      timestamp,
+      provider: "uazapi",
+    },
+    referral
+  );
 }
 
 /**
@@ -263,16 +409,21 @@ export function normalizeRdConversasPayload(
       ? contact.name.trim()
       : null;
 
-  return {
-    phone,
-    pushName,
-    text,
-    messageId,
-    fromMe: false,
-    isGroup: false,
-    timestamp: Date.now(),
-    provider: "rdstation_conversas",
-  };
+  const referral = extractReferralFromRaw(raw);
+
+  return withReferral(
+    {
+      phone,
+      pushName,
+      text,
+      messageId,
+      fromMe: false,
+      isGroup: false,
+      timestamp: Date.now(),
+      provider: "rdstation_conversas",
+    },
+    referral
+  );
 }
 
 export function normalizeWhatsappPayload(
@@ -291,4 +442,10 @@ export function normalizeWhatsappPayload(
       return _exhaustive;
     }
   }
+}
+
+/** True when message can create a Lead without [rt:…] ticket. */
+export function hasCtwaAttribution(msg: NormalizedWhatsappMessage): boolean {
+  if (msg.ctwaClid) return true;
+  return msg.referralSourceType === "ad" && Boolean(msg.referralSourceId);
 }

@@ -58,6 +58,11 @@ services:
       SMTP_USER: CHANGE_ME_SMTP_USER
       SMTP_PASS: CHANGE_ME_SMTP_PASS
       SMTP_FROM: "Royal Tracking <noreply@example.com>"
+
+      # --- Google Ads (opcional — upload de conversões) ---
+      # GOOGLE_ADS_CLIENT_ID: ""
+      # GOOGLE_ADS_CLIENT_SECRET: ""
+      # GOOGLE_ADS_DEVELOPER_TOKEN: ""
     networks:
       - RoyalNet
     deploy:

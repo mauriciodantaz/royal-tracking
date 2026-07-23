@@ -198,13 +198,14 @@ export async function POST(request: NextRequest) {
          trck_user_id, ticket_code, email, email_hash, phone_hash, external_id_hash,
          fbp, fbc, ga_client_id, ga_client_id_source, browser_ga_client_id,
          ga_client_id_created_at, ga_client_id_updated_at,
+         gclid, ttclid, ctwa_clid, wbraid, gbraid,
          utm_source, utm_medium, utm_campaign, utm_term, utm_content,
          ip, user_agent
        ) values (
          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
          case when $9::text is not null then now() else null end,
          case when $9::text is not null then now() else null end,
-         $12,$13,$14,$15,$16,$17,$18
+         $12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23
        )
        on conflict (trck_user_id) do update set
          ticket_code = coalesce(visitors.ticket_code, excluded.ticket_code),
@@ -220,6 +221,11 @@ export async function POST(request: NextRequest) {
          ga_client_id_updated_at = case
            when excluded.ga_client_id is not null or excluded.browser_ga_client_id is not null
            then now() else visitors.ga_client_id_updated_at end,
+         gclid = coalesce(excluded.gclid, visitors.gclid),
+         ttclid = coalesce(excluded.ttclid, visitors.ttclid),
+         ctwa_clid = coalesce(excluded.ctwa_clid, visitors.ctwa_clid),
+         wbraid = coalesce(excluded.wbraid, visitors.wbraid),
+         gbraid = coalesce(excluded.gbraid, visitors.gbraid),
          utm_source = coalesce(excluded.utm_source, visitors.utm_source),
          utm_medium = coalesce(excluded.utm_medium, visitors.utm_medium),
          utm_campaign = coalesce(excluded.utm_campaign, visitors.utm_campaign),
@@ -240,6 +246,11 @@ export async function POST(request: NextRequest) {
         gaResolved.clientId,
         gaResolved.source === "none" ? null : gaResolved.source,
         gaResolved.browserGaClientId,
+        body.gclid ?? null,
+        body.ttclid ?? null,
+        body.ctwa_clid ?? null,
+        body.wbraid ?? null,
+        body.gbraid ?? null,
         body.utm_source ?? null,
         body.utm_medium ?? null,
         body.utm_campaign ?? null,
@@ -341,10 +352,12 @@ export async function POST(request: NextRequest) {
          form_id, trck_user_id, email, phone, email_hash, phone_hash, name,
          fields, page_url,
          utm_source, utm_medium, utm_campaign, utm_term, utm_content,
-         fbp, fbc, ga_client_id, source_provider, source_connection_id,
+         fbp, fbc, gclid, ttclid, ctwa_clid, ga_client_id,
+         source_provider, source_connection_id,
          consent, raw_payload, event_id, match_status
        ) values (
-         $1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22,$23
+         $1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13,$14,$15,$16,
+         $17,$18,$19,$20,$21,$22,$23,$24::jsonb,$25,$26
        )
        on conflict (event_id) do nothing
        returning id`,
@@ -365,6 +378,9 @@ export async function POST(request: NextRequest) {
         body.utm_content ?? visitor?.utm_content ?? null,
         body.fbp ?? visitor?.fbp ?? null,
         body.fbc ?? visitor?.fbc ?? null,
+        body.gclid ?? visitor?.gclid ?? null,
+        body.ttclid ?? visitor?.ttclid ?? null,
+        body.ctwa_clid ?? visitor?.ctwa_clid ?? null,
         gaResolved.clientId,
         "snippet",
         snippet?.id ?? null,
@@ -389,6 +405,7 @@ export async function POST(request: NextRequest) {
         externalIdHash: visitor?.external_id_hash,
         fbp: body.fbp ?? visitor?.fbp,
         fbc: body.fbc ?? visitor?.fbc,
+        ctwaClid: body.ctwa_clid ?? visitor?.ctwa_clid,
         clientIpAddress: visitor?.ip ?? ip,
         clientUserAgent: visitor?.user_agent ?? userAgent,
       },
@@ -396,6 +413,9 @@ export async function POST(request: NextRequest) {
       gaClientIdSource: gaResolved.source,
       gaIdentityMeta: gaResolved.meta,
       gaSessionId: visitor?.ga_session_id,
+      gclid: body.gclid ?? visitor?.gclid,
+      wbraid: body.wbraid ?? visitor?.wbraid,
+      gbraid: body.gbraid ?? visitor?.gbraid,
     });
 
     const { serverMeta, serverGa4 } = serverFlagsFromDispatch(dispatch.results);

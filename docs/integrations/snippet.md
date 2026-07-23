@@ -10,8 +10,10 @@ O módulo **Site / Forms** não pede token. O snippet já está ativo na stack: 
 - Expõe `window.trck.event` / `identify` / `lead`
 - Anexa `trck_user_id` em links de checkout/WhatsApp/Hotmart/etc.
 - Em `wa.me` / `api.whatsapp.com`, coloca `[rt:código]` no final do `text=` (código curto do visitor; não altera o resto da mensagem)
-- Captura `gclid` / `ttclid` e monta `fbc` a partir de `fbclid` quando o cookie `_fbc` não existir
+- Captura `gclid` / `ttclid` / `wbraid` / `gbraid` e monta `fbc` a partir de `fbclid` quando o cookie `_fbc` não existir
 - Helper: `trck.withWhatsAppTicket(url, message?)`
+- Consentimento CMP: `window.TRCK_CONSENT` (boolean). Default `true` (legado). Se `false`, não envia click IDs / `fbp`/`fbc` e grava `consent: false` no Lead. Veja [ATTRIBUTION-CHECKLIST.md](../ATTRIBUTION-CHECKLIST.md).
+- Links first-party: painel **Links** → `/r/{slug}` (captura visitor + ticket e abre WhatsApp)
 
 ## Código para colar
 

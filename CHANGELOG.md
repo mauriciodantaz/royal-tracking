@@ -5,6 +5,20 @@ All notable changes to Royal Tracking are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- CTWA: parse de `referral`/`ctwa_clid`, Lead WhatsApp sem ticket, CAPI `business_messaging`.
+- Google Ads: upload de conversões offline / Enhanced Conversions (`UploadClickConversions`) + docs.
+- Links first-party `/r/{slug}` (painel Links) com ticket automático no WhatsApp.
+- KPIs de qualidade WhatsApp no dashboard; checklist de atribuição; consent CMP via `window.TRCK_CONSENT`.
+- Migrations `012_ctwa_and_click_ids`, `013_tracked_links`.
+
+### Changed
+
+- Snippet captura `wbraid`/`gbraid`; lead/identify persistem click IDs; CRM stage fan-out inclui Google Ads.
+
 ## [0.6.0] - 2026-07-21
 
 ### Changed

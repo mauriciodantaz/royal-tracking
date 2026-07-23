@@ -8,6 +8,7 @@ import {
 import type { IntegrationConnectionRow } from "@/lib/db/types";
 import {
   buildCapiPayload,
+  type MetaActionSource,
   type MetaCustomData,
   type MetaUserData,
 } from "@/lib/meta/capi";
@@ -15,6 +16,7 @@ import { META_GRAPH_BASE_URL } from "@/lib/meta/constants";
 import { ensureDbReady } from "@/lib/db/boot";
 import { queryOne } from "@/lib/db/pool";
 import { notifyIntegrationBroken } from "@/lib/mail/alerts";
+import { uploadGoogleAdsClickConversion } from "@/lib/google-ads/upload";
 import {
   maskGaClientId,
   type GaClientIdSource,
@@ -32,6 +34,13 @@ export type OutboundEventInput = {
   gaIdentityMeta?: GaIdentityMeta | null;
   gaSessionId?: string | null;
   debug?: boolean;
+  /** Meta CAPI action_source — default website */
+  actionSource?: MetaActionSource;
+  /** Google Ads click / enhanced conversion identifiers */
+  gclid?: string | null;
+  wbraid?: string | null;
+  gbraid?: string | null;
+  conversionDateTime?: string | null;
 };
 
 export type OutboundResult = {
@@ -104,6 +113,7 @@ export async function sendToMetaConnection(
     userData: input.userData,
     customData: input.customData,
     testEventCode: testCode,
+    actionSource: input.actionSource ?? "website",
   });
 
   if (!pixelId || !token) {
@@ -328,6 +338,39 @@ export async function sendToGa4Connection(
   }
 }
 
+export async function sendToGoogleAdsConnection(
+  conn: IntegrationConnectionRow,
+  input: OutboundEventInput
+): Promise<OutboundResult> {
+  const uploaded = await uploadGoogleAdsClickConversion(conn, input);
+  const result: OutboundResult = {
+    connectionId: conn.id,
+    provider: "google_ads",
+    ok: uploaded.ok,
+    status: uploaded.status,
+    payload: uploaded.payload,
+    response: uploaded.response,
+    error: uploaded.error,
+  };
+  const skipLog =
+    uploaded.error === "missing_click_id" ||
+    uploaded.error === "missing_developer_token" ||
+    uploaded.error === "missing_customer_id" ||
+    uploaded.error === "missing_conversion_action_id";
+  await logDelivery({
+    eventId: input.eventId,
+    connectionId: conn.id,
+    provider: "google_ads",
+    destEventName: input.eventName,
+    status: uploaded.ok ? "ok" : skipLog ? "skipped" : "error",
+    httpStatus: uploaded.status || undefined,
+    requestPayload: uploaded.payload,
+    responsePayload: uploaded.response,
+    error: uploaded.error,
+  });
+  return result;
+}
+
 export async function sendToConnection(
   conn: IntegrationConnectionRow,
   input: OutboundEventInput
@@ -341,23 +384,7 @@ export async function sendToConnection(
       result = await sendToGa4Connection(conn, input);
       break;
     case "google_ads":
-      await logDelivery({
-        eventId: input.eventId,
-        connectionId: conn.id,
-        provider: "google_ads",
-        destEventName: input.eventName,
-        status: "skipped",
-        error: "google_ads_not_implemented",
-      });
-      result = {
-        connectionId: conn.id,
-        provider: "google_ads",
-        ok: false,
-        status: 0,
-        payload: null,
-        response: null,
-        error: "google_ads_not_implemented",
-      };
+      result = await sendToGoogleAdsConnection(conn, input);
       break;
     default:
       await logDelivery({
@@ -383,9 +410,13 @@ export async function sendToConnection(
   if (
     !result.ok &&
     result.error &&
-    result.error !== "google_ads_not_implemented" &&
     result.error !== "not_an_outbound_adapter" &&
-    result.error !== "missing_ga_client_id"
+    result.error !== "missing_ga_client_id" &&
+    result.error !== "missing_click_id" &&
+    result.error !== "missing_developer_token" &&
+    result.error !== "missing_customer_id" &&
+    result.error !== "missing_conversion_action_id" &&
+    result.error !== "missing_access_token"
   ) {
     await alertIfError(result);
   }
