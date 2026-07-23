@@ -53,6 +53,8 @@ Se a Evolution recusar ou o slot estiver ocupado, a connection **fica salva** co
 
 O snippet no site coloca `[rt:…]` no final do `text=` do `wa.me`. O código curto aponta para o visitor da sessão web.
 
+**Click-to-WhatsApp (CTWA):** se o webhook trouxer `referral.ctwa_clid` (ou equivalente no payload), o Royal Tracking cria Lead mesmo **sem** ticket e envia CAPI com `business_messaging`. Evolution nem sempre repassa esse metadata — nesse caso continue usando ticket/`[rt:…]`. O painel é a verdade operacional; o Ads Manager pode não atribuir mesmo com CAPI ok.
+
 ## Gerador wa.me
 
 Na página da connection: informe telefone + mensagem → copie o link.  

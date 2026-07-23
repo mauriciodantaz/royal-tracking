@@ -105,6 +105,7 @@ export async function upsertConnection(formData: FormData): Promise<
     config.pixel_id ||
     config.measurement_id ||
     config.ad_account_id ||
+    config.customer_id ||
     config.instance_name ||
     String(formData.get("account_external_id") ?? "").trim() ||
     null;

@@ -119,11 +119,33 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
   {
     provider: "google_ads",
     name: "Google Ads",
-    description: "Upload de conversões (OAuth).",
+    description:
+      "Upload de conversões offline / Enhanced Conversions (OAuth + developer token).",
     authType: "oauth",
     direction: "outbound",
     segment: "site_media",
-    connectFields: [{ key: "label", label: "Nome", required: true }],
+    docsSlug: "google-ads",
+    connectFields: [
+      { key: "label", label: "Nome", required: true },
+      {
+        key: "customer_id",
+        label: "Customer ID (conta Google Ads)",
+        required: true,
+        placeholder: "123-456-7890",
+      },
+      {
+        key: "conversion_action_id",
+        label: "Conversion Action ID",
+        required: true,
+        placeholder: "123456789",
+      },
+      {
+        key: "login_customer_id",
+        label: "Login Customer ID (MCC, opcional)",
+        required: false,
+        placeholder: "111-222-3333",
+      },
+    ],
   },
   {
     provider: "hotmart",

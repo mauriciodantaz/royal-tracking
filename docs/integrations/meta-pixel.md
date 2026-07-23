@@ -61,6 +61,12 @@ Com o snippet no site e esta conexão ativa:
 - O servidor envia CAPI com o mesmo `event_id`.
 - A Meta deduplica; o painel classifica web+server / só server / só web.
 
+## `action_source` e CTWA
+
+- Eventos de site/forms/compra usam `action_source: website`.
+- Leads de Click-to-WhatsApp com `ctwa_clid` usam `action_source: business_messaging` e enviam `ctwa_clid` em `user_data`.
+- Evento aceito na CAPI **não** implica atribuição automática no Ads Manager — veja [INTEGRATIONS.md](../INTEGRATIONS.md#verdade-operacional-vs-ads-manager).
+
 ## Links oficiais
 
 - [Conversions API](https://developers.facebook.com/docs/marketing-api/conversions-api)

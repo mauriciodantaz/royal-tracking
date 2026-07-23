@@ -6,6 +6,7 @@ import { FunnelVisual } from "@/components/dashboard/funnel";
 import {
   getOverviewMetrics,
   getVolumeMetrics,
+  getWhatsappQualityMetrics,
   parseVolumeRange,
   type VolumeRange,
 } from "@/lib/dashboard/metrics";
@@ -27,12 +28,16 @@ export default async function DashboardPage({
 
   let metrics = null as Awaited<ReturnType<typeof getOverviewMetrics>> | null;
   let volume = null as Awaited<ReturnType<typeof getVolumeMetrics>> | null;
+  let waQuality = null as Awaited<
+    ReturnType<typeof getWhatsappQualityMetrics>
+  > | null;
   let error: string | null = null;
 
   try {
-    [metrics, volume] = await Promise.all([
+    [metrics, volume, waQuality] = await Promise.all([
       getOverviewMetrics(),
       getVolumeMetrics(range),
+      getWhatsappQualityMetrics(range),
     ]);
   } catch (e) {
     error = e instanceof Error ? e.message : "Erro ao carregar métricas";
@@ -251,6 +256,77 @@ export default async function DashboardPage({
                 <p className="text-xs text-muted-foreground">
                   % só server por destino = eventos com server ok e web falhou
                   nesse canal (inclui webhooks).
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+      ) : null}
+
+      {waQuality ? (
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-base font-medium">Qualidade WhatsApp</h2>
+            <p className="text-xs text-muted-foreground">
+              Leads inbound (Evolution / UazAPI / RD Conversas) no período{" "}
+              {range}. Ticket = site→WA; CTWA = anúncio→WhatsApp com{" "}
+              <code className="text-[10px]">ctwa_clid</code>.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Card className="glass">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Leads WA
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="font-mono text-2xl tabular-nums">
+                  {waQuality.total}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="glass">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Com ticket
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="font-mono text-2xl tabular-nums">
+                  {waQuality.withTicketPct.toFixed(1)}%
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="glass">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Com CTWA
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="font-mono text-2xl tabular-nums">
+                  {waQuality.withCtwaPct.toFixed(1)}%
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="glass">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Match / unmatched
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="font-mono text-2xl tabular-nums">
+                  {waQuality.matchedPct.toFixed(1)}%
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  unmatched {waQuality.unmatchedPct.toFixed(1)}% · gclid{" "}
+                  {waQuality.withGclidPct.toFixed(1)}% · fbc{" "}
+                  {waQuality.withFbcPct.toFixed(1)}%
+                  {waQuality.avgSecondsIdentifyToLead != null
+                    ? ` · Δ visitor→lead ${Math.round(waQuality.avgSecondsIdentifyToLead)}s`
+                    : null}
                 </p>
               </CardContent>
             </Card>

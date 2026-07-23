@@ -8,10 +8,15 @@ import {
   classifyChannel,
   serverFlagsFromDispatch,
 } from "@/lib/tracking/channel";
-import { hashPhone, hashPii, newEventId } from "@/lib/tracking/hash";
+import { hashPhone, hashPii, newEventId, newTrckUserId } from "@/lib/tracking/hash";
 import { resolveAndPersistGaClientId } from "@/lib/tracking/persist-ga-client-id";
-import { matchVisitorFromTicket } from "@/lib/whatsapp/match-ticket";
+import type { MatchResult } from "@/lib/tracking/match";
 import {
+  matchVisitorFromCtwa,
+  matchVisitorFromTicket,
+} from "@/lib/whatsapp/match-ticket";
+import {
+  hasCtwaAttribution,
   normalizeWhatsappPayload,
   type NormalizedWhatsappMessage,
 } from "@/lib/whatsapp/normalize";
@@ -58,6 +63,35 @@ async function enrichVisitorPhone(
   );
 }
 
+async function persistCtwaOnVisitor(
+  visitor: VisitorRow | null,
+  ctwaClid: string | null
+): Promise<VisitorRow | null> {
+  if (!ctwaClid) return visitor;
+  if (visitor) {
+    await query(
+      `update visitors set
+         ctwa_clid = coalesce($2, ctwa_clid),
+         updated_at = now()
+       where trck_user_id = $1`,
+      [visitor.trck_user_id, ctwaClid]
+    );
+    return {
+      ...visitor,
+      ctwa_clid: visitor.ctwa_clid ?? ctwaClid,
+    };
+  }
+
+  const trckUserId = newTrckUserId();
+  const created = await queryOne<VisitorRow>(
+    `insert into visitors (trck_user_id, ctwa_clid, external_id_hash)
+     values ($1, $2, $3)
+     returning *`,
+    [trckUserId, ctwaClid, hashPii(trckUserId)]
+  );
+  return created;
+}
+
 export async function processWhatsappMessageWebhook(opts: {
   conn: IntegrationConnectionRow;
   raw: unknown;
@@ -102,7 +136,8 @@ export async function processNormalizedWhatsappMessage(opts: {
   }
 
   const ticket = parseTicket(msg.text);
-  if (!ticket) {
+  const ctwa = hasCtwaAttribution(msg);
+  if (!ticket && !ctwa) {
     return { ok: true, ignored: true, reason: "no_ticket" };
   }
 
@@ -121,16 +156,33 @@ export async function processNormalizedWhatsappMessage(opts: {
     };
   }
 
-  const match = await matchVisitorFromTicket({
-    ticketValue: ticket.value,
-    phone: msg.phone,
-  });
-  const visitor = match.visitor;
-  const trckUserId = visitor?.trck_user_id ?? null;
+  let match: MatchResult;
+  if (ticket) {
+    match = await matchVisitorFromTicket({
+      ticketValue: ticket.value,
+      phone: msg.phone,
+    });
+  } else {
+    match = await matchVisitorFromCtwa({
+      ctwaClid: msg.ctwaClid,
+      phone: msg.phone,
+    });
+  }
 
+  let visitor = match.visitor;
   if (visitor) {
     await enrichVisitorPhone(visitor, msg.phone, msg.pushName);
   }
+  visitor = await persistCtwaOnVisitor(visitor, msg.ctwaClid);
+  if (!match.visitor && visitor && msg.ctwaClid) {
+    match = {
+      visitor,
+      match_status: "matched",
+      match_reason: "ctwa_referral",
+    };
+  }
+
+  const trckUserId = visitor?.trck_user_id ?? null;
 
   const gaResolved = await resolveAndPersistGaClientId({
     stored: visitor?.ga_client_id,
@@ -142,13 +194,21 @@ export async function processNormalizedWhatsappMessage(opts: {
 
   const phoneHash = hashPhone(msg.phone) ?? visitor?.phone_hash ?? null;
   const fields = {
-    ticket_name: ticket.name,
-    ticket_value: ticket.value,
+    ticket_name: ticket?.name ?? null,
+    ticket_value: ticket?.value ?? null,
     push_name: msg.pushName ?? "",
     phone: msg.phone ?? "",
     message_id: msg.messageId,
     text: msg.text.slice(0, 2000),
+    ctwa_clid: msg.ctwaClid ?? "",
+    referral_source_id: msg.referralSourceId ?? "",
+    referral_source_url: msg.referralSourceUrl ?? "",
+    referral_source_type: msg.referralSourceType ?? "",
   };
+
+  const matchReason =
+    match.match_reason ??
+    (ticket ? "ticket" : msg.ctwaClid ? "ctwa_referral" : "unmatched");
 
   let leadId: string | null = null;
   try {
@@ -157,12 +217,13 @@ export async function processNormalizedWhatsappMessage(opts: {
          form_id, trck_user_id, email, phone, email_hash, phone_hash, name,
          fields, page_url,
          utm_source, utm_medium, utm_campaign, utm_term, utm_content,
-         fbp, fbc, ga_client_id, source_provider, source_connection_id,
+         fbp, fbc, gclid, ttclid, ctwa_clid, ga_client_id,
+         source_provider, source_connection_id,
          consent, raw_payload, event_id, match_status, match_reason
        ) values (
          null,$1,$2,$3,$4,$5,$6,$7::jsonb,null,
-         $8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
-         null,$18::jsonb,$19,$20,$21
+         $8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
+         null,$21::jsonb,$22,$23,$24
        )
        on conflict (event_id) do nothing
        returning id`,
@@ -181,13 +242,16 @@ export async function processNormalizedWhatsappMessage(opts: {
         visitor?.utm_content ?? null,
         visitor?.fbp ?? null,
         visitor?.fbc ?? null,
+        visitor?.gclid ?? null,
+        visitor?.ttclid ?? null,
+        msg.ctwaClid ?? visitor?.ctwa_clid ?? null,
         gaResolved.clientId,
         conn.provider,
         conn.id,
         JSON.stringify(opts.raw),
         eventId,
         match.match_status,
-        match.match_reason,
+        matchReason,
       ]
     );
     leadId = lead?.id ?? null;
@@ -202,6 +266,9 @@ export async function processNormalizedWhatsappMessage(opts: {
     return { ok: true, deduped: true, event_id: eventId };
   }
 
+  const useMessaging =
+    Boolean(msg.ctwaClid) || matchReason === "ctwa_referral";
+
   const dispatch = await dispatchEvent({
     sourceProvider: conn.provider,
     sourceConnectionId: conn.id,
@@ -210,6 +277,7 @@ export async function processNormalizedWhatsappMessage(opts: {
     userData: {
       email: visitor?.email,
       emailHash: visitor?.email_hash,
+      phone: msg.phone,
       phoneHash,
       firstNameHash: visitor?.first_name_hash,
       lastNameHash: visitor?.last_name_hash,
@@ -220,6 +288,7 @@ export async function processNormalizedWhatsappMessage(opts: {
       externalIdHash: visitor?.external_id_hash,
       fbp: visitor?.fbp,
       fbc: visitor?.fbc,
+      ctwaClid: msg.ctwaClid ?? visitor?.ctwa_clid,
       clientIpAddress: visitor?.ip,
       clientUserAgent: visitor?.user_agent,
     },
@@ -227,6 +296,10 @@ export async function processNormalizedWhatsappMessage(opts: {
     gaClientIdSource: gaResolved.source,
     gaIdentityMeta: gaResolved.meta,
     gaSessionId: visitor?.ga_session_id,
+    actionSource: useMessaging ? "business_messaging" : "website",
+    gclid: visitor?.gclid,
+    wbraid: visitor?.wbraid,
+    gbraid: visitor?.gbraid,
   });
 
   const { serverMeta, serverGa4 } = serverFlagsFromDispatch(dispatch.results);
@@ -285,7 +358,7 @@ export async function processNormalizedWhatsappMessage(opts: {
     event_id: eventId,
     match: {
       status: match.match_status,
-      reason: match.match_reason,
+      reason: matchReason,
     },
   };
 }

@@ -45,12 +45,14 @@ Enquanto o webhook Tallos apontar para uma URL órfã, o Tallos continua enviand
 ## Filtros
 
 - Payload Tallos `{ content, contact }` (texto do cliente)
-- Só persiste + dispara Lead com `[rt:código]` no texto (ex. `[rt:xK9m2pQ7]`)
+- Persiste + dispara Lead com `[rt:código]` (ex. `[rt:xK9m2pQ7]`) **ou** com `ctwa_clid` / referral no payload
 - Demais mensagens são ignoradas (ack sem Lead)
 
 ## Ticket e atribuição
 
 A mensagem do visitante fica intacta; só a linha `[rt:…]` no final identifica o visitor da sessão web.
+
+**CTWA:** metadata de anúncio Click-to-WhatsApp, quando o Tallos/repassa, cria Lead sem ticket.
 
 ## Gerador wa.me
 

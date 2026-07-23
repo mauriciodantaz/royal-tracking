@@ -5,6 +5,51 @@ import type { FormLeadRow } from "@/lib/db/types";
 
 export const dynamic = "force-dynamic";
 
+function attributionBadge(lead: FormLeadRow): {
+  label: string;
+  className: string;
+} {
+  const reason = lead.match_reason ?? "";
+  const fields =
+    lead.fields && typeof lead.fields === "object" && !Array.isArray(lead.fields)
+      ? (lead.fields as Record<string, unknown>)
+      : null;
+  const hasTicket = Boolean(fields?.ticket_value) || reason.includes("ticket");
+
+  if (lead.ctwa_clid || reason.includes("ctwa")) {
+    return {
+      label: "ctwa",
+      className: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
+    };
+  }
+  if (hasTicket) {
+    return {
+      label: "ticket",
+      className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+    };
+  }
+  if (
+    lead.match_status === "unmatched" ||
+    reason.includes("unmatched") ||
+    reason.includes("no_visitor")
+  ) {
+    return {
+      label: "unmatched",
+      className: "bg-amber-500/15 text-amber-800 dark:text-amber-200",
+    };
+  }
+  if (lead.source_provider === "snippet") {
+    return {
+      label: "form",
+      className: "bg-muted text-muted-foreground",
+    };
+  }
+  return {
+    label: lead.match_status ?? "—",
+    className: "bg-muted text-muted-foreground",
+  };
+}
+
 export default async function LeadsPage() {
   let leads: FormLeadRow[] = [];
   let error: string | null = null;
@@ -46,12 +91,15 @@ export default async function LeadsPage() {
                   <th className="py-2 pr-3">Telefone</th>
                   <th className="py-2 pr-3">Nome</th>
                   <th className="py-2 pr-3">Fonte</th>
+                  <th className="py-2 pr-3">Atribuição</th>
                   <th className="py-2 pr-3">UTM</th>
                   <th className="py-2">trck_user_id</th>
                 </tr>
               </thead>
               <tbody>
-                {leads.map((l) => (
+                {leads.map((l) => {
+                  const badge = attributionBadge(l);
+                  return (
                   <tr key={l.id} className="border-b border-border/40 align-top">
                     <td className="py-2 pr-3 whitespace-nowrap text-xs">
                       {new Date(l.created_at).toLocaleString("pt-BR")}
@@ -60,6 +108,13 @@ export default async function LeadsPage() {
                     <td className="py-2 pr-3 font-mono text-xs">{l.phone ?? "—"}</td>
                     <td className="py-2 pr-3">{l.name ?? "—"}</td>
                     <td className="py-2 pr-3 text-xs">{l.source_provider}</td>
+                    <td className="py-2 pr-3">
+                      <span
+                        className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${badge.className}`}
+                      >
+                        {badge.label}
+                      </span>
+                    </td>
                     <td className="py-2 pr-3 font-mono text-[11px] text-muted-foreground">
                       {[l.utm_source, l.utm_medium, l.utm_campaign]
                         .filter(Boolean)
@@ -69,10 +124,11 @@ export default async function LeadsPage() {
                       {l.trck_user_id ?? "—"}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
                 {leads.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                    <td colSpan={8} className="py-8 text-center text-muted-foreground">
                       Nenhum lead ainda. Envie um formulário com o snippet.
                     </td>
                   </tr>

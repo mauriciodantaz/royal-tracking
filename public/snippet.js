@@ -56,6 +56,8 @@
   var TICKET_CODE_KEY = "trck_ticket_code";
   var GCLID_KEY = "trck_gclid";
   var TTCLID_KEY = "trck_ttclid";
+  var WBRAID_KEY = "trck_wbraid";
+  var GBRAID_KEY = "trck_gbraid";
   var COOKIE_DAYS = 365;
   var LEAD_DEDUP_MS = 5000;
   var TICKET_LINE_RE = /\[rt:[^\]]+\]/;
@@ -192,6 +194,45 @@
 
   function getTtclid() {
     return rememberClickId("ttclid", TTCLID_KEY);
+  }
+
+  function getWbraid() {
+    return rememberClickId("wbraid", WBRAID_KEY);
+  }
+
+  function getGbraid() {
+    return rememberClickId("gbraid", GBRAID_KEY);
+  }
+
+  /**
+   * Marketing consent for CMP integration (ANPD).
+   * Default true (legacy). Set window.TRCK_CONSENT = false before/after load
+   * to withhold click IDs / consent flag until the user accepts.
+   */
+  function hasMarketingConsent() {
+    if (typeof window.TRCK_CONSENT === "boolean") return window.TRCK_CONSENT;
+    return true;
+  }
+
+  function gatedClickIds() {
+    if (!hasMarketingConsent()) {
+      return {
+        gclid: undefined,
+        ttclid: undefined,
+        wbraid: undefined,
+        gbraid: undefined,
+        fbp: undefined,
+        fbc: undefined,
+      };
+    }
+    return {
+      gclid: getGclid(),
+      ttclid: getTtclid(),
+      wbraid: getWbraid(),
+      gbraid: getGbraid(),
+      fbp: getCookie("_fbp") || undefined,
+      fbc: getFbc(),
+    };
   }
 
   /** Meta fbc from cookie, or build from fbclid when missing. */
@@ -561,15 +602,16 @@
             page_url: window.location.href,
             event_name: eventName,
             event_id: eventId,
-            fbp: getCookie("_fbp") || undefined,
-            fbc: getFbc(),
             ga_client_id: getGaClientId(),
-            gclid: getGclid(),
-            ttclid: getTtclid(),
             client_web: web,
           },
+          gatedClickIds(),
           data,
-          { event_id: eventId, client_web: web }
+          {
+            event_id: eventId,
+            client_web: web,
+            consent: hasMarketingConsent(),
+          }
         )
       );
     });
@@ -577,14 +619,17 @@
 
   function identifyAndTrack() {
     var existing = getTrckId();
+    var clicks = gatedClickIds();
     var payload = {
       trck_user_id: existing || undefined,
-      fbp: getCookie("_fbp") || undefined,
-      fbc: getFbc(),
+      fbp: clicks.fbp,
+      fbc: clicks.fbc,
       ga_client_id: getGaClientId(),
       ga_session_id: getGaSessionId(),
-      gclid: getGclid(),
-      ttclid: getTtclid(),
+      gclid: clicks.gclid,
+      ttclid: clicks.ttclid,
+      wbraid: clicks.wbraid,
+      gbraid: clicks.gbraid,
       utm_source: getQuery("utm_source"),
       utm_medium: getQuery("utm_medium"),
       utm_campaign: getQuery("utm_campaign"),
@@ -687,6 +732,7 @@
 
         var id = getTrckId() || window.TRCK_USER_ID;
         var eventId = uuid();
+        var clicks = gatedClickIds();
         var payload = {
           trck_user_id: id || undefined,
           form_label:
@@ -697,11 +743,13 @@
           form_action: form.getAttribute("action") || undefined,
           page_url: window.location.href,
           fields: fields,
-          fbp: getCookie("_fbp") || undefined,
-          fbc: getFbc(),
+          fbp: clicks.fbp,
+          fbc: clicks.fbc,
           ga_client_id: getGaClientId(),
-          gclid: getGclid(),
-          ttclid: getTtclid(),
+          gclid: clicks.gclid,
+          ttclid: clicks.ttclid,
+          wbraid: clicks.wbraid,
+          gbraid: clicks.gbraid,
           utm_source: getQuery("utm_source"),
           utm_medium: getQuery("utm_medium"),
           utm_campaign: getQuery("utm_campaign"),
@@ -709,7 +757,7 @@
           utm_content: getQuery("utm_content"),
           event_name: "Lead",
           event_id: eventId,
-          consent: true,
+          consent: hasMarketingConsent(),
         };
 
         trackBrowser("Lead", eventId, {}).then(function (web) {
@@ -732,6 +780,8 @@
             ga_client_id: payload.ga_client_id,
             gclid: payload.gclid,
             ttclid: payload.ttclid,
+            wbraid: payload.wbraid,
+            gbraid: payload.gbraid,
             utm_source: payload.utm_source,
             utm_medium: payload.utm_medium,
             utm_campaign: payload.utm_campaign,

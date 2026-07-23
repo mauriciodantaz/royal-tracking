@@ -91,6 +91,18 @@ export async function matchVisitorFromTicket(input: {
     };
   }
 
+  const byCtwa = await queryOne<VisitorRow>(
+    `select * from visitors where ctwa_clid = $1 order by updated_at desc limit 1`,
+    [value]
+  );
+  if (byCtwa) {
+    return {
+      visitor: byCtwa,
+      match_status: "matched",
+      match_reason: "ticket_ctwa_clid",
+    };
+  }
+
   if (input.phone) {
     const phoneHash = hashPhone(input.phone);
     if (phoneHash) {
@@ -115,5 +127,53 @@ export async function matchVisitorFromTicket(input: {
     visitor: null,
     match_status: "unmatched",
     match_reason: "ticket_no_visitor",
+  };
+}
+
+/** Match visitor for Click-to-WhatsApp (no ticket in message text). */
+export async function matchVisitorFromCtwa(input: {
+  ctwaClid?: string | null;
+  phone?: string | null;
+}): Promise<MatchResult> {
+  await ensureDbReady();
+  const clid = input.ctwaClid?.trim();
+  if (clid) {
+    const byCtwa = await queryOne<VisitorRow>(
+      `select * from visitors where ctwa_clid = $1 order by updated_at desc limit 1`,
+      [clid]
+    );
+    if (byCtwa) {
+      return {
+        visitor: byCtwa,
+        match_status: "matched",
+        match_reason: "ctwa_clid",
+      };
+    }
+  }
+
+  if (input.phone) {
+    const phoneHash = hashPhone(input.phone);
+    if (phoneHash) {
+      const byPhone = await queryOne<VisitorRow>(
+        `select * from visitors
+         where phone_hash = $1
+         order by updated_at desc
+         limit 1`,
+        [phoneHash]
+      );
+      if (byPhone) {
+        return {
+          visitor: byPhone,
+          match_status: "matched",
+          match_reason: "phone_hash",
+        };
+      }
+    }
+  }
+
+  return {
+    visitor: null,
+    match_status: "unmatched",
+    match_reason: clid ? "ctwa_no_visitor" : "ctwa_missing",
   };
 }
