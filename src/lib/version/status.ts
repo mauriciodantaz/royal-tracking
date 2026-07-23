@@ -1,28 +1,13 @@
 import { unstable_cache } from "next/cache";
 import "server-only";
 
-import {
-  channelLabel,
-  getAppVersion,
-  getReleaseChannel,
-  type ReleaseChannel,
-} from "./channel";
+import { getAppVersion, getReleaseChannel } from "./channel";
 import { fetchChannelVersions } from "./docker-hub";
-import { countVersionsBehind } from "./semver";
+import { formatVersionLabel } from "./label";
+import { countVersionsBehind, maxSemVer, sameSemVer } from "./semver";
 import type { VersionStatus } from "./types";
 
 export type { VersionStatus };
-
-function formatBehindLabel(
-  version: string,
-  channel: Exclude<ReleaseChannel, "dev">,
-  behind: number | null
-): string {
-  const base = `v${version} · ${channelLabel(channel)}`;
-  if (behind === null || behind <= 0) return base;
-  if (behind === 1) return `${base} · 1 versão atrás`;
-  return `${base} · ${behind} versões atrás`;
-}
 
 async function loadVersionStatus(): Promise<VersionStatus> {
   const version = getAppVersion();
@@ -33,25 +18,78 @@ async function loadVersionStatus(): Promise<VersionStatus> {
       version,
       channel,
       versionsBehind: null,
+      hubLatest: null,
       label: "Ambiente DEV",
     };
   }
 
   try {
-    const remote = await fetchChannelVersions(channel);
-    const behind = countVersionsBehind(version, remote);
+    if (channel === "latest") {
+      const remote = await fetchChannelVersions("latest");
+      const tip = maxSemVer(remote);
+      const behind = countVersionsBehind(version, remote);
+      const onChannelTip = tip !== null && sameSemVer(version, tip);
+      return {
+        version,
+        channel,
+        versionsBehind: behind,
+        hubLatest: tip,
+        label: formatVersionLabel({
+          version,
+          channel,
+          onChannelTip,
+          versionsBehind: behind,
+        }),
+      };
+    }
+
+    // beta: badge when on beta tip; otherwise count behind vs LATEST stable tip
+    const betaRemote = await fetchChannelVersions("beta");
+    const tipBeta = maxSemVer(betaRemote);
+    const onChannelTip = tipBeta !== null && sameSemVer(version, tipBeta);
+
+    if (onChannelTip) {
+      return {
+        version,
+        channel,
+        versionsBehind: 0,
+        hubLatest: tipBeta,
+        label: formatVersionLabel({
+          version,
+          channel,
+          onChannelTip: true,
+          versionsBehind: 0,
+        }),
+      };
+    }
+
+    const stableRemote = await fetchChannelVersions("latest");
+    const tipLatest = maxSemVer(stableRemote);
+    const behind = countVersionsBehind(version, stableRemote);
     return {
       version,
       channel,
       versionsBehind: behind,
-      label: formatBehindLabel(version, channel, behind),
+      hubLatest: tipLatest,
+      label: formatVersionLabel({
+        version,
+        channel,
+        onChannelTip: false,
+        versionsBehind: behind,
+      }),
     };
   } catch {
     return {
       version,
       channel,
       versionsBehind: null,
-      label: formatBehindLabel(version, channel, null),
+      hubLatest: null,
+      label: formatVersionLabel({
+        version,
+        channel,
+        onChannelTip: false,
+        versionsBehind: null,
+      }),
     };
   }
 }

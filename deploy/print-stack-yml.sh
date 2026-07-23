@@ -106,7 +106,7 @@ services:
       ADMIN_EMAIL: "$(yq "${ADMIN_EMAIL}")"
       ADMIN_PASSWORD: "$(yq "${ADMIN_PASSWORD}")"
 
-      # --- SMTP (convite, reset, alertas) ---
+      # --- SMTP (convite, reset de senha) ---
       SMTP_HOST: "$(yq "${SMTP_HOST:-}")"
       SMTP_PORT: "$(yq "${SMTP_PORT:-587}")"
       SMTP_SECURE: "$(yq "${SMTP_SECURE:-false}")"

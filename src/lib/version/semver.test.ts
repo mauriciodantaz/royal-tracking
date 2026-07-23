@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { compareSemVer, countVersionsBehind, parseSemVer } from "./semver";
+import {
+  compareSemVer,
+  countVersionsBehind,
+  maxSemVer,
+  parseSemVer,
+  sameSemVer,
+} from "./semver";
 
 describe("parseSemVer", () => {
   it("parses plain and v-prefixed versions", () => {
@@ -70,5 +76,22 @@ describe("countVersionsBehind", () => {
       countVersionsBehind("0.4.0", ["0.4.1-beta", "latest", "0.4.2"]),
       1
     );
+  });
+});
+
+describe("maxSemVer", () => {
+  it("returns the highest parseable SemVer", () => {
+    assert.equal(maxSemVer(["0.4.0", "0.9.1", "0.8.0", "latest"]), "0.9.1");
+  });
+
+  it("returns null when none parse", () => {
+    assert.equal(maxSemVer(["latest", "beta", "0.1.0-beta"]), null);
+  });
+});
+
+describe("sameSemVer", () => {
+  it("compares cores ignoring v prefix", () => {
+    assert.equal(sameSemVer("v0.9.1", "0.9.1"), true);
+    assert.equal(sameSemVer("0.9.0", "0.9.1"), false);
   });
 });
