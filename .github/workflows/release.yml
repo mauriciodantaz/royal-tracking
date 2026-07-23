@@ -7,8 +7,9 @@ name: Release SemVer
 #     -> workflow_dispatch docker-publish (:beta + :X.Y.Z-beta)
 #       (push do GITHUB_TOKEN nao dispara outros workflows)
 #   PR mergeada em `main` com head=`beta` (promocao; use merge commit, nao squash)
-#     -> tag git X.Y.Z (mesma versao do package.json) + GitHub Release (titulo "X.Y.Z")
-#     -> workflow_dispatch docker-publish (:X.Y.Z / :stable / :latest)
+#     -> tag git X.Y.Z (mesma versao do package.json) + GitHub Release (titulo "X.Y.Z", --latest)
+#     -> apaga Release/tag git X.Y.Z-beta (uma release por SemVer; tip = stable)
+#     -> workflow_dispatch docker-publish (:X.Y.Z / :stable / :latest; Hub apaga :X.Y.Z-beta)
 # Labels (obrigatorio em PR para beta — gate tambem em release-label.yml):
 #   release:versao | release:melhoria | release:hotfix | release:none
 # Push em `dev` nao usa este workflow.
@@ -174,6 +175,11 @@ jobs:
         run: |
           set -euo pipefail
           tag="${VERSION}-beta"
+          if git rev-parse "refs/tags/${VERSION}" >/dev/null 2>&1 || \
+             gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "::error::Versão ${VERSION} já existe como stable — não criar beta duplicado. Faça um bump novo."
+            exit 1
+          fi
           if git rev-parse "refs/tags/${tag}" >/dev/null 2>&1; then
             echo "Tag ${tag} ja existe — skip release."
             exit 0
@@ -263,14 +269,25 @@ jobs:
             echo ""
             echo "Docker Hub:"
             echo "- \`mauriciodantaz/royal-tracking:${version}\`"
-            echo "- \`mauriciodantaz/royal-tracking:${version}-stable\`"
             echo "- \`mauriciodantaz/royal-tracking:stable\`"
             echo "- \`mauriciodantaz/royal-tracking:latest\` (= stable)"
           } > "$notes"
 
           gh release create "$version" \
+            --latest \
             --title "${version}" \
             --notes-file "$notes"
+
+          # Uma release por SemVer: tip promovida = só stable (apaga irmão beta).
+          beta_tag="${version}-beta"
+          if gh release view "$beta_tag" >/dev/null 2>&1; then
+            gh release delete "$beta_tag" --yes --cleanup-tag
+            echo "Deleted GitHub Release/tag ${beta_tag}"
+          elif git rev-parse "refs/tags/${beta_tag}" >/dev/null 2>&1; then
+            git push origin ":refs/tags/${beta_tag}" || true
+            git tag -d "$beta_tag" || true
+            echo "Deleted git tag ${beta_tag}"
+          fi
 
       # Tag push with GITHUB_TOKEN also does not trigger docker-publish.
       - name: Publish stable image

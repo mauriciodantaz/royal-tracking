@@ -1,7 +1,7 @@
 # Deploy — Royal Tracking
 
 **Imagem canônica (OSS):** `mauriciodantaz/royal-tracking`  
-**Tags:** `:latest` (= `:stable`) · `:beta` · `:X.Y.Z` / `:X.Y.Z-stable` / `:X.Y.Z-beta`  
+**Tags:** `:latest` (= `:stable`) · `:beta` · `:X.Y.Z` / `:X.Y.Z-beta` (beta só até promover)  
 **Template Portainer (Hub):** [`deploy/royal-tracking-stack.yml`](./deploy/royal-tracking-stack.yml)  
 **Naming:** stack / volume / DB = `royaltracking_<slug>`
 

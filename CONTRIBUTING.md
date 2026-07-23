@@ -10,9 +10,10 @@ Branches no GitHub: só **`dev`**, **`beta`** e **`main`**.
 |--------|------------|--------------------|--------|
 | `dev` | — | build-on-volume via Actions | — |
 | `beta` | `:beta` + `:X.Y.Z-beta` | — | bump no merge (label `release:*`) |
-| `main` | `:X.Y.Z` + `:X.Y.Z-stable` + `:stable` + `:latest` | — | **mesma** versão do `package.json` (tag) |
+| `main` | `:X.Y.Z` + `:stable` + `:latest` | — | **mesma** versão do `package.json` (tag) |
 
 `latest` é sempre a stable atual. Tags usam só o número (`0.1.0`), sem prefixo `v`.
+Uma release por SemVer: ao promover `beta` → `main`, apaga-se `X.Y.Z-beta` (GitHub + Docker).
 
 ## Promoção (dia a dia)
 
