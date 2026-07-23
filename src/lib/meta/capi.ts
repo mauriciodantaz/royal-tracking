@@ -1,5 +1,3 @@
-import "server-only";
-
 import { hashEmail, hashPhone, hashPii } from "@/lib/tracking/hash";
 
 /** Meta Conversions API action_source values we emit. */
@@ -91,6 +89,11 @@ export function buildCapiPayload(input: MetaEventInput) {
     action_source: actionSource,
     user_data: buildUserData(input.userData),
   };
+  // Meta requires messaging_channel when action_source is business_messaging
+  // (error_subcode 2804063). Valid: messenger | whatsapp | instagram.
+  if (actionSource === "business_messaging") {
+    event.messaging_channel = "whatsapp";
+  }
   if (input.eventSourceUrl) {
     event.event_source_url = input.eventSourceUrl;
   }

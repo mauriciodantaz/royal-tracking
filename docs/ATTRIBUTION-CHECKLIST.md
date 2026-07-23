@@ -25,7 +25,7 @@ O **painel Royal Tracking** é a verdade operacional. Ads Manager pode não atri
 1. Anúncio CTWA (mensagem) no número integrado.
 2. Usuário inicia conversa; webhook deve trazer `referral.ctwa_clid` (quando o provedor repassar).
 3. Lead criado **sem** ticket, badge **ctwa**.
-4. CAPI com `action_source: business_messaging` + `ctwa_clid`.
+4. CAPI com `action_source: business_messaging` + `messaging_channel: whatsapp` + `ctwa_clid`.
 5. Se o provedor **não** enviar referral: use mensagem com ticket ou [link `/r/{slug}`](./integrations/snippet.md) + fluxo site.
 
 ## 4. Orgânico / direto

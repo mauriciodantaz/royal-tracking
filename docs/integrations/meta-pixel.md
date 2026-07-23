@@ -64,7 +64,7 @@ Com o snippet no site e esta conexão ativa:
 ## `action_source` e CTWA
 
 - Eventos de site/forms/compra usam `action_source: website`.
-- Leads de Click-to-WhatsApp com `ctwa_clid` usam `action_source: business_messaging` e enviam `ctwa_clid` em `user_data`.
+- Leads de Click-to-WhatsApp com `ctwa_clid` usam `action_source: business_messaging`, `messaging_channel: whatsapp` e enviam `ctwa_clid` em `user_data` (obrigatório pela CAPI de Business Messaging).
 - Evento aceito na CAPI **não** implica atribuição automática no Ads Manager — veja [INTEGRATIONS.md](../INTEGRATIONS.md#verdade-operacional-vs-ads-manager).
 
 ## Links oficiais
