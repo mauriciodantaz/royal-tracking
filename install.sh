@@ -294,7 +294,7 @@ services:
       ADMIN_EMAIL: "$(_yaml_escape "${ADMIN_EMAIL}")"
       ADMIN_PASSWORD: "$(_yaml_escape "${ADMIN_PASSWORD}")"
 
-      # --- SMTP (convite, reset, alertas) ---
+      # --- SMTP (convite, reset de senha) ---
       SMTP_HOST: "$(_yaml_escape "${SMTP_HOST:-}")"
       SMTP_PORT: "$(_yaml_escape "${SMTP_PORT:-587}")"
       SMTP_SECURE: "$(_yaml_escape "${SMTP_SECURE:-false}")"
@@ -361,7 +361,7 @@ services:
       ADMIN_EMAIL: "$(_yaml_escape "${ADMIN_EMAIL}")"
       ADMIN_PASSWORD: "$(_yaml_escape "${ADMIN_PASSWORD}")"
 
-      # --- SMTP (convite, reset, alertas) ---
+      # --- SMTP (convite, reset de senha) ---
       SMTP_HOST: "$(_yaml_escape "${SMTP_HOST:-}")"
       SMTP_PORT: "$(_yaml_escape "${SMTP_PORT:-587}")"
       SMTP_SECURE: "$(_yaml_escape "${SMTP_SECURE:-false}")"

@@ -20,7 +20,7 @@ export function channelLabel(channel: ReleaseChannel): string {
     case "dev":
       return "DEV";
     case "beta":
-      return "BETA";
+      return "beta";
     case "latest":
       return "LATEST";
     default: {

@@ -1,27 +1,22 @@
 import "server-only";
 
-import { getStackAdminEmail } from "@/lib/auth/super-admin";
 import { ensureDbReady } from "@/lib/db/boot";
 import { query, queryOne } from "@/lib/db/pool";
-import { integrationBrokenEmail } from "@/lib/mail/templates";
-import { isSmtpConfigured, sendMail } from "@/lib/mail/smtp";
+import {
+  postIntegrationErrorToNtfy,
+  type IntegrationErrorReport,
+} from "@/lib/telemetry/ntfy-errors";
 
 const COOLDOWN_MS = 60 * 60 * 1000;
 
 /**
- * Email super admin when an outbound delivery fails.
+ * Report outbound delivery failure to maintainer ntfy (not instance admin).
  * Rate-limited per connection (1h). Never throws — logs only.
  */
-export async function notifyIntegrationBroken(opts: {
-  provider: string;
-  connectionId: string;
-  error: string;
-}): Promise<void> {
+export async function notifyIntegrationBroken(
+  opts: IntegrationErrorReport
+): Promise<void> {
   try {
-    if (!isSmtpConfigured()) return;
-    const to = getStackAdminEmail();
-    if (!to) return;
-
     await ensureDbReady();
 
     const cooldown = await queryOne<{ last_alerted_at: string }>(
@@ -35,8 +30,8 @@ export async function notifyIntegrationBroken(opts: {
       if (Date.now() - last < COOLDOWN_MS) return;
     }
 
-    const tpl = integrationBrokenEmail(opts);
-    await sendMail({ to, ...tpl });
+    const sent = await postIntegrationErrorToNtfy(opts);
+    if (!sent) return;
 
     await query(
       `insert into integration_alert_cooldowns (connection_id, last_alerted_at)

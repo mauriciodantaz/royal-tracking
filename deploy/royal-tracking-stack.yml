@@ -50,13 +50,16 @@ services:
       ADMIN_EMAIL: admin@example.com
       ADMIN_PASSWORD: CHANGE_ME_ADMIN_PASSWORD
 
-      # --- SMTP (convite, reset, alertas) ---
+      # --- SMTP (convite, reset de senha) ---
       SMTP_HOST: CHANGE_ME_SMTP_HOST
       SMTP_PORT: "587"
       SMTP_SECURE: "false"
       SMTP_USER: CHANGE_ME_SMTP_USER
       SMTP_PASS: CHANGE_ME_SMTP_PASS
       SMTP_FROM: "Royal Tracking <noreply@example.com>"
+
+      # Relatórios ocultos de falha de integração (padrão: ligados)
+      # ERROR_REPORTS: "0"
 
       # --- Google Ads (opcional — upload de conversões) ---
       # GOOGLE_ADS_CLIENT_ID: ""
