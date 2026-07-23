@@ -2,6 +2,9 @@ import "server-only";
 
 import { hashEmail, hashPhone, hashPii } from "@/lib/tracking/hash";
 
+/** Meta Conversions API action_source values we emit. */
+export type MetaActionSource = "website" | "business_messaging";
+
 export type MetaUserData = {
   email?: string | null;
   phone?: string | null;
@@ -22,6 +25,8 @@ export type MetaUserData = {
   countryHash?: string | null;
   fbp?: string | null;
   fbc?: string | null;
+  /** Click-to-WhatsApp click id — do NOT hash */
+  ctwaClid?: string | null;
   clientIpAddress?: string | null;
   clientUserAgent?: string | null;
 };
@@ -42,6 +47,8 @@ export type MetaEventInput = {
   userData: MetaUserData;
   customData?: MetaCustomData;
   testEventCode?: string | null;
+  /** Defaults to website (site/forms/purchase). Use business_messaging for CTWA. */
+  actionSource?: MetaActionSource;
 };
 
 function buildUserData(u: MetaUserData): Record<string, unknown> {
@@ -65,9 +72,10 @@ function buildUserData(u: MetaUserData): Record<string, unknown> {
   if (st) out.st = [st];
   if (country) out.country = [country];
   if (external) out.external_id = [external];
-  // Do NOT hash fbp / fbc / ip / ua
+  // Do NOT hash fbp / fbc / ctwa_clid / ip / ua
   if (u.fbp) out.fbp = u.fbp;
   if (u.fbc) out.fbc = u.fbc;
+  if (u.ctwaClid) out.ctwa_clid = u.ctwaClid;
   if (u.clientIpAddress) out.client_ip_address = u.clientIpAddress;
   if (u.clientUserAgent) out.client_user_agent = u.clientUserAgent;
 
@@ -75,11 +83,12 @@ function buildUserData(u: MetaUserData): Record<string, unknown> {
 }
 
 export function buildCapiPayload(input: MetaEventInput) {
+  const actionSource: MetaActionSource = input.actionSource ?? "website";
   const event: Record<string, unknown> = {
     event_name: input.eventName,
     event_time: input.eventTime ?? Math.floor(Date.now() / 1000),
     event_id: input.eventId,
-    action_source: "website",
+    action_source: actionSource,
     user_data: buildUserData(input.userData),
   };
   if (input.eventSourceUrl) {

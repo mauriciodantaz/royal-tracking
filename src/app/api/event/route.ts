@@ -167,6 +167,7 @@ export async function POST(request: NextRequest) {
         externalIdHash: visitor?.external_id_hash,
         fbp: visitor?.fbp,
         fbc: visitor?.fbc,
+        ctwaClid: visitor?.ctwa_clid,
         clientIpAddress: visitor?.ip ?? ip,
         clientUserAgent: visitor?.user_agent ?? userAgent,
       },
@@ -175,6 +176,9 @@ export async function POST(request: NextRequest) {
       gaClientIdSource: gaResolved.source,
       gaIdentityMeta: gaResolved.meta,
       gaSessionId: visitor?.ga_session_id,
+      gclid: visitor?.gclid,
+      wbraid: visitor?.wbraid,
+      gbraid: visitor?.gbraid,
     });
 
     const { serverMeta, serverGa4 } = serverFlagsFromDispatch(dispatch.results);
