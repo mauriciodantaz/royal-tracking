@@ -4,7 +4,7 @@
 ## Canal
 - [ ] `dev` (só VPS interna — sem Docker Hub)
 - [ ] `beta` (bump SemVer + `:beta` / `:X.Y.Z-beta`)
-- [ ] `main` (promove a **mesma** versão → `:stable` / `:latest`)
+- [ ] `main` (promove a **mesma** versão → `:stable` / `:latest`; apaga `X.Y.Z-beta`)
 
 ## Promoção
 - [ ] N/A (feature → um canal)

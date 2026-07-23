@@ -4,9 +4,8 @@ version: "3.8"
 # Imagem: mauriciodantaz/royal-tracking:latest      (= stable)
 #         mauriciodantaz/royal-tracking:stable
 #         mauriciodantaz/royal-tracking:beta
-#         mauriciodantaz/royal-tracking:X.Y.Z       (versão pinada stable)
-#         mauriciodantaz/royal-tracking:X.Y.Z-stable
-#         mauriciodantaz/royal-tracking:X.Y.Z-beta
+#         mauriciodantaz/royal-tracking:X.Y.Z       (versão pinada)
+#         mauriciodantaz/royal-tracking:X.Y.Z-beta  (só até promover)
 #
 # Versão/canal do label na sidebar vêm bakeados na imagem (APP_VERSION +
 # RELEASE_CHANNEL). Override opcional via env — ver .env.example.

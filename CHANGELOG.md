@@ -110,7 +110,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Open-source release surface: Docker Hub image `mauriciodantaz/royal-tracking`, Portainer stack template, SemVer labels on PRs (`release:versão` / `melhoria` / `hotfix` / `none`).
-- Channels: `beta` → `:beta` + `:X.Y.Z-beta`; `main` → `:X.Y.Z` + `:X.Y.Z-stable` + `:stable` + `:latest` (`latest` = stable).
+- Channels: `beta` → `:beta` + `:X.Y.Z-beta`; `main` → `:X.Y.Z` + `:stable` + `:latest` (`latest` = stable). Uma release por SemVer — promove apaga `X.Y.Z-beta`.
 
 [0.4.0]: https://github.com/mauriciodantaz/royal-tracking/releases/tag/0.4.0
 [0.3.0]: https://github.com/mauriciodantaz/royal-tracking/releases/tag/0.3.0
