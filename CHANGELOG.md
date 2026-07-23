@@ -5,6 +5,12 @@ All notable changes to Royal Tracking are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-07-23
+
+### Changed
+
+- feat(tracking): CTWA, Google Ads offline, links /r e qualidade WA (#25)
+
 ## [Unreleased]
 
 ### Added
@@ -18,6 +24,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Snippet captura `wbraid`/`gbraid`; lead/identify persistem click IDs; CRM stage fan-out inclui Google Ads.
+
+## [0.6.0] - 2026-07-21
+
+### Changed
+
+- feat(ui): label de versao e canal no rodape da sidebar (#23)
+
+## [0.5.0] - 2026-07-21
+
+### Changed
+
+- feat(pipedrive): OAuth CRM com emit-once por estágio (#21)
 
 ## [0.4.2] - 2026-07-20
 
