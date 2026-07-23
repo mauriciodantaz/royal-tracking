@@ -47,7 +47,7 @@ Se a Evolution recusar ou o slot estiver ocupado, a connection **fica salva** co
 
 - Ignora mensagens `fromMe` (enviadas pela conta conectada)
 - Ignora grupos
-- Só persiste + dispara Lead se o texto tiver `[rt:código]`
+- Persiste + dispara Lead com `[rt:código]`, com `ctwa_clid` / referral, **ou** (fallback) só com telefone na 1ª mensagem desse número
 
 ## Ticket e atribuição
 
@@ -55,10 +55,12 @@ O snippet no site coloca `[rt:…]` no final do `text=` do `wa.me`. O código cu
 
 **Click-to-WhatsApp (CTWA):** se o webhook trouxer `referral.ctwa_clid` (ou equivalente no payload), o Royal Tracking cria Lead mesmo **sem** ticket e envia CAPI com `business_messaging`. Evolution nem sempre repassa esse metadata — nesse caso continue usando ticket/`[rt:…]`. O painel é a verdade operacional; o Ads Manager pode não atribuir mesmo com CAPI ok.
 
+**Lead apagou o `[rt:…]`:** ainda criamos Lead. Match por telefone na base (badge `phone`); se for a 1ª vez sem histórico, Lead orgânico com telefone/push name (badge `organic`). Mensagens seguintes do mesmo telefone sem ticket não reenviam Lead.
+
 ## Gerador wa.me
 
 Na página da connection: informe telefone + mensagem → copie o link.  
-**Não remova** a linha `[rt:…]` se quiser Lead rastreado.
+Prefira manter `[rt:…]` para atribuição rica; sem o ticket o fallback por telefone ainda registra o Lead.
 
 ## Mapear destino
 

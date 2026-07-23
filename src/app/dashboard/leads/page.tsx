@@ -28,6 +28,21 @@ function attributionBadge(lead: FormLeadRow): {
       className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
     };
   }
+  if (reason.includes("phone_hash") || reason === "phone") {
+    return {
+      label: "phone",
+      className: "bg-violet-500/15 text-violet-700 dark:text-violet-300",
+    };
+  }
+  if (
+    reason.includes("wa_no_ticket_organic") ||
+    reason.includes("organic")
+  ) {
+    return {
+      label: "organic",
+      className: "bg-orange-500/15 text-orange-800 dark:text-orange-200",
+    };
+  }
   if (
     lead.match_status === "unmatched" ||
     reason.includes("unmatched") ||
