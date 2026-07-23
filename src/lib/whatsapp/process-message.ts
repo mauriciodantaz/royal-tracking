@@ -8,9 +8,13 @@ import {
   classifyChannel,
   serverFlagsFromDispatch,
 } from "@/lib/tracking/channel";
+import { captureFirstTouchIfNeeded } from "@/lib/tracking/first-touch";
 import { hashPhone, hashPii, newEventId, newTrckUserId } from "@/lib/tracking/hash";
+import {
+  matchAndMergeVisitor,
+  type MatchResult,
+} from "@/lib/tracking/match";
 import { resolveAndPersistGaClientId } from "@/lib/tracking/persist-ga-client-id";
-import type { MatchResult } from "@/lib/tracking/match";
 import {
   matchVisitorFromCtwa,
   matchVisitorFromTicket,
@@ -137,8 +141,13 @@ export async function processNormalizedWhatsappMessage(opts: {
 
   const ticket = parseTicket(msg.text);
   const ctwa = hasCtwaAttribution(msg);
+  const phoneHashEarly = hashPhone(msg.phone);
+
+  // Without ticket/CTWA: still accept Lead via phone match or first-time organic.
   if (!ticket && !ctwa) {
-    return { ok: true, ignored: true, reason: "no_ticket" };
+    if (!phoneHashEarly) {
+      return { ok: true, ignored: true, reason: "no_ticket_no_phone" };
+    }
   }
 
   const eventId = eventIdForMessage(conn.provider, msg.messageId);
@@ -162,11 +171,40 @@ export async function processNormalizedWhatsappMessage(opts: {
       ticketValue: ticket.value,
       phone: msg.phone,
     });
-  } else {
+  } else if (ctwa) {
     match = await matchVisitorFromCtwa({
       ctwaClid: msg.ctwaClid,
       phone: msg.phone,
     });
+  } else {
+    match = await matchAndMergeVisitor({ phone: msg.phone });
+  }
+
+  // Anti-spam: later WA messages without ticket/CTWA and with a prior Lead for
+  // this phone do not emit another Lead — only enrich the profile.
+  if (!ticket && !ctwa && phoneHashEarly) {
+    const priorLead = await queryOne<{ id: string }>(
+      `select id from form_leads
+       where phone_hash = $1
+       order by created_at asc
+       limit 1`,
+      [phoneHashEarly]
+    );
+    if (priorLead) {
+      if (match.visitor) {
+        await enrichVisitorPhone(match.visitor, msg.phone, msg.pushName);
+      }
+      return {
+        ok: true,
+        ignored: true,
+        reason: "wa_phone_already_leaded",
+        lead_id: priorLead.id,
+        match: {
+          status: match.match_status,
+          reason: match.match_reason,
+        },
+      };
+    }
   }
 
   let visitor = match.visitor;
@@ -182,7 +220,50 @@ export async function processNormalizedWhatsappMessage(opts: {
     };
   }
 
+  // First-time organic: no ticket, no CTWA, no visitor history → create visitor.
+  if (!visitor && !ticket && !ctwa && phoneHashEarly) {
+    const trckNew = newTrckUserId();
+    const firstName = msg.pushName
+      ? hashPii(msg.pushName.split(/\s+/)[0] ?? msg.pushName)
+      : null;
+    visitor = await queryOne<VisitorRow>(
+      `insert into visitors (
+         trck_user_id, phone_hash, first_name_hash, external_id_hash
+       ) values ($1, $2, $3, $4)
+       returning *`,
+      [trckNew, phoneHashEarly, firstName, hashPii(trckNew)]
+    );
+    match = {
+      visitor,
+      match_status: "unmatched",
+      match_reason: "wa_no_ticket_organic",
+    };
+  }
+
   const trckUserId = visitor?.trck_user_id ?? null;
+
+  if (trckUserId && phoneHashEarly) {
+    const touched = await captureFirstTouchIfNeeded({
+      trckUserId,
+      hasPii: true,
+      snapshot: {
+        utm_source: visitor?.utm_source,
+        utm_medium: visitor?.utm_medium,
+        utm_campaign: visitor?.utm_campaign,
+        utm_term: visitor?.utm_term,
+        utm_content: visitor?.utm_content,
+        referrer: visitor?.referrer,
+        fbp: visitor?.fbp,
+        fbc: visitor?.fbc,
+        gclid: visitor?.gclid,
+        ttclid: visitor?.ttclid,
+        ctwa_clid: msg.ctwaClid ?? visitor?.ctwa_clid,
+        wbraid: visitor?.wbraid,
+        gbraid: visitor?.gbraid,
+      },
+    });
+    if (touched) visitor = touched;
+  }
 
   const gaResolved = await resolveAndPersistGaClientId({
     stored: visitor?.ga_client_id,

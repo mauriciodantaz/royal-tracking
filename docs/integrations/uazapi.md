@@ -48,18 +48,20 @@ Ao remover a connection no Royal Tracking, a stack chama `action: "delete"` com 
 
 - Ignora mensagens da conta / enviadas pela API (`fromMe` / wasSentByApi)
 - Ignora grupos
-- Persiste + dispara Lead com `[rt:código]` **ou** com `ctwa_clid` / referral de anúncio no payload
+- Persiste + dispara Lead com `[rt:código]`, com `ctwa_clid` / referral, **ou** fallback por telefone (1ª mensagem do número)
 
 ## Ticket e atribuição
 
 Igual Evolution: a mensagem fica intacta; `[rt:…]` no final liga ao visitor da sessão web.
 
-**CTWA:** se o webhook trouxer `referral.ctwa_clid`, cria Lead sem ticket e envia CAPI `business_messaging`. Sem metadata CTWA, continue com ticket.
+**CTWA:** se o webhook trouxer `referral.ctwa_clid`, cria Lead sem ticket e envia CAPI `business_messaging`.
+
+**Sem ticket:** match por telefone ou Lead orgânico na 1ª vez — veja [ATTRIBUTION-CHECKLIST.md](../ATTRIBUTION-CHECKLIST.md) trilha 5.
 
 ## Gerador wa.me
 
 Na página da connection: telefone + mensagem → link encoded.  
-**Não remova** a linha `[rt:…]` se quiser Lead rastreado.
+Prefira manter `[rt:…]`; sem o ticket o fallback por telefone ainda registra o Lead.
 
 ## Links
 

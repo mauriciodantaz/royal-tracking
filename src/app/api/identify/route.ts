@@ -7,6 +7,7 @@ import type { VisitorRow } from "@/lib/db/types";
 import { rateLimit } from "@/lib/rate-limit/memory";
 import { resolveGaIdentity } from "@/lib/tracking/ga-client-id";
 import { lookupGeo } from "@/lib/tracking/geo";
+import { captureFirstTouchIfNeeded } from "@/lib/tracking/first-touch";
 import {
   hashEmail,
   hashPhone,
@@ -14,6 +15,7 @@ import {
   newTicketCode,
   newTrckUserId,
 } from "@/lib/tracking/hash";
+import { matchAndMergeVisitor } from "@/lib/tracking/match";
 import { getClientIp, getUserAgent } from "@/lib/tracking/request";
 import {
   appendRtFpidCookie,
@@ -204,6 +206,44 @@ export async function POST(request: NextRequest) {
       );
       if (filled?.ticket_code) {
         data = { ...data, ticket_code: filled.ticket_code };
+      }
+    }
+
+    const hasPii = Boolean(body.email || body.phone);
+    if (hasPii) {
+      const merged = await matchAndMergeVisitor({
+        trck_user_id: data.trck_user_id,
+        email: body.email,
+        phone: body.phone,
+      });
+      const canonicalId =
+        merged.visitor?.trck_user_id ?? data.trck_user_id;
+      await captureFirstTouchIfNeeded({
+        trckUserId: canonicalId,
+        hasPii: true,
+        snapshot: {
+          utm_source: body.utm_source,
+          utm_medium: body.utm_medium,
+          utm_campaign: body.utm_campaign,
+          utm_term: body.utm_term,
+          utm_content: body.utm_content,
+          referrer: body.referrer,
+          fbp: body.fbp,
+          fbc: body.fbc,
+          gclid: body.gclid,
+          ttclid: body.ttclid,
+          ctwa_clid: body.ctwa_clid,
+          wbraid: body.wbraid,
+          gbraid: body.gbraid,
+        },
+      });
+      if (merged.visitor && merged.visitor.trck_user_id !== data.trck_user_id) {
+        data = {
+          trck_user_id: merged.visitor.trck_user_id,
+          ga_client_id: merged.visitor.ga_client_id,
+          ga_session_id: merged.visitor.ga_session_id,
+          ticket_code: merged.visitor.ticket_code,
+        };
       }
     }
 

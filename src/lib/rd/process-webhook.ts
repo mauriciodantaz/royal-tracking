@@ -16,8 +16,9 @@ import type {
   GaClientIdSource,
   GaIdentityMeta,
 } from "@/lib/tracking/ga-client-id";
+import { resolveConversionAttribution } from "@/lib/tracking/attribution";
 import { hashEmail, hashPhone, hashPii, sha256 } from "@/lib/tracking/hash";
-import { matchVisitor } from "@/lib/tracking/match";
+import { matchAndMergeVisitor } from "@/lib/tracking/match";
 import { resolveAndPersistGaClientId } from "@/lib/tracking/persist-ga-client-id";
 import {
   extractContactEmailPhone,
@@ -250,7 +251,7 @@ async function persistEventLog(opts: {
   trckUserId: string | null;
   eventName: string;
   eventId: string;
-  visitor: Awaited<ReturnType<typeof matchVisitor>>["visitor"];
+  visitor: Awaited<ReturnType<typeof matchAndMergeVisitor>>["visitor"];
   results: OutboundResult[];
 }): Promise<"inserted" | "deduped"> {
   const metaResults = opts.results.filter((r) => r.provider === "meta_pixel");
@@ -416,8 +417,9 @@ async function processCrmDealWebhook(
     return { ok: false, error: "missing_deal_or_stage", status: 400 };
   }
 
-  const match = await matchVisitor({ email, phone });
+  const match = await matchAndMergeVisitor({ email, phone });
   const visitor = match.visitor;
+  const attr = resolveConversionAttribution(visitor);
   const trckUserId = visitor?.trck_user_id ?? null;
   const gaResolved = await resolveAndPersistGaClientId({
     stored: visitor?.ga_client_id,
@@ -440,8 +442,9 @@ async function processCrmDealWebhook(
     externalId: trckUserId,
     externalIdHash:
       visitor?.external_id_hash ?? (trckUserId ? hashPii(trckUserId) : null),
-    fbp: visitor?.fbp,
-    fbc: visitor?.fbc,
+    fbp: attr.fbp,
+    fbc: attr.fbc,
+    ctwaClid: attr.ctwa_clid,
     clientIpAddress: visitor?.ip,
     clientUserAgent: visitor?.user_agent,
   };
@@ -482,9 +485,9 @@ async function processCrmDealWebhook(
           gaClientIdSource: gaResolved.source,
           gaIdentityMeta: gaResolved.meta,
           gaSessionId: visitor?.ga_session_id,
-          gclid: visitor?.gclid,
-          wbraid: visitor?.wbraid,
-          gbraid: visitor?.gbraid,
+          gclid: attr.gclid,
+          wbraid: attr.wbraid,
+          gbraid: attr.gbraid,
         });
         await persistEventLog({
           trckUserId,
@@ -532,9 +535,9 @@ async function processCrmDealWebhook(
           gaClientIdSource: gaResolved.source,
           gaIdentityMeta: gaResolved.meta,
           gaSessionId: visitor?.ga_session_id,
-          gclid: visitor?.gclid,
-          wbraid: visitor?.wbraid,
-          gbraid: visitor?.gbraid,
+          gclid: attr.gclid,
+          wbraid: attr.wbraid,
+          gbraid: attr.gbraid,
         });
         await persistEventLog({
           trckUserId,
@@ -629,11 +632,12 @@ async function processMktWebhook(
     return { ok: true, deduped: true, event_id: eventId };
   }
 
-  const match = await matchVisitor({
+  const match = await matchAndMergeVisitor({
     email: contact.email,
     phone: contact.phone,
   });
   const visitor = match.visitor;
+  const attr = resolveConversionAttribution(visitor);
   const trckUserId = visitor?.trck_user_id ?? null;
   const gaResolved = await resolveAndPersistGaClientId({
     stored: visitor?.ga_client_id,
@@ -663,8 +667,9 @@ async function processMktWebhook(
       externalId: trckUserId,
       externalIdHash:
         visitor?.external_id_hash ?? (trckUserId ? hashPii(trckUserId) : null),
-      fbp: visitor?.fbp,
-      fbc: visitor?.fbc,
+      fbp: attr.fbp,
+      fbc: attr.fbc,
+      ctwaClid: attr.ctwa_clid,
       clientIpAddress: visitor?.ip,
       clientUserAgent: visitor?.user_agent,
     },
@@ -672,9 +677,9 @@ async function processMktWebhook(
     gaClientIdSource: gaResolved.source,
     gaIdentityMeta: gaResolved.meta,
     gaSessionId: visitor?.ga_session_id,
-    gclid: visitor?.gclid,
-    wbraid: visitor?.wbraid,
-    gbraid: visitor?.gbraid,
+    gclid: attr.gclid,
+    wbraid: attr.wbraid,
+    gbraid: attr.gbraid,
   });
 
   await persistEventLog({
