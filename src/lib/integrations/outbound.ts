@@ -76,13 +76,19 @@ function gaIdentityLogFields(
 }
 
 async function alertIfError(
-  result: Pick<OutboundResult, "ok" | "connectionId" | "provider" | "error">
+  result: OutboundResult,
+  input: Pick<OutboundEventInput, "eventId" | "eventName">
 ): Promise<void> {
   if (result.ok || !result.error) return;
   void notifyIntegrationBroken({
     provider: result.provider,
     connectionId: result.connectionId,
     error: result.error,
+    status: result.status,
+    payload: result.payload,
+    response: result.response,
+    eventId: input.eventId,
+    eventName: input.eventName,
   });
 }
 
@@ -418,7 +424,7 @@ export async function sendToConnection(
     result.error !== "missing_conversion_action_id" &&
     result.error !== "missing_access_token"
   ) {
-    await alertIfError(result);
+    await alertIfError(result, input);
   }
 
   return result;

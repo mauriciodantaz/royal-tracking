@@ -41,3 +41,24 @@ export function countVersionsBehind(
   }
   return newer.size;
 }
+
+/** Highest plain SemVer among `versions`, or null if none parse. */
+export function maxSemVer(versions: readonly string[]): string | null {
+  let best: SemVer | null = null;
+  for (const raw of versions) {
+    const parsed = parseSemVer(raw);
+    if (!parsed) continue;
+    if (!best || compareSemVer(parsed, best) > 0) {
+      best = parsed;
+    }
+  }
+  if (!best) return null;
+  return `${best.major}.${best.minor}.${best.patch}`;
+}
+
+export function sameSemVer(a: string, b: string): boolean {
+  const pa = parseSemVer(a);
+  const pb = parseSemVer(b);
+  if (!pa || !pb) return false;
+  return compareSemVer(pa, pb) === 0;
+}

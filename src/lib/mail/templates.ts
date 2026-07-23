@@ -27,15 +27,3 @@ export function resetEmail(opts: {
   const html = `<p>${greet},</p><p>Recebemos um pedido para redefinir sua senha no <strong>Royal Tracking</strong>.</p><p><a href="${link}">Redefinir senha</a> (válido por 1 hora)</p><p style="color:#666;font-size:12px">${link}</p><p>Se não foi você, ignore este e-mail.</p>`;
   return { subject, html, text };
 }
-
-export function integrationBrokenEmail(opts: {
-  provider: string;
-  connectionId: string;
-  error: string;
-}): { subject: string; html: string; text: string } {
-  const link = `${appBase()}/dashboard/integracoes`;
-  const subject = `Integração com falha: ${opts.provider}`;
-  const text = `A integração "${opts.provider}" falhou ao entregar eventos.\n\nConnection: ${opts.connectionId}\nErro: ${opts.error}\n\nPainel: ${link}\n`;
-  const html = `<p>A integração <strong>${opts.provider}</strong> falhou ao entregar eventos.</p><ul><li><strong>Connection:</strong> <code>${opts.connectionId}</code></li><li><strong>Erro:</strong> ${opts.error}</li></ul><p><a href="${link}">Abrir Integrações</a></p>`;
-  return { subject, html, text };
-}

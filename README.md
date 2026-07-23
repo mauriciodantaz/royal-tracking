@@ -47,7 +47,7 @@ Abra http://localhost:3000 → login `admin@localhost` / `admin123456` (só no c
 | `AUTH_SECRET` | Secret Auth.js |
 | `NEXTAUTH_URL` | URL pública da instância |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Super admin imutável (sync a cada boot; senha só na stack) |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | SMTP para convite, reset e alertas |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | SMTP para convite e reset de senha |
 | `NEXT_PUBLIC_APP_URL` | URL pública (snippet / links) |
 | `ALLOWED_EVENT_DOMAINS` | Apex do site (ex.: `exemplo.com.br`) — obrigatório em produção; aceita esse host e subdomínios |
 
