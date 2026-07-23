@@ -4,7 +4,12 @@ import { ensureDbReady } from "@/lib/db/boot";
 import { queryOne } from "@/lib/db/pool";
 import type { VisitorRow } from "@/lib/db/types";
 import { hashPhone } from "@/lib/tracking/hash";
-import { matchVisitor, type MatchResult } from "@/lib/tracking/match";
+import {
+  matchAndMergeVisitor,
+  type MatchResult,
+} from "@/lib/tracking/match";
+
+const ACTIVE = `merged_into_trck_user_id is null`;
 
 /**
  * Resolve visitor from ticket value (coalesce columns) then phone.
@@ -16,14 +21,20 @@ export async function matchVisitorFromTicket(input: {
   await ensureDbReady();
   const value = input.ticketValue.trim();
   if (!value) {
-    return matchVisitor({ phone: input.phone });
+    return matchAndMergeVisitor({ phone: input.phone });
   }
 
   const byCode = await queryOne<VisitorRow>(
-    `select * from visitors where ticket_code = $1 limit 1`,
+    `select * from visitors where ticket_code = $1 and ${ACTIVE} limit 1`,
     [value]
   );
   if (byCode) {
+    if (input.phone) {
+      return matchAndMergeVisitor({
+        trck_user_id: byCode.trck_user_id,
+        phone: input.phone,
+      });
+    }
     return {
       visitor: byCode,
       match_status: "matched",
@@ -32,10 +43,16 @@ export async function matchVisitorFromTicket(input: {
   }
 
   const byTrck = await queryOne<VisitorRow>(
-    `select * from visitors where trck_user_id = $1 limit 1`,
+    `select * from visitors where trck_user_id = $1 and ${ACTIVE} limit 1`,
     [value]
   );
   if (byTrck) {
+    if (input.phone) {
+      return matchAndMergeVisitor({
+        trck_user_id: byTrck.trck_user_id,
+        phone: input.phone,
+      });
+    }
     return {
       visitor: byTrck,
       match_status: "matched",
@@ -44,7 +61,8 @@ export async function matchVisitorFromTicket(input: {
   }
 
   const byFbp = await queryOne<VisitorRow>(
-    `select * from visitors where fbp = $1 order by updated_at desc limit 1`,
+    `select * from visitors where fbp = $1 and ${ACTIVE}
+     order by updated_at desc limit 1`,
     [value]
   );
   if (byFbp) {
@@ -56,7 +74,8 @@ export async function matchVisitorFromTicket(input: {
   }
 
   const byGa = await queryOne<VisitorRow>(
-    `select * from visitors where ga_client_id = $1 order by updated_at desc limit 1`,
+    `select * from visitors where ga_client_id = $1 and ${ACTIVE}
+     order by updated_at desc limit 1`,
     [value]
   );
   if (byGa) {
@@ -68,7 +87,8 @@ export async function matchVisitorFromTicket(input: {
   }
 
   const byGclid = await queryOne<VisitorRow>(
-    `select * from visitors where gclid = $1 order by updated_at desc limit 1`,
+    `select * from visitors where gclid = $1 and ${ACTIVE}
+     order by updated_at desc limit 1`,
     [value]
   );
   if (byGclid) {
@@ -80,7 +100,8 @@ export async function matchVisitorFromTicket(input: {
   }
 
   const byTtclid = await queryOne<VisitorRow>(
-    `select * from visitors where ttclid = $1 order by updated_at desc limit 1`,
+    `select * from visitors where ttclid = $1 and ${ACTIVE}
+     order by updated_at desc limit 1`,
     [value]
   );
   if (byTtclid) {
@@ -91,35 +112,10 @@ export async function matchVisitorFromTicket(input: {
     };
   }
 
-  const byCtwa = await queryOne<VisitorRow>(
-    `select * from visitors where ctwa_clid = $1 order by updated_at desc limit 1`,
-    [value]
-  );
-  if (byCtwa) {
-    return {
-      visitor: byCtwa,
-      match_status: "matched",
-      match_reason: "ticket_ctwa_clid",
-    };
-  }
-
   if (input.phone) {
     const phoneHash = hashPhone(input.phone);
     if (phoneHash) {
-      const byPhone = await queryOne<VisitorRow>(
-        `select * from visitors
-         where phone_hash = $1
-         order by updated_at desc
-         limit 1`,
-        [phoneHash]
-      );
-      if (byPhone) {
-        return {
-          visitor: byPhone,
-          match_status: "matched",
-          match_reason: "phone_hash",
-        };
-      }
+      return matchAndMergeVisitor({ phone: input.phone });
     }
   }
 
@@ -139,10 +135,17 @@ export async function matchVisitorFromCtwa(input: {
   const clid = input.ctwaClid?.trim();
   if (clid) {
     const byCtwa = await queryOne<VisitorRow>(
-      `select * from visitors where ctwa_clid = $1 order by updated_at desc limit 1`,
+      `select * from visitors where ctwa_clid = $1 and ${ACTIVE}
+       order by updated_at desc limit 1`,
       [clid]
     );
     if (byCtwa) {
+      if (input.phone) {
+        return matchAndMergeVisitor({
+          trck_user_id: byCtwa.trck_user_id,
+          phone: input.phone,
+        });
+      }
       return {
         visitor: byCtwa,
         match_status: "matched",
@@ -152,23 +155,7 @@ export async function matchVisitorFromCtwa(input: {
   }
 
   if (input.phone) {
-    const phoneHash = hashPhone(input.phone);
-    if (phoneHash) {
-      const byPhone = await queryOne<VisitorRow>(
-        `select * from visitors
-         where phone_hash = $1
-         order by updated_at desc
-         limit 1`,
-        [phoneHash]
-      );
-      if (byPhone) {
-        return {
-          visitor: byPhone,
-          match_status: "matched",
-          match_reason: "phone_hash",
-        };
-      }
-    }
+    return matchAndMergeVisitor({ phone: input.phone });
   }
 
   return {

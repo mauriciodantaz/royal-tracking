@@ -53,7 +53,15 @@ Tokens e refresh ficam cifrados. `refreshConnectionIfNeeded` / `getValidAccessTo
 
 Funis/maps: migration `004_rd_funnels.sql`. Webhooks inbound: `/api/webhook/in/{connectionId}`.
 
-Checklist empírico das 4 trilhas: [`docs/ATTRIBUTION-CHECKLIST.md`](./ATTRIBUTION-CHECKLIST.md).
+Checklist empírico das trilhas: [`docs/ATTRIBUTION-CHECKLIST.md`](./ATTRIBUTION-CHECKLIST.md).
+
+## Identidade do lead e janela de atribuição
+
+- Identidade **OR**: e-mail **ou** telefone casam o mesmo perfil (`matchAndMergeVisitor`); se os dois apontarem para visitors distintos, há merge no mais antigo (`first_lead_at` / `created_at`).
+- Telefone BR normalizado com prefixo `55` antes do hash (10/11 dígitos com DDD).
+- `first_lead_at` + snapshot `ft_*` congelam o first-touch na primeira entrada com PII.
+- Na **conversão** (Purchase / estágio CRM mapeado), se `now - first_lead_at ≤ 30 dias`, o dispatch usa o snapshot first-touch; fora da janela usa last-touch atual do `visitors`.
+- WhatsApp sem `[rt:…]`: tenta match por telefone; se for a 1ª vez sem histórico, cria Lead orgânico com os dados da plataforma (não descarta a mensagem).
 
 ## Verdade operacional vs Ads Manager
 
@@ -69,4 +77,4 @@ Na prática:
 
 ## Schema
 
-Migrations `db/migrations/*.sql` — aplicadas no boot.
+Migrations `db/migrations/*.sql` — aplicadas no boot (inclui `014_lead_identity_attribution.sql`).

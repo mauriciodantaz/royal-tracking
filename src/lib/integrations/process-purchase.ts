@@ -4,6 +4,7 @@ import { ensureDbReady } from "@/lib/db/boot";
 import { query, queryOne } from "@/lib/db/pool";
 import type { PurchaseRow, SettingsRow } from "@/lib/db/types";
 import { dispatchEvent } from "@/lib/integrations/dispatch";
+import { resolveConversionAttribution } from "@/lib/tracking/attribution";
 import {
   classifyChannel,
   serverFlagsFromDispatch,
@@ -14,7 +15,7 @@ import {
   hashPii,
   purchaseEventId,
 } from "@/lib/tracking/hash";
-import { matchVisitor } from "@/lib/tracking/match";
+import { matchAndMergeVisitor } from "@/lib/tracking/match";
 import { resolveAndPersistGaClientId } from "@/lib/tracking/persist-ga-client-id";
 import {
   parsePurchaseWebhook,
@@ -65,12 +66,13 @@ export async function processPurchaseEvent(opts: {
     };
   }
 
-  const match = await matchVisitor({
+  const match = await matchAndMergeVisitor({
     trck_user_id: purchase.trck_user_id,
     email: purchase.email,
     phone: purchase.phone,
   });
   const visitor = match.visitor;
+  const attr = resolveConversionAttribution(visitor);
   const trckUserId = purchase.trck_user_id ?? visitor?.trck_user_id ?? null;
   const currency = purchase.currency || settings?.currency || "BRL";
   const gaResolved = await resolveAndPersistGaClientId({
@@ -114,13 +116,13 @@ export async function processPurchaseEvent(opts: {
       purchase.value,
       currency,
       purchase.status,
-      purchase.utm_source ?? visitor?.utm_source ?? null,
-      purchase.utm_medium ?? visitor?.utm_medium ?? null,
-      purchase.utm_campaign ?? visitor?.utm_campaign ?? null,
-      purchase.utm_term ?? visitor?.utm_term ?? null,
-      purchase.utm_content ?? visitor?.utm_content ?? null,
-      visitor?.fbp ?? null,
-      visitor?.fbc ?? null,
+      purchase.utm_source ?? attr.utm_source ?? null,
+      purchase.utm_medium ?? attr.utm_medium ?? null,
+      purchase.utm_campaign ?? attr.utm_campaign ?? null,
+      purchase.utm_term ?? attr.utm_term ?? null,
+      purchase.utm_content ?? attr.utm_content ?? null,
+      attr.fbp ?? null,
+      attr.fbc ?? null,
       visitor?.geo_country ?? null,
       visitor?.geo_region ?? null,
       visitor?.geo_city ?? null,
@@ -153,9 +155,9 @@ export async function processPurchaseEvent(opts: {
       externalId: trckUserId,
       externalIdHash:
         visitor?.external_id_hash ?? (trckUserId ? hashPii(trckUserId) : null),
-      fbp: visitor?.fbp,
-      fbc: visitor?.fbc,
-      ctwaClid: visitor?.ctwa_clid,
+      fbp: attr.fbp,
+      fbc: attr.fbc,
+      ctwaClid: attr.ctwa_clid,
       clientIpAddress: visitor?.ip,
       clientUserAgent: visitor?.user_agent,
     },
@@ -170,9 +172,9 @@ export async function processPurchaseEvent(opts: {
     gaClientIdSource: gaResolved.source,
     gaIdentityMeta: gaResolved.meta,
     gaSessionId: visitor?.ga_session_id,
-    gclid: visitor?.gclid,
-    wbraid: visitor?.wbraid,
-    gbraid: visitor?.gbraid,
+    gclid: attr.gclid,
+    wbraid: attr.wbraid,
+    gbraid: attr.gbraid,
   });
 
   const now = new Date().toISOString();
@@ -224,11 +226,11 @@ export async function processPurchaseEvent(opts: {
       trckUserId,
       "Purchase",
       metaEventId,
-      purchase.utm_source ?? visitor?.utm_source ?? null,
-      purchase.utm_medium ?? visitor?.utm_medium ?? null,
-      purchase.utm_campaign ?? visitor?.utm_campaign ?? null,
-      purchase.utm_term ?? visitor?.utm_term ?? null,
-      purchase.utm_content ?? visitor?.utm_content ?? null,
+      purchase.utm_source ?? attr.utm_source ?? null,
+      purchase.utm_medium ?? attr.utm_medium ?? null,
+      purchase.utm_campaign ?? attr.utm_campaign ?? null,
+      purchase.utm_term ?? attr.utm_term ?? null,
+      purchase.utm_content ?? attr.utm_content ?? null,
       JSON.stringify(metaResults.map((r) => r.payload)),
       JSON.stringify(metaResults),
       JSON.stringify(ga4Results.map((r) => r.payload)),

@@ -15,6 +15,7 @@ import {
   serverFlagsFromDispatch,
 } from "@/lib/tracking/channel";
 import { resolveGaIdentity } from "@/lib/tracking/ga-client-id";
+import { captureFirstTouchIfNeeded } from "@/lib/tracking/first-touch";
 import {
   hashEmail,
   hashPhone,
@@ -23,6 +24,7 @@ import {
   newTicketCode,
   newTrckUserId,
 } from "@/lib/tracking/hash";
+import { matchAndMergeVisitor } from "@/lib/tracking/match";
 import { getClientIp, getUserAgent } from "@/lib/tracking/request";
 import {
   appendRtFpidCookie,
@@ -136,7 +138,7 @@ export async function POST(request: NextRequest) {
     });
   const eventName = body.event_name ?? "Lead";
   const eventId = body.event_id ?? newEventId();
-  const trckUserId = body.trck_user_id ?? newTrckUserId();
+  let trckUserId = body.trck_user_id ?? newTrckUserId();
   const userAgent = getUserAgent(request);
   const { webMeta, webGa4 } = clientWebFromBody(body.client_web);
 
@@ -261,10 +263,40 @@ export async function POST(request: NextRequest) {
       ]
     );
 
-    const visitor = await queryOne<VisitorRow>(
-      `select * from visitors where trck_user_id = $1 limit 1`,
-      [trckUserId]
-    );
+    const merged = await matchAndMergeVisitor({
+      trck_user_id: trckUserId,
+      email,
+      phone,
+    });
+    if (merged.visitor?.trck_user_id) {
+      trckUserId = merged.visitor.trck_user_id;
+    }
+
+    await captureFirstTouchIfNeeded({
+      trckUserId,
+      hasPii: Boolean(email || phone),
+      snapshot: {
+        utm_source: body.utm_source,
+        utm_medium: body.utm_medium,
+        utm_campaign: body.utm_campaign,
+        utm_term: body.utm_term,
+        utm_content: body.utm_content,
+        fbp: body.fbp,
+        fbc: body.fbc,
+        gclid: body.gclid,
+        ttclid: body.ttclid,
+        ctwa_clid: body.ctwa_clid,
+        wbraid: body.wbraid,
+        gbraid: body.gbraid,
+      },
+    });
+
+    const visitor =
+      merged.visitor ??
+      (await queryOne<VisitorRow>(
+        `select * from visitors where trck_user_id = $1 limit 1`,
+        [trckUserId]
+      ));
 
     const emailHash = hashEmail(email);
     const phoneHash = hashPhone(phone);

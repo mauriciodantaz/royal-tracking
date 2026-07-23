@@ -9,9 +9,19 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-/** Digits only for phone hashing. */
+/**
+ * Digits-only phone normalization for hashing.
+ * BR local numbers (10/11 digits with DDD) get a `55` country prefix so the
+ * same handset hashes consistently across form, WhatsApp and CRM sources.
+ */
 export function normalizePhone(phone: string): string {
-  return phone.replace(/\D/g, "");
+  let digits = phone.replace(/\D/g, "");
+  if (!digits) return "";
+  digits = digits.replace(/^0+/, "");
+  if (digits.length === 10 || digits.length === 11) {
+    digits = `55${digits}`;
+  }
+  return digits;
 }
 
 export function normalizeName(value: string): string {
