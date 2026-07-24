@@ -1,9 +1,14 @@
 import { type NextRequest } from "next/server";
 
 import { corsPreflight, guardPublicTrackingOrigin, jsonCors } from "@/lib/cors";
+import { ensureDbReady } from "@/lib/db/boot";
 import { publicErrorBody } from "@/lib/http/public-error";
 import { rateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/tracking/request";
+import {
+  loadSnippetSettings,
+  publicSnippetConfig,
+} from "@/lib/tracking/snippet-config";
 import { TICKET_PREFIX } from "@/lib/whatsapp/ticket";
 
 export const runtime = "nodejs";
@@ -12,7 +17,7 @@ export function OPTIONS(request: NextRequest) {
   return corsPreflight(request);
 }
 
-/** Public ticket prefix for WhatsApp wa.me patching (fixed). */
+/** Public snippet runtime config (ticket prefix, rules, discovery flags). */
 export async function GET(request: NextRequest) {
   const forbidden = guardPublicTrackingOrigin(request);
   if (forbidden) return forbidden;
@@ -23,5 +28,27 @@ export async function GET(request: NextRequest) {
     return jsonCors(publicErrorBody("rate_limited"), { status: 429 }, request);
   }
 
-  return jsonCors({ ticket_prefix: TICKET_PREFIX }, undefined, request);
+  try {
+    await ensureDbReady();
+    const settings = await loadSnippetSettings();
+    return jsonCors(
+      publicSnippetConfig(settings, TICKET_PREFIX),
+      undefined,
+      request
+    );
+  } catch {
+    return jsonCors(
+      publicSnippetConfig(
+        {
+          rules: [],
+          url_preserve_params: [],
+          auto_ecommerce: false,
+          listen_datalayer: false,
+        },
+        TICKET_PREFIX
+      ),
+      undefined,
+      request
+    );
+  }
 }

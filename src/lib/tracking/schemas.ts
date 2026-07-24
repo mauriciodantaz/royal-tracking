@@ -34,11 +34,22 @@ const clientWebSchema = z
   })
   .optional();
 
+const fieldClassificationSchema = z
+  .record(
+    z.string(),
+    z.object({
+      key: z.string().max(200),
+      score: z.number().optional(),
+    })
+  )
+  .optional();
+
 export const eventSchema = z.object({
   trck_user_id: z.string().min(1).max(128),
   event_name: z.string().min(1).max(64),
   event_id: z.string().min(1).max(128).optional(),
   event_source_url: z.string().url().optional(),
+  canonical_url: z.string().max(2000).optional(),
   value: z.number().optional(),
   currency: z.string().length(3).optional(),
   content_ids: z.array(z.string()).optional(),
@@ -62,10 +73,12 @@ export const leadSchema = z.object({
   form_label: z.string().max(200).optional(),
   form_action: z.string().max(2000).optional(),
   page_url: z.string().max(2000).optional(),
+  canonical_url: z.string().max(2000).optional(),
   email: z.string().email().optional(),
   phone: z.string().min(5).max(32).optional(),
   name: z.string().max(200).optional(),
   fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+  field_classification: fieldClassificationSchema,
   consent: z.boolean().optional(),
   fbp: z.string().max(256).optional(),
   fbc: z.string().max(512).optional(),

@@ -31,7 +31,14 @@ import {
   appendRtFpidCookie,
   readRtFpidFromRequest,
 } from "@/lib/tracking/rt-fpid-cookie";
+import { canonicalUrl } from "@/lib/tracking/canonical-url";
+import {
+  pickEmailPhoneNameFromClassification,
+  type FieldClassification,
+  type FieldKind,
+} from "@/lib/tracking/form-field-classifier";
 import { leadSchema } from "@/lib/tracking/schemas";
+import { loadSnippetSettings } from "@/lib/tracking/snippet-config";
 
 export const runtime = "nodejs";
 
@@ -54,36 +61,24 @@ function fingerprintForm(input: {
   return createHash("sha256").update(raw).digest("hex").slice(0, 32);
 }
 
-function pickEmailPhoneName(fields: Record<string, string>) {
-  let email: string | undefined;
-  let phone: string | undefined;
-  let name: string | undefined;
-  for (const [k, v] of Object.entries(fields)) {
-    const key = k.toLowerCase();
-    const val = String(v).trim();
-    if (!val) continue;
-    if (!email && (key.includes("email") || key.includes("e-mail"))) {
-      email = val;
-    } else if (
-      !phone &&
-      (key.includes("phone") ||
-        key.includes("tel") ||
-        key.includes("whats") ||
-        key.includes("celular"))
-    ) {
-      phone = val;
-    } else if (
-      !name &&
-      (key === "name" ||
-        key.includes("nome") ||
-        key.includes("full_name") ||
-        key.includes("fullname"))
-    ) {
-      name = val;
-    }
+function normalizeClientHints(
+  raw: LeadHints | undefined
+): FieldClassification | null {
+  if (!raw || typeof raw !== "object") return null;
+  const out: FieldClassification = {};
+  for (const [kind, meta] of Object.entries(raw)) {
+    if (!meta || typeof meta !== "object" || !("key" in meta)) continue;
+    const key = String((meta as { key?: string }).key || "");
+    if (!key) continue;
+    out[kind as FieldKind] = {
+      key,
+      score: Number((meta as { score?: number }).score) || 0,
+    };
   }
-  return { email, phone, name };
+  return out;
 }
+
+type LeadHints = Record<string, { key?: string; score?: number }>;
 
 export async function POST(request: NextRequest) {
   const forbidden = guardPublicTrackingOrigin(request);
@@ -124,7 +119,10 @@ export async function POST(request: NextRequest) {
   for (const [k, v] of Object.entries(fieldsRaw)) {
     fields[k] = String(v);
   }
-  const picked = pickEmailPhoneName(fields);
+  const clientHints = normalizeClientHints(
+    body.field_classification as LeadHints | undefined
+  );
+  const picked = pickEmailPhoneNameFromClassification(fields, clientHints);
   const email = body.email ?? picked.email;
   const phone = body.phone ?? picked.phone;
   const name = body.name ?? picked.name;
@@ -146,6 +144,12 @@ export async function POST(request: NextRequest) {
   try {
     await ensureDbReady();
     const snippet = await getSnippetConnection();
+    const snippetSettings = await loadSnippetSettings();
+    const resolvedCanonical =
+      body.canonical_url ||
+      canonicalUrl(body.page_url, {
+        preserveParams: snippetSettings.url_preserve_params,
+      });
 
     let form = await queryOne<FormRow>(
       `select * from forms where fingerprint = $1 limit 1`,
@@ -153,23 +157,33 @@ export async function POST(request: NextRequest) {
     );
     if (!form) {
       form = await queryOne<FormRow>(
-        `insert into forms (fingerprint, label, page_url, field_names, default_event_name, submission_count)
-         values ($1, $2, $3, $4::jsonb, $5, 1)
+        `insert into forms (
+           fingerprint, label, page_url, field_names, field_classification,
+           default_event_name, submission_count
+         )
+         values ($1, $2, $3, $4::jsonb, $5::jsonb, $6, 1)
          returning *`,
         [
           fp,
           body.form_label || body.form_action || `Form ${fp.slice(0, 8)}`,
           body.page_url ?? null,
           JSON.stringify(fieldNames),
+          JSON.stringify(picked.classification),
           eventName,
         ]
       );
     } else {
       await query(
         `update forms set submission_count = submission_count + 1,
-           field_names = $2::jsonb, updated_at = now()
+           field_names = $2::jsonb,
+           field_classification = $3::jsonb,
+           updated_at = now()
          where id = $1`,
-        [form.id, JSON.stringify(fieldNames)]
+        [
+          form.id,
+          JSON.stringify(fieldNames),
+          JSON.stringify(picked.classification),
+        ]
       );
     }
 
@@ -383,14 +397,14 @@ export async function POST(request: NextRequest) {
     const lead = await queryOne<{ id: string }>(
       `insert into form_leads (
          form_id, trck_user_id, email, phone, email_hash, phone_hash, name,
-         fields, page_url,
+         fields, page_url, canonical_url,
          utm_source, utm_medium, utm_campaign, utm_term, utm_content,
          fbp, fbc, gclid, ttclid, ctwa_clid, ga_client_id,
          source_provider, source_connection_id,
          consent, raw_payload, event_id, match_status
        ) values (
          $1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13,$14,$15,$16,
-         $17,$18,$19,$20,$21,$22,$23,$24::jsonb,$25,$26
+         $17,$18,$19,$20,$21,$22,$23,$24,$25::jsonb,$26,$27
        )
        on conflict (event_id) do nothing
        returning id`,
@@ -404,6 +418,7 @@ export async function POST(request: NextRequest) {
         name ?? null,
         JSON.stringify(fields),
         body.page_url ?? null,
+        resolvedCanonical,
         body.utm_source ?? visitor?.utm_source ?? null,
         body.utm_medium ?? visitor?.utm_medium ?? null,
         body.utm_campaign ?? visitor?.utm_campaign ?? null,

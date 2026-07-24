@@ -170,6 +170,7 @@ export type FormRow = {
   label: string;
   page_url: string | null;
   field_names: Json;
+  field_classification: Json;
   default_event_name: string;
   active: boolean;
   submission_count: number;
