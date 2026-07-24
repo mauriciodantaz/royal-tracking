@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -16,6 +18,13 @@ function isRefund(status: string | null) {
 }
 
 export default async function FaturamentoPage() {
+  // temporarily disabled — re-enable with Ads: return FaturamentoPageImpl();
+  notFound();
+}
+
+/** Kept for re-enable — swap back into the default export when Ads returns. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- preserved for re-enable
+async function FaturamentoPageImpl() {
   let error: string | null = null;
   let rows: Array<{
     id: string;
@@ -55,7 +64,7 @@ export default async function FaturamentoPage() {
     revenue = paid.reduce((s, r) => s + Number(r.value ?? 0), 0);
     refunds = refunded.reduce((s, r) => s + Number(r.value ?? 0), 0);
     ticket = paid.length ? revenue / paid.length : 0;
-  } catch (e) {
+  } catch (e: unknown) {
     error = e instanceof Error ? e.message : "Erro";
   }
 

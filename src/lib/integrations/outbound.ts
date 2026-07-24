@@ -6,6 +6,7 @@ import {
   logDelivery,
 } from "@/lib/integrations/connections";
 import type { IntegrationConnectionRow } from "@/lib/db/types";
+import { isUiVisibleProvider } from "@/lib/integrations/registry";
 import {
   buildCapiPayload,
   type MetaActionSource,
@@ -348,6 +349,27 @@ export async function sendToGoogleAdsConnection(
   conn: IntegrationConnectionRow,
   input: OutboundEventInput
 ): Promise<OutboundResult> {
+  if (!isUiVisibleProvider("google_ads")) {
+    const result: OutboundResult = {
+      connectionId: conn.id,
+      provider: "google_ads",
+      ok: false,
+      status: 0,
+      payload: null,
+      response: null,
+      error: "provider_unavailable",
+    };
+    await logDelivery({
+      eventId: input.eventId,
+      connectionId: conn.id,
+      provider: "google_ads",
+      destEventName: input.eventName,
+      status: "skipped",
+      error: result.error,
+    });
+    return result;
+  }
+
   const uploaded = await uploadGoogleAdsClickConversion(conn, input);
   const result: OutboundResult = {
     connectionId: conn.id,
@@ -417,6 +439,7 @@ export async function sendToConnection(
     !result.ok &&
     result.error &&
     result.error !== "not_an_outbound_adapter" &&
+    result.error !== "provider_unavailable" &&
     result.error !== "missing_ga_client_id" &&
     result.error !== "missing_click_id" &&
     result.error !== "missing_developer_token" &&

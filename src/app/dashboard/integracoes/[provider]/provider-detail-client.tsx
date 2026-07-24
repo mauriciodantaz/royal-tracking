@@ -159,8 +159,10 @@ type Conn = {
   label: string;
   active: boolean;
   account_external_id: string | null;
-  accessToken: string;
-  webhookSecret: string;
+  /** Server-masked preview only — never plaintext. */
+  accessTokenPreview: string;
+  webhookSecretPreview: string;
+  clientSecretPreview: string;
   config: Record<string, string>;
   webhookUrl: string | null;
   oauthConnected?: boolean;
@@ -326,14 +328,23 @@ type StageMapItem = {
   pipeline: string;
 };
 
-function fieldDefaultValue(
-  conn: Conn,
-  key: string
-): string {
+function secretPreviewForField(conn: Conn, key: string): string {
+  if (key === "access_token") return conn.accessTokenPreview;
+  if (key === "webhook_secret") return conn.webhookSecretPreview;
+  if (key === "client_secret") return conn.clientSecretPreview;
+  return "";
+}
+
+function fieldDefaultValue(conn: Conn, key: string): string {
+  // Secrets are never prefilled — empty submit keeps the stored cipher.
+  if (
+    key === "access_token" ||
+    key === "webhook_secret" ||
+    key === "client_secret"
+  ) {
+    return "";
+  }
   if (key === "label") return conn.label;
-  if (key === "access_token") return conn.accessToken;
-  if (key === "webhook_secret") return conn.webhookSecret;
-  if (key === "client_secret") return conn.config.client_secret || "";
   if (key === "account_external_id") {
     return conn.config.account_external_id || conn.account_external_id || "";
   }
@@ -681,8 +692,9 @@ export function ProviderDetailClient({
           <div>
             <h2 className="text-base font-medium">Contas nesta plataforma</h2>
             <p className="text-sm text-muted-foreground">
-              Credenciais visíveis neste painel. Edite e salve — validamos o
-              acesso de novo antes de gravar.
+              Secrets ficam mascarados neste painel. Cole um valor novo só se
+              for rotacionar; em branco mantém o atual. Validamos o acesso de
+              novo antes de gravar.
             </p>
           </div>
           <ul className="space-y-4">
@@ -859,29 +871,46 @@ export function ProviderDetailClient({
                       name="active"
                       value={c.active ? "true" : "false"}
                     />
-                    {mod.connectFields.map((f) => (
-                      <div key={`${c.id}-${f.key}`} className="space-y-1.5">
-                        <Label htmlFor={`edit-${c.id}-${f.key}`}>{f.label}</Label>
-                        <Input
-                          id={`edit-${c.id}-${f.key}`}
-                          name={f.key}
-                          type="text"
-                          required={
-                            f.key === "client_secret"
-                              ? false
-                              : Boolean(f.required)
-                          }
-                          placeholder={
-                            f.key === "client_secret"
-                              ? "Deixe em branco para manter"
-                              : f.placeholder
-                          }
-                          defaultValue={fieldDefaultValue(c, f.key)}
-                          autoComplete="off"
-                          className={f.secret ? "font-mono text-xs" : undefined}
-                        />
-                      </div>
-                    ))}
+                    {mod.connectFields.map((f) => {
+                      const preview = f.secret
+                        ? secretPreviewForField(c, f.key)
+                        : "";
+                      return (
+                        <div key={`${c.id}-${f.key}`} className="space-y-1.5">
+                          <Label htmlFor={`edit-${c.id}-${f.key}`}>
+                            {f.label}
+                          </Label>
+                          {preview ? (
+                            <p
+                              className="break-all font-mono text-xs text-muted-foreground"
+                              aria-label={`${f.label} mascarado`}
+                            >
+                              {preview}
+                            </p>
+                          ) : null}
+                          <Input
+                            id={`edit-${c.id}-${f.key}`}
+                            name={f.key}
+                            type="text"
+                            required={
+                              f.secret ? false : Boolean(f.required)
+                            }
+                            placeholder={
+                              f.secret
+                                ? preview
+                                  ? "Deixe em branco para manter"
+                                  : f.placeholder
+                                : f.placeholder
+                            }
+                            defaultValue={fieldDefaultValue(c, f.key)}
+                            autoComplete="off"
+                            className={
+                              f.secret ? "font-mono text-xs" : undefined
+                            }
+                          />
+                        </div>
+                      );
+                    })}
                     <Button type="submit" disabled={pending} className="w-fit">
                       {pending ? "Salvando…" : "Salvar alterações"}
                     </Button>
@@ -1106,7 +1135,7 @@ export function ProviderDetailClient({
                     ? "Ao salvar, geramos a URL pronta. Cole no Tallos em Integração com Webhook (POST) e ative todas as opções — só escutamos; Lead só com [ticket=]."
                     : whatsapp
                       ? "Use a key da instância (não a global). Ao salvar, validamos o acesso e registramos o webhook automaticamente."
-                      : "Tokens ficam visíveis neste painel. Ao salvar, validamos o acesso na plataforma; se falhar, nada é gravado."}
+                      : "Ao salvar, validamos o acesso na plataforma; se falhar, nada é gravado. Depois de salvos, secrets aparecem só mascarados."}
               </p>
               <Button type="submit" disabled={pending} className="w-fit">
                 {pending

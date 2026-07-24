@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { ProviderDetailClient } from "@/app/dashboard/integracoes/[provider]/provider-detail-client";
 import { Card, CardContent } from "@/components/ui/card";
+import { maskSecret } from "@/lib/crypto/mask-secret";
 import { decryptSecret } from "@/lib/crypto/secrets";
 import { ensureDbReady } from "@/lib/db/boot";
 import { query, queryOne } from "@/lib/db/pool";
@@ -38,7 +39,12 @@ function configRecord(
   if (!config || typeof config !== "object" || Array.isArray(config)) return {};
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(config as Record<string, unknown>)) {
-    if (v != null && v !== "" && k !== "client_secret_cipher") {
+    if (
+      v != null &&
+      v !== "" &&
+      k !== "client_secret_cipher" &&
+      k !== "client_secret"
+    ) {
       out[k] = String(v);
     }
   }
@@ -267,8 +273,12 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
   const connectionsForClient = await Promise.all(
     connections.map(async (c) => {
       const cfg = configRecord(c.config);
-      const accessToken = await safeDecrypt(c.access_token_cipher);
-      const webhookSecret = await safeDecrypt(c.webhook_secret_cipher);
+      const accessTokenPreview = maskSecret(
+        await safeDecrypt(c.access_token_cipher)
+      );
+      const webhookSecretPreview = maskSecret(
+        await safeDecrypt(c.webhook_secret_cipher)
+      );
       const secretCipher =
         c.config &&
         typeof c.config === "object" &&
@@ -279,9 +289,9 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
               (c.config as Record<string, unknown>).client_secret_cipher
             )
           : null;
-      if (secretCipher) {
-        cfg.client_secret = await safeDecrypt(secretCipher);
-      }
+      const clientSecretPreview = secretCipher
+        ? maskSecret(await safeDecrypt(secretCipher))
+        : "";
       const meta = metadataRecord(c.metadata);
       const whMeta =
         meta.whatsapp_webhook &&
@@ -322,8 +332,9 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
         label: c.label,
         active: c.active,
         account_external_id: c.account_external_id,
-        accessToken,
-        webhookSecret,
+        accessTokenPreview,
+        webhookSecretPreview,
+        clientSecretPreview,
         config: cfg,
         oauthConnected: Boolean(c.access_token_cipher),
         needsReauth: meta.needs_reauth === true,

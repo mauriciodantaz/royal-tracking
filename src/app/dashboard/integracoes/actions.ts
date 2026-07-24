@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { auditLog } from "@/lib/audit/log";
 import { requirePermission } from "@/lib/auth/permissions";
+import { looksLikeMaskedSecret } from "@/lib/crypto/mask-secret";
 import { decryptSecret, encryptSecret } from "@/lib/crypto/secrets";
 import { query, queryOne } from "@/lib/db/pool";
 import type { IntegrationConnectionRow } from "@/lib/db/types";
@@ -63,6 +64,13 @@ function needsShortWebhookUrl(provider: string): boolean {
   );
 }
 
+/** Empty / mask-looking submits keep the stored cipher (never encrypt a preview). */
+function secretFromForm(formData: FormData, key: string): string {
+  const value = String(formData.get(key) ?? "").trim();
+  if (!value || looksLikeMaskedSecret(value)) return "";
+  return value;
+}
+
 function revalidateIntegrations(provider?: string) {
   revalidatePath("/dashboard/integracoes");
   if (provider) {
@@ -89,9 +97,9 @@ export async function upsertConnection(formData: FormData): Promise<
   const active =
     formData.get("active") === "on" || formData.get("active") === "true";
 
-  const accessToken = String(formData.get("access_token") ?? "").trim();
-  const webhookSecret = String(formData.get("webhook_secret") ?? "").trim();
-  const refreshToken = String(formData.get("refresh_token") ?? "").trim();
+  const accessToken = secretFromForm(formData, "access_token");
+  const webhookSecret = secretFromForm(formData, "webhook_secret");
+  const refreshToken = secretFromForm(formData, "refresh_token");
 
   const config: Record<string, string> = {};
   for (const field of mod.connectFields) {
@@ -100,7 +108,7 @@ export async function upsertConnection(formData: FormData): Promise<
     if (v) config[field.key] = v;
   }
 
-  const clientSecret = String(formData.get("client_secret") ?? "").trim();
+  const clientSecret = secretFromForm(formData, "client_secret");
   const isCrmOAuth = isCrmOAuthProvider(provider);
 
   const accountExternalId =

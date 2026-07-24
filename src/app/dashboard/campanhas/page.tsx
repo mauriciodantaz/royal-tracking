@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { notFound } from "next/navigation";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ensureDbReady } from "@/lib/db/boot";
@@ -8,7 +9,16 @@ import { getAdsInsightsTree } from "@/lib/meta/ads-insights";
 import { CampaignsView } from "./campaigns-view";
 import { CampanhasTreeSkeleton } from "./campaigns-skeleton";
 
-export default async function CampanhasPage({
+export default async function CampanhasPage(_props: {
+  searchParams: Promise<{ account?: string; refresh?: string }>;
+}) {
+  // temporarily disabled — re-enable with Ads: return CampanhasPageImpl(_props);
+  notFound();
+}
+
+/** Kept for re-enable — swap back into the default export when Ads returns. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- preserved for re-enable
+async function CampanhasPageImpl({
   searchParams,
 }: {
   searchParams: Promise<{ account?: string; refresh?: string }>;

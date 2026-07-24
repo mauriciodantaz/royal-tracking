@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { ensureDbReady } from "@/lib/db/boot";
 import { query } from "@/lib/db/pool";
 import type { FormRow } from "@/lib/db/types";
+import { formSamplePageUrl } from "@/lib/tracking/form-fingerprint";
 
 export const dynamic = "force-dynamic";
 
@@ -212,7 +213,7 @@ export default async function FormulariosPage() {
 
                     {f.page_url ? (
                       <p className="mt-2 truncate text-xs text-muted-foreground">
-                        {f.page_url}
+                        {formSamplePageUrl(f.page_url) ?? f.page_url}
                       </p>
                     ) : null}
                   </CardContent>
