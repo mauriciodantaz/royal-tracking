@@ -1,8 +1,9 @@
 name: Docker Hub cleanup tags
 
 # Manual (workflow_dispatch). Remove tags fora do padrão dos canais beta/main:
-#   OK: X.Y.Z | X.Y.Z-stable | X.Y.Z-beta | stable | latest | beta
-#   Fora: v*, beta-<sha>, etc.
+#   OK: X.Y.Z | X.Y.Z-beta | stable | latest | beta
+#   Apaga: X.Y.Z-stable (legado), v*, beta-<sha>, etc.
+#   Se X.Y.Z e X.Y.Z-beta existem (versão já promovida), apaga X.Y.Z-beta.
 # Não afeta o canal `dev` (VPS-only, sem tags Hub).
 
 on:
@@ -18,7 +19,7 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     steps:
-      - name: Delete non-standard tags
+      - name: Delete non-standard and promoted-beta tags
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -30,7 +31,10 @@ jobs:
           user = os.environ["DOCKERHUB_USERNAME"]
           password = os.environ["DOCKERHUB_TOKEN"]
           image = os.environ["IMAGE_NAME"]
-          ok = re.compile(r"^(?:latest|stable|beta|\d+\.\d+\.\d+(?:-stable|-beta)?)$")
+          # Floating + pin version + unpromoted beta only (no X.Y.Z-stable).
+          keep_re = re.compile(r"^(?:latest|stable|beta|\d+\.\d+\.\d+(?:-beta)?)$")
+          ver_re = re.compile(r"^(\d+\.\d+\.\d+)$")
+          beta_re = re.compile(r"^(\d+\.\d+\.\d+)-beta$")
 
           def req(url, method="GET", data=None, headers=None):
               h = dict(headers or {})
@@ -45,6 +49,16 @@ jobs:
               except urllib.error.HTTPError as e:
                   return e.code, e.read()
 
+          def delete_tag(name, auth):
+              url = f"https://hub.docker.com/v2/repositories/{image}/tags/{name}/"
+              st, body = req(url, method="DELETE", headers=auth)
+              if st in (200, 202, 204):
+                  print(f"DELETE {name} -> {st}")
+              elif st == 404:
+                  print(f"SKIP {name} (not found)")
+              else:
+                  print(f"DELETE {name} FAILED: {st} {body!r}")
+
           status, login_raw = req(
               "https://hub.docker.com/v2/users/login/",
               method="POST",
@@ -55,6 +69,7 @@ jobs:
           token = json.loads(login_raw)["token"]
           auth = {"Authorization": f"JWT {token}"}
 
+          names = []
           page = 1
           while True:
               status, raw = req(
@@ -70,15 +85,19 @@ jobs:
               if not results:
                   break
               for t in results:
-                  name = t["name"]
-                  if ok.match(name):
-                      print(f"KEEP {name}")
-                      continue
-                  url = f"https://hub.docker.com/v2/repositories/{image}/tags/{name}/"
-                  st, body = req(url, method="DELETE", headers=auth)
-                  if st in (200, 202, 204):
-                      print(f"DELETE {name} -> {st}")
-                  else:
-                      print(f"DELETE {name} FAILED: {st} {body!r}")
+                  names.append(t["name"])
               page += 1
+
+          stable_vers = {m.group(1) for n in names if (m := ver_re.match(n))}
+
+          for name in names:
+              if name.endswith("-stable") or not keep_re.match(name):
+                  delete_tag(name, auth)
+                  continue
+              m = beta_re.match(name)
+              if m and m.group(1) in stable_vers:
+                  # Já promovida: uma tip por SemVer = só X.Y.Z (stable).
+                  delete_tag(name, auth)
+                  continue
+              print(f"KEEP {name}")
           PY
