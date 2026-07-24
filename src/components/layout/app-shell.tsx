@@ -11,8 +11,6 @@ import {
   LayoutDashboard,
   Link2,
   LogOut,
-  Megaphone,
-  Receipt,
   Menu,
   UserCog,
   Users,
@@ -42,8 +40,9 @@ const NAV_BASE = [
   { href: "/dashboard/formularios", label: "Formulários", icon: FileText },
   { href: "/dashboard/regras", label: "Regras", icon: Filter },
   { href: "/dashboard/eventos", label: "Eventos", icon: Activity },
-  { href: "/dashboard/faturamento", label: "Faturamento", icon: Receipt },
-  { href: "/dashboard/campanhas", label: "Campanhas", icon: Megaphone },
+  // temporarily disabled — re-enable with Ads:
+  // { href: "/dashboard/faturamento", label: "Faturamento", icon: Receipt },
+  // { href: "/dashboard/campanhas", label: "Campanhas", icon: Megaphone },
 ] as const;
 
 const REPORT_BUG_URL =
