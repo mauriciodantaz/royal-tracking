@@ -16,6 +16,7 @@ import {
   shortWebhookUrl,
   webhookSlugFromConn,
 } from "@/lib/integrations/webhook-slug";
+import { assertSafeOutboundUrl, safeFetch } from "@/lib/net/safe-url";
 import { metadataRecord } from "@/lib/rd/credentials";
 
 export type WhatsappWebhookResult =
@@ -125,7 +126,7 @@ async function listUazapiWebhooks(opts: {
   for (const endpoint of endpoints) {
     for (const headers of headerVariants) {
       try {
-        const res = await fetch(endpoint, { method: "GET", headers });
+        const res = await safeFetch(endpoint, { method: "GET", headers });
         if (!res.ok) continue;
         const body: unknown = await res.json().catch(() => null);
         const entries: UazapiWebhookEntry[] = [];
@@ -200,7 +201,7 @@ async function deleteUazapiWebhookById(opts: {
   for (const headers of headerSets) {
     for (const body of bodies) {
       try {
-        const res = await fetch(`${opts.baseUrl}/webhook`, {
+        const res = await safeFetch(`${opts.baseUrl}/webhook`, {
           method: "POST",
           headers,
           body: JSON.stringify(body),
@@ -319,7 +320,7 @@ async function findEvolutionWebhook(opts: {
 }): Promise<EvolutionWebhookState | null> {
   const endpoint = `${opts.baseUrl}/webhook/find/${encodeURIComponent(opts.instanceName)}`;
   try {
-    const res = await fetch(endpoint, {
+    const res = await safeFetch(endpoint, {
       method: "GET",
       headers: {
         Accept: "application/json",
@@ -358,7 +359,7 @@ async function setEvolutionWebhook(opts: {
   let res: Response;
   let body: unknown;
   try {
-    res = await fetch(endpoint, {
+    res = await safeFetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -519,7 +520,7 @@ async function registerUazapiWebhook(opts: {
   let res: Response;
   let body: unknown;
   try {
-    res = await fetch(endpoint, {
+    res = await safeFetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -687,7 +688,18 @@ export async function ensureWhatsappWebhook(
     });
     return { ok: false, error: err };
   }
-  const baseUrl = normalizeBaseUrl(baseUrlRaw);
+  const safeUrl = await assertSafeOutboundUrl(baseUrlRaw);
+  if (!safeUrl.ok) {
+    await patchMetadata(connectionId, {
+      whatsapp_webhook: {
+        status: "error",
+        message: safeUrl.error,
+        updated_at: new Date().toISOString(),
+      },
+    });
+    return { ok: false, error: safeUrl.error };
+  }
+  const baseUrl = safeUrl.href;
   const instanceToken = await decryptAccessToken(conn);
   if (!instanceToken) {
     const err = "Informe o token / API key da instância.";

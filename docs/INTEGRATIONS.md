@@ -22,6 +22,8 @@ Guias de credenciais (não-OAuth): [`docs/integrations/`](./integrations/) — n
 
 ## Webhooks
 
+Referência completa de autenticação e migração: **[WEBHOOK-AUTH.md](./WEBHOOK-AUTH.md)**.
+
 URL curta (preferida na UI e nos registros remotos):
 
 ```
@@ -32,8 +34,19 @@ Legado (ainda aceito):
 
 ```
 POST /api/webhook/in/{connectionId}
-Header: x-webhook-token: <secret da conexão>
 ```
+
+**Auth obrigatória** (mesma nas duas URLs):
+
+| Provider | Credencial |
+|----------|------------|
+| Hotmart / Kiwify / Eduzz | `x-webhook-token` / Bearer / `?token=` / body `hottok` |
+| RD CRM / Evolution / UazAPI | `x-webhook-token` (stack registra) |
+| RD Marketing | `?token=` nos novos; legado só slug ainda aceito |
+| Pipedrive | HTTP Basic (`royal-tracking` + secret) |
+| RD Conversas | URL curta secreta (sem header) |
+
+Marketplaces com `/api/w/{slug}` **sem** token → `401` após o harden.
 
 ## OAuth
 
@@ -51,7 +64,7 @@ Callback: `/api/integrations/{provider}/oauth/callback`
 
 Tokens e refresh ficam cifrados. `refreshConnectionIfNeeded` / `getValidAccessToken` renovam antes de cada chamada RD.
 
-Funis/maps: migration `004_rd_funnels.sql`. Webhooks inbound: `/api/webhook/in/{connectionId}`.
+Funis/maps: migration `004_rd_funnels.sql`. Webhooks inbound: preferir `/api/w/{slug}` (auth em [WEBHOOK-AUTH.md](./WEBHOOK-AUTH.md)).
 
 Checklist empírico das trilhas: [`docs/ATTRIBUTION-CHECKLIST.md`](./ATTRIBUTION-CHECKLIST.md).
 
@@ -75,6 +88,14 @@ Na prática:
 2. Cruze gasto do gerenciador de anúncios com conversões internas.
 3. Trate Meta/Google como destinos de feedback — não como única fonte de verdade.
 
+## Segurança (stack)
+
+- Uma instalação = um cliente ([SELF-HOSTED.md](./SELF-HOSTED.md)); sem multi-tenant no app.
+- Secrets de integração cifrados (AES-GCM / `ENCRYPTION_KEY`).
+- Evolution / UazAPI: só **HTTPS** público (bloqueio SSRF de IPs privados / localhost).
+- Produção: `ALLOWED_EVENT_DOMAINS` obrigatório (APIs do snippet fail-closed).
+- Checklist: [SECURITY.md](../SECURITY.md).
+
 ## Schema
 
-Migrations `db/migrations/*.sql` — aplicadas no boot (inclui `014_lead_identity_attribution.sql`).
+Migrations `db/migrations/*.sql` — aplicadas no boot (inclui `015_audit_events.sql`).

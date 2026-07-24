@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { publicErrorBody } from "@/lib/http/public-error";
+import { rateLimit } from "@/lib/rate-limit";
 import { getClientIp, getUserAgent } from "@/lib/tracking/request";
 import {
   buildWhatsappDestinationUrl,
@@ -20,15 +22,21 @@ export async function GET(
   request: NextRequest,
   context: { params: Promise<{ slug: string }> }
 ) {
+  const ip = getClientIp(request);
+  const limited = rateLimit(`redirect:${ip}`, 120, 60_000);
+  if (!limited.ok) {
+    return NextResponse.json(publicErrorBody("rate_limited"), { status: 429 });
+  }
+
   const { slug } = await context.params;
   const cleanSlug = (slug || "").trim().toLowerCase();
   if (!cleanSlug || cleanSlug.length > 64) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return NextResponse.json(publicErrorBody("not_found"), { status: 404 });
   }
 
   const link = await getTrackedLinkBySlug(cleanSlug);
   if (!link) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return NextResponse.json(publicErrorBody("not_found"), { status: 404 });
   }
 
   const existing =
@@ -38,7 +46,7 @@ export async function GET(
   const { trckUserId, ticketCode } = await ensureVisitorForRedirect({
     existingTrckUserId: existing,
     link,
-    ip: getClientIp(request),
+    ip,
     userAgent: getUserAgent(request),
   });
 

@@ -22,4 +22,13 @@ URL: `/dashboard/integracoes/{provider}/docs`
 | UazAPI Go | [uazapi.md](./uazapi.md) | `uazapi` |
 | Site / Forms | [snippet.md](./snippet.md) | `snippet` |
 
+## Leitura cruzada (segurança)
+
+- Auth de **todos** os webhooks inbound: [WEBHOOK-AUTH.md](../WEBHOOK-AUTH.md)
+- Hub / dispatcher: [INTEGRATIONS.md](../INTEGRATIONS.md)
+- Single-stack + allowlist: [SELF-HOSTED.md](../SELF-HOSTED.md)
+- Checklist: [SECURITY.md](../../SECURITY.md)
+
 RD CRM/MKT e Pipedrive: Client ID/Secret na UI (Portainer só como fallback). Google Ads OAuth ainda usa env — ver [INTEGRATIONS.md](../INTEGRATIONS.md).
+
+**Marketplaces (Hotmart/Kiwify/Eduzz):** toda URL (curta ou longa) exige o mesmo **Webhook token** da conexão. URL curta sem `?token=` → 401.

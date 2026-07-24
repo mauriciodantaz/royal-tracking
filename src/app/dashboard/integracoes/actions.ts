@@ -3,10 +3,12 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 
-import { requireUser } from "@/lib/auth/session";
+import { auditLog } from "@/lib/audit/log";
+import { requirePermission } from "@/lib/auth/permissions";
 import { decryptSecret, encryptSecret } from "@/lib/crypto/secrets";
 import { query, queryOne } from "@/lib/db/pool";
 import type { IntegrationConnectionRow } from "@/lib/db/types";
+import { safeActionMessage } from "@/lib/http/public-error";
 import {
   seedDefaultMappingsForOutbound,
 } from "@/lib/integrations/connections";
@@ -72,7 +74,7 @@ function revalidateIntegrations(provider?: string) {
 export async function upsertConnection(formData: FormData): Promise<
   { ok: true; warning?: string } | { ok: false; error: string }
 > {
-  await requireUser();
+  const actor = await requirePermission("integrations:manage");
   const id = String(formData.get("id") ?? "").trim() || null;
   const provider = String(formData.get("provider") ?? "").trim();
   if (!isIntegrationProvider(provider)) {
@@ -308,10 +310,7 @@ export async function upsertConnection(formData: FormData): Promise<
         webhookWarning = wh.error;
       }
     } catch (err) {
-      webhookWarning =
-        err instanceof Error
-          ? err.message
-          : "Falha ao registrar webhook no WhatsApp.";
+      webhookWarning = "Falha ao registrar webhook no WhatsApp.";
       console.error("[whatsapp] ensureWhatsappWebhook", err);
     }
   } else if (
@@ -325,6 +324,14 @@ export async function upsertConnection(formData: FormData): Promise<
       console.error("[webhook] ensureShortWebhookUrl", err);
     }
   }
+
+  await auditLog({
+    actorUserId: actor.id,
+    action: id ? "integration.update" : "integration.create",
+    resourceType: "integration_connection",
+    resourceId: savedId,
+    meta: { provider },
+  });
 
   revalidateIntegrations(provider);
   if (webhookWarning) {
@@ -418,7 +425,7 @@ async function syncLegacyTable(provider: string, connectionId: string) {
 }
 
 export async function deleteConnection(id: string) {
-  await requireUser();
+  const actor = await requirePermission("integrations:manage");
   const conn = await queryOne<IntegrationConnectionRow>(
     `select * from integration_connections where id = $1`,
     [id]
@@ -462,6 +469,13 @@ export async function deleteConnection(id: string) {
   } else if (conn?.provider === "meta_ads") {
     await query(`delete from meta_ad_accounts where id = $1`, [id]);
   }
+  await auditLog({
+    actorUserId: actor.id,
+    action: "integration.delete",
+    resourceType: "integration_connection",
+    resourceId: id,
+    meta: { provider: conn?.provider },
+  });
   revalidateIntegrations(conn?.provider);
   return { ok: true as const };
 }
@@ -469,7 +483,7 @@ export async function deleteConnection(id: string) {
 export async function reconfigureWhatsappWebhookAction(
   connectionId: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  await requireUser();
+  const actor = await requirePermission("integrations:manage");
   const conn = await queryOne<IntegrationConnectionRow>(
     `select * from integration_connections where id = $1`,
     [connectionId]
@@ -481,11 +495,17 @@ export async function reconfigureWhatsappWebhookAction(
     const result = await ensureWhatsappWebhook(connectionId);
     revalidateIntegrations(conn.provider);
     if (!result.ok) return { ok: false, error: result.error };
+    await auditLog({
+      actorUserId: actor.id,
+      action: "integration.webhook_reconfigure",
+      resourceType: "integration_connection",
+      resourceId: connectionId,
+    });
     return { ok: true };
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof Error ? e.message : "Falha ao reconfigurar webhook",
+      error: safeActionMessage(e, "Falha ao reconfigurar webhook"),
     };
   }
 }
@@ -493,7 +513,7 @@ export async function reconfigureWhatsappWebhookAction(
 export async function syncRdFunnelsAction(
   connectionId: string
 ): Promise<{ ok: true; pipelines: number; stages: number } | { ok: false; error: string }> {
-  await requireUser();
+  await requirePermission("integrations:manage");
   try {
     const conn = await queryOne<IntegrationConnectionRow>(
       `select * from integration_connections where id = $1`,
@@ -524,7 +544,7 @@ export async function syncRdFunnelsAction(
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof Error ? e.message : "Falha ao sincronizar funis",
+      error: safeActionMessage(e, "Falha ao sincronizar funis"),
     };
   }
 }
@@ -532,7 +552,7 @@ export async function syncRdFunnelsAction(
 export async function saveRdStageMapsAction(
   formData: FormData
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  await requireUser();
+  const actor = await requirePermission("integrations:manage");
   const connectionId = String(formData.get("connection_id") ?? "").trim();
   if (!connectionId) {
     return { ok: false, error: "connection_id obrigatório" };
@@ -644,12 +664,18 @@ export async function saveRdStageMapsAction(
     console.error("[crm] ensureWebhooks after maps", err);
   }
 
+  await auditLog({
+    actorUserId: actor.id,
+    action: "integration.stage_maps_save",
+    resourceType: "integration_connection",
+    resourceId: connectionId,
+  });
   revalidateIntegrations(conn.provider);
   return { ok: true };
 }
 
 export async function upsertEventMapping(formData: FormData) {
-  await requireUser();
+  const actor = await requirePermission("integrations:manage");
   const id = String(formData.get("id") ?? "").trim() || null;
   const source_provider =
     String(formData.get("source_provider") ?? "").trim() || null;
@@ -704,19 +730,32 @@ export async function upsertEventMapping(formData: FormData) {
       ]
     );
   }
+  await auditLog({
+    actorUserId: actor.id,
+    action: id ? "integration.mapping_update" : "integration.mapping_create",
+    resourceType: "integration_event_mapping",
+    resourceId: id,
+    meta: { source_event, dest_connection_id },
+  });
   revalidateIntegrations(source_provider ?? undefined);
   return { ok: true as const };
 }
 
 export async function deleteEventMapping(id: string) {
-  await requireUser();
+  const actor = await requirePermission("integrations:manage");
   await query(`delete from integration_event_mappings where id = $1`, [id]);
+  await auditLog({
+    actorUserId: actor.id,
+    action: "integration.mapping_delete",
+    resourceType: "integration_event_mapping",
+    resourceId: id,
+  });
   revalidateIntegrations();
   return { ok: true as const };
 }
 
 export async function updateFormLabel(formData: FormData): Promise<void> {
-  await requireUser();
+  await requirePermission("integrations:manage");
   const id = String(formData.get("id") ?? "").trim();
   const label = String(formData.get("label") ?? "").trim();
   const default_event_name =
@@ -731,7 +770,7 @@ export async function updateFormLabel(formData: FormData): Promise<void> {
 
 /** Moeda padrão da stack (compras sem currency no payload). */
 export async function updateStackCurrency(formData: FormData): Promise<void> {
-  await requireUser();
+  const actor = await requirePermission("settings:manage");
   const currency =
     String(formData.get("currency") ?? "BRL").trim().toUpperCase() || "BRL";
   if (currency.length !== 3) throw new Error("currency_invalid");
@@ -741,6 +780,13 @@ export async function updateStackCurrency(formData: FormData): Promise<void> {
      on conflict (id) do update set currency = excluded.currency, updated_at = now()`,
     [currency]
   );
+  await auditLog({
+    actorUserId: actor.id,
+    action: "settings.currency_update",
+    resourceType: "settings",
+    resourceId: "1",
+    meta: { currency },
+  });
   revalidateIntegrations("snippet");
 }
 
@@ -748,7 +794,7 @@ export async function updateStackCurrency(formData: FormData): Promise<void> {
 export async function updateMetaTestEventCode(
   formData: FormData
 ): Promise<void> {
-  await requireUser();
+  const actor = await requirePermission("settings:manage");
   const test_event_code =
     String(formData.get("test_event_code") ?? "").trim() || null;
   await query(
@@ -759,5 +805,11 @@ export async function updateMetaTestEventCode(
        updated_at = now()`,
     [test_event_code]
   );
+  await auditLog({
+    actorUserId: actor.id,
+    action: "settings.meta_test_event_code_update",
+    resourceType: "settings",
+    resourceId: "1",
+  });
   revalidateIntegrations("meta_pixel");
 }
