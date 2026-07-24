@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 import { type NextRequest } from "next/server";
 
 import { corsPreflight, guardPublicTrackingOrigin, jsonCors } from "@/lib/cors";
@@ -33,6 +31,10 @@ import {
 } from "@/lib/tracking/rt-fpid-cookie";
 import { canonicalUrl } from "@/lib/tracking/canonical-url";
 import {
+  fingerprintForm,
+  formSamplePageUrl,
+} from "@/lib/tracking/form-fingerprint";
+import {
   pickEmailPhoneNameFromClassification,
   type FieldClassification,
   type FieldKind,
@@ -44,21 +46,6 @@ export const runtime = "nodejs";
 
 export function OPTIONS(request: NextRequest) {
   return corsPreflight(request);
-}
-
-function fingerprintForm(input: {
-  action?: string;
-  label?: string;
-  fieldNames: string[];
-  pageUrl?: string;
-}): string {
-  const raw = [
-    input.action ?? "",
-    input.label ?? "",
-    input.fieldNames.slice().sort().join(","),
-    input.pageUrl ? new URL(input.pageUrl).pathname : "",
-  ].join("|");
-  return createHash("sha256").update(raw).digest("hex").slice(0, 32);
 }
 
 function normalizeClientHints(
@@ -127,14 +114,13 @@ export async function POST(request: NextRequest) {
   const phone = body.phone ?? picked.phone;
   const name = body.name ?? picked.name;
   const fieldNames = Object.keys(fields);
-  const fp =
-    body.form_fingerprint ??
-    fingerprintForm({
-      action: body.form_action,
-      label: body.form_label,
-      fieldNames,
-      pageUrl: body.page_url,
-    });
+  // Server-authoritative: ignore client form_fingerprint so ?query never splits forms.
+  const fp = fingerprintForm({
+    action: body.form_action,
+    label: body.form_label,
+    fieldNames,
+    pageUrl: body.page_url,
+  });
   const eventName = body.event_name ?? "Lead";
   const eventId = body.event_id ?? newEventId();
   let trckUserId = body.trck_user_id ?? newTrckUserId();
@@ -151,10 +137,63 @@ export async function POST(request: NextRequest) {
         preserveParams: snippetSettings.url_preserve_params,
       });
 
+    const formLabel =
+      body.form_label || body.form_action || `Form ${fp.slice(0, 8)}`;
+    const sampleUrl = formSamplePageUrl(body.page_url);
+
     let form = await queryOne<FormRow>(
       `select * from forms where fingerprint = $1 limit 1`,
       [fp]
     );
+    let formCountUpdated = false;
+
+    // Reclaim legacy rows fingerprinted with action/?query in the key.
+    if (!form && body.form_label && sampleUrl) {
+      const legacy = await queryOne<FormRow>(
+        `select * from forms
+         where label = $1
+           and field_names = $2::jsonb
+           and (
+             page_url = $3
+             or split_part(coalesce(page_url, ''), '?', 1) = $3
+             or page_url like $3 || '?%'
+           )
+         order by submission_count desc
+         limit 1`,
+        [body.form_label, JSON.stringify(fieldNames), sampleUrl]
+      );
+      if (legacy) {
+        try {
+          form = await queryOne<FormRow>(
+            `update forms
+             set fingerprint = $1,
+                 page_url = $2,
+                 submission_count = submission_count + 1,
+                 field_names = $3::jsonb,
+                 field_classification = $4::jsonb,
+                 updated_at = now()
+             where id = $5
+             returning *`,
+            [
+              fp,
+              sampleUrl,
+              JSON.stringify(fieldNames),
+              JSON.stringify(picked.classification),
+              legacy.id,
+            ]
+          );
+          formCountUpdated = Boolean(form);
+        } catch (e) {
+          if (!isUniqueViolation(e)) throw e;
+          // New fingerprint already taken — keep that row.
+          form = await queryOne<FormRow>(
+            `select * from forms where fingerprint = $1 limit 1`,
+            [fp]
+          );
+        }
+      }
+    }
+
     if (!form) {
       form = await queryOne<FormRow>(
         `insert into forms (
@@ -165,24 +204,27 @@ export async function POST(request: NextRequest) {
          returning *`,
         [
           fp,
-          body.form_label || body.form_action || `Form ${fp.slice(0, 8)}`,
-          body.page_url ?? null,
+          formLabel,
+          sampleUrl,
           JSON.stringify(fieldNames),
           JSON.stringify(picked.classification),
           eventName,
         ]
       );
-    } else {
+      formCountUpdated = Boolean(form);
+    } else if (!formCountUpdated) {
       await query(
         `update forms set submission_count = submission_count + 1,
            field_names = $2::jsonb,
            field_classification = $3::jsonb,
+           page_url = coalesce($4, page_url),
            updated_at = now()
          where id = $1`,
         [
           form.id,
           JSON.stringify(fieldNames),
           JSON.stringify(picked.classification),
+          sampleUrl,
         ]
       );
     }
