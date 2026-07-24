@@ -42,11 +42,11 @@ export default async function RegrasPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
-          Regras do snippet
+          Regras do site
         </h1>
         <p className="text-sm text-muted-foreground">
-          Exclusões, mapeamento de eventos e flags de descoberta (ecommerce /
-          dataLayer). Zero config por padrão.
+          O snippet já captura PageView e Lead sozinho. Use esta página só para
+          ajustar exceções ou eventos extras.
         </p>
       </div>
       {error ? (

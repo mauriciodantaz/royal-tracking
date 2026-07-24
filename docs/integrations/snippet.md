@@ -9,8 +9,7 @@ O módulo **Site / Forms** não pede token. O snippet já está ativo na stack: 
 - Captura submit de formulários → **Lead**, com **classificação multi-sinal** de campos (email/telefone/nome/CPF/etc.)
 - Envia `canonical_url` (UTMs/click IDs removidos) além de `event_source_url` cru para CAPI
 - SPA: escuta `pushState` / `replaceState` / `popstate` / `hashchange` com dedupe ~800ms
-- Regras/exclusões via `/api/tracking/config` (painel **Regras**); built-in: `wp-admin`, logout, preview
-- Flags opt-in: `auto_ecommerce`, `listen_datalayer` (painel Regras)
+- Painel **Regras**: exceções e eventos extras por URL, além dos opt-ins “funil de loja” e “dataLayer”. Exclusões built-in (`wp-admin`, logout, preview) já vêm ativas via `/api/tracking/config`
 - Expõe `window.trck.event` / `identify` / `lead` / `canonicalUrl` / `getConfig`
 - Anexa `trck_user_id` em links de checkout/WhatsApp/Hotmart/etc.
 - Em `wa.me` / `api.whatsapp.com`, coloca `[rt:código]` no final do `text=` (código curto do visitor; não altera o resto da mensagem)
