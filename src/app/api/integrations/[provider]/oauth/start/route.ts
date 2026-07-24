@@ -5,7 +5,10 @@ import { auth } from "@/auth";
 import { ensureDbReady } from "@/lib/db/boot";
 import { getAppUrl } from "@/lib/env";
 import { getConnection } from "@/lib/integrations/connections";
-import { isIntegrationProvider } from "@/lib/integrations/registry";
+import {
+  isIntegrationProvider,
+  isUiVisibleProvider,
+} from "@/lib/integrations/registry";
 import { resolvePipedriveCredentials } from "@/lib/pipedrive/credentials";
 import {
   oauthCallbackUrl,
@@ -45,6 +48,9 @@ export async function GET(request: NextRequest, context: Ctx) {
   const { provider } = await context.params;
   if (!isIntegrationProvider(provider)) {
     return NextResponse.json({ error: "invalid_provider" }, { status: 400 });
+  }
+  if (!isUiVisibleProvider(provider)) {
+    return NextResponse.json({ error: "unavailable" }, { status: 404 });
   }
 
   await ensureDbReady();

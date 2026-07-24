@@ -7,7 +7,11 @@ import { query, queryOne } from "@/lib/db/pool";
 import type { IntegrationConnectionRow } from "@/lib/db/types";
 import { getAppUrl } from "@/lib/env";
 import { seedDefaultMappingsForOutbound } from "@/lib/integrations/connections";
-import { getModule, isIntegrationProvider } from "@/lib/integrations/registry";
+import {
+  getModule,
+  isIntegrationProvider,
+  isUiVisibleProvider,
+} from "@/lib/integrations/registry";
 import {
   metadataRecord as pdMetadataRecord,
   oauthCallbackUrl as pdOauthCallbackUrl,
@@ -126,6 +130,9 @@ export async function GET(request: NextRequest, context: Ctx) {
     return NextResponse.redirect(
       new URL("/dashboard/integracoes?error=invalid_provider", base)
     );
+  }
+  if (!isUiVisibleProvider(provider)) {
+    return NextResponse.json({ error: "unavailable" }, { status: 404 });
   }
 
   const code = request.nextUrl.searchParams.get("code");

@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -16,6 +18,8 @@ function isRefund(status: string | null) {
 }
 
 export default async function FaturamentoPage() {
+  // temporarily disabled — re-enable with Ads
+  notFound();
   let error: string | null = null;
   let rows: Array<{
     id: string;

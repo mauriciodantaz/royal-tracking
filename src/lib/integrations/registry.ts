@@ -95,6 +95,8 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     direction: "outbound",
     segment: "site_media",
     docsSlug: "meta-ads",
+    // temporarily disabled — re-enable when Ads work resumes
+    uiHidden: true,
     connectFields: [
       { key: "label", label: "Nome", required: true },
       { key: "ad_account_id", label: "Ad Account ID", required: true },
@@ -125,6 +127,8 @@ export const INTEGRATION_MODULES: IntegrationModuleDef[] = [
     direction: "outbound",
     segment: "site_media",
     docsSlug: "google-ads",
+    // temporarily disabled — re-enable when Ads work resumes
+    uiHidden: true,
     connectFields: [
       { key: "label", label: "Nome", required: true },
       {

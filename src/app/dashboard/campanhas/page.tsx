@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { notFound } from "next/navigation";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ensureDbReady } from "@/lib/db/boot";
@@ -13,6 +14,9 @@ export default async function CampanhasPage({
 }: {
   searchParams: Promise<{ account?: string; refresh?: string }>;
 }) {
+  // temporarily disabled — re-enable with Ads
+  notFound();
+
   const params = await searchParams;
   const suspenseKey = `${params.account ?? "all"}:${params.refresh ?? "0"}`;
 
