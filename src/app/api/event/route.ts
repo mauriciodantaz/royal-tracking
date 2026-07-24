@@ -20,7 +20,9 @@ import {
   appendRtFpidCookie,
   readRtFpidFromRequest,
 } from "@/lib/tracking/rt-fpid-cookie";
+import { canonicalUrl } from "@/lib/tracking/canonical-url";
 import { eventSchema } from "@/lib/tracking/schemas";
+import { loadSnippetSettings } from "@/lib/tracking/snippet-config";
 
 export const runtime = "nodejs";
 
@@ -69,6 +71,12 @@ export async function POST(request: NextRequest) {
   try {
     await ensureDbReady();
     const snippet = await getSnippetConnection();
+    const snippetSettings = await loadSnippetSettings();
+    const resolvedCanonical =
+      body.canonical_url ||
+      canonicalUrl(body.event_source_url, {
+        preserveParams: snippetSettings.url_preserve_params,
+      });
     const visitor = await queryOne<VisitorRow>(
       `select * from visitors where trck_user_id = $1 limit 1`,
       [body.trck_user_id]
@@ -84,18 +92,19 @@ export async function POST(request: NextRequest) {
     try {
       await query(
         `insert into events_log (
-           trck_user_id, event_name, event_id,
+           trck_user_id, event_name, event_id, canonical_url,
            utm_source, utm_medium, utm_campaign, utm_term, utm_content,
            ip, geo_country, geo_region, geo_city,
            ingest_path, web_meta, web_ga4, server_meta, server_ga4, channel_class
          ) values (
-           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
-           'snippet',$13,$14,false,false,$15
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
+           'snippet',$14,$15,false,false,$16
          )`,
         [
           body.trck_user_id,
           body.event_name,
           eventId,
+          resolvedCanonical,
           body.utm_source ?? visitor?.utm_source ?? null,
           body.utm_medium ?? visitor?.utm_medium ?? null,
           body.utm_campaign ?? visitor?.utm_campaign ?? null,
