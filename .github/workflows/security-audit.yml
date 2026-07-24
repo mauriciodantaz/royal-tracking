@@ -18,6 +18,7 @@ jobs:
           node-version: "22"
           cache: npm
       - name: Install dependencies
-        run: npm ci
+        # Align with local/contrib install (next-auth optional peer vs nodemailer@9).
+        run: npm ci --legacy-peer-deps
       - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
+        run: npm audit --omit=dev --audit-level=high --legacy-peer-deps
