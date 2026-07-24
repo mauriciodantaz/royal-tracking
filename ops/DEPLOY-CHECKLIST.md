@@ -67,9 +67,13 @@ Strategy: docker-swarm-volume-node | Framework: nextjs | Build mode: docker
 - [ ] `curl -I https://tracking.royalgrowth.com.br`
 - [ ] DNS `tracking.royalgrowth.com.br` → VPS
 - [ ] Snippet / webhooks / OAuth redirect no novo host
+- [ ] `ALLOWED_EVENT_DOMAINS` = apex do site do cliente (fail-closed em produção)
+- [ ] Webhooks marketplace com token ([docs/WEBHOOK-AUTH.md](../docs/WEBHOOK-AUTH.md))
+- [ ] Evolution/UazAPI: Base URL HTTPS público (sem localhost/IP privado)
 
 ## Notas
 
 - Rede Swarm externa: a mesma do YAML de referência da VPS (preservar o nome da rede).
 - Env de produção fica no YAML Portainer, não no volume.
 - Shims na raiz: `deploy.sh` → `ops/deploy.sh`; `bootstrap-vps.sh` → `install.sh`.
+- Segurança da stack: [SECURITY.md](../SECURITY.md) · single-stack: [docs/SELF-HOSTED.md](../docs/SELF-HOSTED.md).

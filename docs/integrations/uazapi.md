@@ -4,16 +4,18 @@ Cada **instância** UazAPI Go (cloud) vira uma connection no Royal Tracking. A s
 
 ## Pré-requisitos
 
-- Conta UazAPI Go cloud com Base URL (ex. `https://seu-sub.uazapi.com`)
+- Conta UazAPI Go cloud com Base URL **HTTPS** (ex. `https://seu-sub.uazapi.com`)
 - **Token da instância** (header `token`) — não use admintoken global
 - Stack Royal Tracking no ar (`NEXTAUTH_URL` / app URL pública)
+
+A stack **recusa** `http://`, localhost e IPs privados na Base URL (proteção SSRF).
 
 ## Campos no Royal Tracking
 
 | Campo | O que é |
 |---|---|
 | **Nome** | Rótulo interno (ex.: “WA Ads”) |
-| **Base URL** | Servidor da instância (sem barra no fim) |
+| **Base URL** | Servidor HTTPS da instância (sem barra no fim) |
 | **Token da instância** | Credencial daquela instância |
 
 Várias connections = várias instâncias.
@@ -37,6 +39,8 @@ URL inbound (curta):
 ```txt
 https://SEU_DOMINIO/api/w/{slug}
 ```
+
+A UazAPI envia `x-webhook-token` (secret da stack). POSTs sem token → **401**. Ver [WEBHOOK-AUTH.md](../WEBHOOK-AUTH.md).
 
 Se falhar, a connection fica salva com webhook pendente — use **Reconfigurar webhook**.
 
@@ -66,4 +70,5 @@ Prefira manter `[rt:…]`; sem o ticket o fallback por telefone ainda registra o
 ## Links
 
 - [Documentação UazAPI Go](https://docs.uazapi.com/)
+- Auth inbound: [WEBHOOK-AUTH.md](../WEBHOOK-AUTH.md)
 - Visão geral: [INTEGRATIONS.md](../INTEGRATIONS.md)

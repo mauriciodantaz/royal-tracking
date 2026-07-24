@@ -4,7 +4,8 @@ import { corsPreflight, guardPublicTrackingOrigin, jsonCors } from "@/lib/cors";
 import { ensureDbReady } from "@/lib/db/boot";
 import { isUniqueViolation, queryOne } from "@/lib/db/pool";
 import type { VisitorRow } from "@/lib/db/types";
-import { rateLimit } from "@/lib/rate-limit/memory";
+import { logAndPublicError, publicErrorBody } from "@/lib/http/public-error";
+import { rateLimit } from "@/lib/rate-limit";
 import { resolveGaIdentity } from "@/lib/tracking/ga-client-id";
 import { lookupGeo } from "@/lib/tracking/geo";
 import { captureFirstTouchIfNeeded } from "@/lib/tracking/first-touch";
@@ -266,13 +267,7 @@ export async function POST(request: NextRequest) {
     if (isUniqueViolation(err)) {
       // rare race — still ok
     }
-    return jsonCors(
-      {
-        error: "server_error",
-        message: err instanceof Error ? err.message : "unknown",
-      },
-      { status: 500 },
-      request
-    );
+    logAndPublicError("api/identify", err);
+    return jsonCors(publicErrorBody("internal"), { status: 500 }, request);
   }
 }

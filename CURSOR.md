@@ -49,10 +49,19 @@ Guia: [DEPLOY.md](./DEPLOY.md)
 
 ### Webhook na plataforma de venda
 
-URL: `https://SEU_DOMINIO/api/webhook/in/{connectionId}`  
-Header: `x-webhook-token: <secret da conexão>` (ou `Authorization: Bearer …` / `?token=`)  
-Criar a conexão em Integrações → Hotmart/Kiwify/Eduzz.
+Auth obrigatória — ver [docs/WEBHOOK-AUTH.md](./docs/WEBHOOK-AUTH.md).
+
+```txt
+POST https://SEU_DOMINIO/api/webhook/in/{connectionId}
+Header: x-webhook-token: <secret da conexão>
+```
+
+Ou curta: `POST /api/w/{slug}?token=<secret>`. Criar a conexão em Integrações → Hotmart/Kiwify/Eduzz.
+
+### Modelo / segurança
+
+Single-stack (uma instalação = um cliente). Checklist: [SECURITY.md](./SECURITY.md). Self-host: [docs/SELF-HOSTED.md](./docs/SELF-HOSTED.md).
 
 ### Snippet no site
 
-Ver [docs/integrations/snippet.md](./docs/integrations/snippet.md). URL relativa ao domínio instalado.
+Ver [docs/integrations/snippet.md](./docs/integrations/snippet.md). URL relativa ao domínio instalado. `ALLOWED_EVENT_DOMAINS` = apex do site (fail-closed em produção).

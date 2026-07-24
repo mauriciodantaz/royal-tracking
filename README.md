@@ -6,7 +6,7 @@ Sistema de tracking server-side self-hosted (Meta CAPI + GA4 + webhook de compra
 **Imagem:** [`mauriciodantaz/royal-tracking`](https://hub.docker.com/r/mauriciodantaz/royal-tracking) (`:latest` = `:stable` · `:beta` · `:X.Y.Z`)  
 **Demo:** https://tracking.royalgrowth.com.br
 
-Uma stack por domínio-raiz (apex) = um Postgres + um admin + um `ENCRYPTION_KEY` + allowlist de eventos desse apex.
+Uma stack por domínio-raiz (apex) = um Postgres + um admin + um `ENCRYPTION_KEY` + allowlist de eventos desse apex. Isolamento entre clientes = stacks separadas (sem multi-tenant no app).
 
 ## Quickstart (Portainer / Swarm)
 
@@ -49,7 +49,7 @@ Abra http://localhost:3000 → login `admin@localhost` / `admin123456` (só no c
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Super admin imutável (sync a cada boot; senha só na stack) |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | SMTP para convite e reset de senha |
 | `NEXT_PUBLIC_APP_URL` | URL pública (snippet / links) |
-| `ALLOWED_EVENT_DOMAINS` | Apex do site (ex.: `exemplo.com.br`) — obrigatório em produção; aceita esse host e subdomínios |
+| `ALLOWED_EVENT_DOMAINS` | Apex do site (ex.: `exemplo.com.br`) — **obrigatório em produção** (boot + APIs fail-closed); aceita esse host e subdomínios |
 
 Lista completa com placeholders: [`.env.example`](./.env.example) e a stack Portainer acima.
 
@@ -63,10 +63,16 @@ Docs: [docs/integrations/snippet.md](./docs/integrations/snippet.md)
 
 ## Webhook de compra
 
-Por conexão em Integrações (Hotmart/Kiwify/Eduzz):
+Por conexão em Integrações (Hotmart/Kiwify/Eduzz) — **token obrigatório**:
 
-`POST https://SEU_DOMINIO/api/webhook/in/{connectionId}`  
-Header: `x-webhook-token: <secret da conexão>`
+```txt
+POST https://SEU_DOMINIO/api/webhook/in/{connectionId}
+Header: x-webhook-token: <secret da conexão>
+```
+
+Ou URL curta: `POST https://SEU_DOMINIO/api/w/{slug}?token=<secret>`.
+
+Tabela por provider e migração: [docs/WEBHOOK-AUTH.md](./docs/WEBHOOK-AUTH.md).
 
 ## Dev local (sem Docker)
 
@@ -86,6 +92,8 @@ Fork + PR. Labels de release e canais `beta`/`main`: [CONTRIBUTING.md](./CONTRIB
 
 - [CURSOR.md](./CURSOR.md) — arquitetura
 - [DEPLOY.md](./DEPLOY.md) — Portainer / Swarm / Actions
-- [SECURITY.md](./SECURITY.md) — checklist
+- [SECURITY.md](./SECURITY.md) — checklist de segurança
 - [docs/SELF-HOSTED.md](./docs/SELF-HOSTED.md) — uma stack por domínio
+- [docs/WEBHOOK-AUTH.md](./docs/WEBHOOK-AUTH.md) — auth de webhooks inbound
+- [docs/INTEGRATIONS.md](./docs/INTEGRATIONS.md) — hub de integrações
 - [CHANGELOG.md](./CHANGELOG.md) — versões

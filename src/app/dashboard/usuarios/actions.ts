@@ -2,14 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 
+import { auditLog } from "@/lib/audit/log";
+import { requirePermission } from "@/lib/auth/permissions";
 import {
   createAuthToken,
   INVITE_TTL_MS,
 } from "@/lib/auth/tokens";
-import { requireSuperAdmin } from "@/lib/auth/session";
 import { isStackSuperAdmin } from "@/lib/auth/super-admin";
 import { query, queryOne } from "@/lib/db/pool";
 import type { UserRow } from "@/lib/db/types";
+import { safeActionMessage } from "@/lib/http/public-error";
 import { inviteEmail } from "@/lib/mail/templates";
 import { isSmtpConfigured, sendMail } from "@/lib/mail/smtp";
 
@@ -36,8 +38,7 @@ async function sendInviteMail(user: UserRow): Promise<ActionResult> {
   try {
     await sendMail({ to: user.email, ...tpl });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Falha ao enviar e-mail";
-    return { ok: false, error: msg };
+    return { ok: false, error: safeActionMessage(err, "Falha ao enviar e-mail") };
   }
   await query(
     `update users set invited_at = now(), updated_at = now() where id = $1`,
@@ -50,7 +51,12 @@ export async function inviteUserAction(
   _prev: ActionResult | undefined,
   formData: FormData
 ): Promise<ActionResult> {
-  await requireSuperAdmin();
+  let actor;
+  try {
+    actor = await requirePermission("users:manage");
+  } catch (err) {
+    return { ok: false, error: safeActionMessage(err) };
+  }
 
   const name = String(formData.get("name") ?? "").trim() || null;
   const email = String(formData.get("email") ?? "")
@@ -86,6 +92,14 @@ export async function inviteUserAction(
   }
 
   const mail = await sendInviteMail(inserted);
+  await auditLog({
+    actorUserId: actor.id,
+    action: "user.invite",
+    resourceType: "user",
+    resourceId: inserted.id,
+    result: mail.ok ? "ok" : "error",
+    meta: { email },
+  });
   revalidateUsers();
   if (!mail.ok) {
     return {
@@ -97,7 +111,12 @@ export async function inviteUserAction(
 }
 
 export async function resendInviteAction(userId: string): Promise<ActionResult> {
-  await requireSuperAdmin();
+  let actor;
+  try {
+    actor = await requirePermission("users:manage");
+  } catch (err) {
+    return { ok: false, error: safeActionMessage(err) };
+  }
 
   const user = await queryOne<UserRow>(
     `select * from users where id = $1 limit 1`,
@@ -115,6 +134,13 @@ export async function resendInviteAction(userId: string): Promise<ActionResult> 
   }
 
   const mail = await sendInviteMail(user);
+  await auditLog({
+    actorUserId: actor.id,
+    action: "user.invite_resend",
+    resourceType: "user",
+    resourceId: user.id,
+    result: mail.ok ? "ok" : "error",
+  });
   revalidateUsers();
   return mail;
 }
@@ -123,7 +149,12 @@ export async function setUserActiveAction(
   userId: string,
   active: boolean
 ): Promise<ActionResult> {
-  await requireSuperAdmin();
+  let actor;
+  try {
+    actor = await requirePermission("users:manage");
+  } catch (err) {
+    return { ok: false, error: safeActionMessage(err) };
+  }
 
   const user = await queryOne<UserRow>(
     `select * from users where id = $1 limit 1`,
@@ -138,12 +169,23 @@ export async function setUserActiveAction(
     `update users set active = $2, updated_at = now() where id = $1`,
     [userId, active]
   );
+  await auditLog({
+    actorUserId: actor.id,
+    action: active ? "user.activate" : "user.deactivate",
+    resourceType: "user",
+    resourceId: userId,
+  });
   revalidateUsers();
   return { ok: true };
 }
 
 export async function deleteUserAction(userId: string): Promise<ActionResult> {
-  await requireSuperAdmin();
+  let actor;
+  try {
+    actor = await requirePermission("users:manage");
+  } catch (err) {
+    return { ok: false, error: safeActionMessage(err) };
+  }
 
   const user = await queryOne<UserRow>(
     `select * from users where id = $1 limit 1`,
@@ -155,6 +197,12 @@ export async function deleteUserAction(userId: string): Promise<ActionResult> {
   }
 
   await query(`delete from users where id = $1`, [userId]);
+  await auditLog({
+    actorUserId: actor.id,
+    action: "user.delete",
+    resourceType: "user",
+    resourceId: userId,
+  });
   revalidateUsers();
   return { ok: true };
 }

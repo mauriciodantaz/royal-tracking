@@ -13,37 +13,47 @@ A Kiwify envia compras para o Royal Tracking via **webhook inbound**. Eventos de
 | Campo | O que é |
 |---|---|
 | **Nome** | Rótulo interno (ex.: “Kiwify Loja”) |
-| **Webhook token** | Segredo compartilhado entre Kiwify e a stack |
+| **Webhook token** | Segredo compartilhado — **obrigatório** em todo POST |
 
 ## Passo a passo
 
 ### 1. Criar a conexão no Royal Tracking
 
 1. **Integrações → Kiwify**.
-2. Preencha **Nome** e um **Webhook token** (senha longa que você define).
+2. Preencha **Nome** e um **Webhook token** (senha longa).
 3. **Adicionar integração**.
-4. Copie a URL da conexão:
-
-```txt
-https://SEU_DOMINIO/api/webhook/in/{connectionId}
-```
+4. Copie a URL da conexão.
 
 ### 2. Configurar na Kiwify
 
-1. No painel Kiwify, abra **Integrações** ou **Webhooks**.
-2. Adicione a URL acima como endpoint.
-3. Configure o mesmo **token/secret** usado no Royal Tracking.
-4. Ative eventos de venda aprovada / compra.
-
-Header esperado pela stack:
+**A — URL longa + header:**
 
 ```txt
-x-webhook-token: <seu secret>
+https://SEU_DOMINIO/api/webhook/in/{connectionId}
+Header: x-webhook-token: <Webhook token da conexão>
 ```
+
+**B — URL curta + query:**
+
+```txt
+https://SEU_DOMINIO/api/w/{slug}?token=<Webhook token da conexão>
+```
+
+Também: `Authorization: Bearer <token>` ou `?token=` / body `token`.
+
+Sem token válido → **401**.
+
+1. Painel Kiwify → **Integrações** / **Webhooks**.
+2. Cadastre a URL (e o secret/token idêntico ao Royal Tracking).
+3. Ative eventos de venda aprovada / compra.
 
 ### 3. Mapear destino
 
-Mapeie `Purchase` → Meta e/ou GA4 nas Integrações.
+Mapeie `Purchase` → Meta e/ou GA4.
+
+## Migração
+
+URL curta antiga **sem** `?token=` deixa de funcionar após o harden. Atualize na Kiwify — ver [WEBHOOK-AUTH.md](../WEBHOOK-AUTH.md).
 
 ## Como testar
 
@@ -53,4 +63,5 @@ Mapeie `Purchase` → Meta e/ou GA4 nas Integrações.
 
 ## Links
 
+- [WEBHOOK-AUTH.md](../WEBHOOK-AUTH.md)
 - [INTEGRATIONS.md](../INTEGRATIONS.md)

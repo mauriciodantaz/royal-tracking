@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Harden single-stack: erros públicos genéricos, auth uniforme de webhooks, SSRF em Evolution/UazAPI, sessão DB-fresh, rate limit em login/APIs, headers, audit_events, CI npm audit — docs em [WEBHOOK-AUTH.md](./docs/WEBHOOK-AUTH.md) / [SECURITY.md](./SECURITY.md)
+
 ### Added
 
 - CTWA: parse de `referral`/`ctwa_clid`, Lead WhatsApp sem ticket, CAPI `business_messaging`.

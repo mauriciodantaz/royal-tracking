@@ -34,9 +34,9 @@ O snippet resolve o endpoint automaticamente pela origem do `src` do script. Se 
 
 ## Allowlist de origem
 
-Em produção, `ALLOWED_EVENT_DOMAINS` é **obrigatório** (boot falha se faltar ou for placeholder). Ex.: `cliente.com.br` — as APIs públicas só aceitam `Origin`/`Referer` desse apex e subdomínios. Tem que ser o **apex do site onde o snippet roda**, não o host do painel.
+Em produção, `ALLOWED_EVENT_DOMAINS` é **obrigatório** (boot falha se faltar ou for placeholder). Ex.: `cliente.com.br` — as APIs públicas só aceitam `Origin`/`Referer` desse apex e subdomínios (**fail-closed** se a lista estiver vazia em produção). Tem que ser o **apex do site onde o snippet roda**, não o host do painel.
 
-Endpoints: `/api/identify`, `/api/event`, `/api/lead`, `/api/ga4/ids`, `/api/meta/ids`, `/api/tracking/config`.
+Endpoints (com rate limit por IP): `/api/identify`, `/api/event`, `/api/lead`, `/api/ga4/ids`, `/api/meta/ids`, `/api/tracking/config`. Redirects `/r/{slug}` também têm rate limit.
 
 ## Web + server
 

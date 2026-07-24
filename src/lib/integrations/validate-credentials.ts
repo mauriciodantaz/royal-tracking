@@ -2,6 +2,7 @@ import "server-only";
 
 import { listAccessibleCustomers } from "@/lib/google-ads/upload";
 import { META_GRAPH_BASE_URL } from "@/lib/meta/constants";
+import { assertSafeOutboundUrl, safeFetch } from "@/lib/net/safe-url";
 import { newEventId } from "@/lib/tracking/hash";
 
 export type CredentialValidation =
@@ -229,10 +230,6 @@ async function validateGa4(
   return { ok: true };
 }
 
-function normalizeBaseUrl(raw: string): string {
-  return raw.trim().replace(/\/$/, "");
-}
-
 async function validateEvolutionInstance(
   baseUrl: string,
   instanceName: string,
@@ -248,18 +245,22 @@ async function validateEvolutionInstance(
     return { ok: false, error: "Informe a API key da instância." };
   }
 
-  const url = `${normalizeBaseUrl(baseUrl)}/instance/connectionState/${encodeURIComponent(instanceName)}`;
+  const safe = await assertSafeOutboundUrl(baseUrl);
+  if (!safe.ok) return { ok: false, error: safe.error };
+
+  const url = `${safe.href}/instance/connectionState/${encodeURIComponent(instanceName)}`;
   let res: Response;
   let body: unknown;
   try {
-    res = await fetch(url, {
+    res = await safeFetch(url, {
       headers: { apikey: token, Accept: "application/json" },
+      timeoutMs: 10_000,
     });
     body = await res.json().catch(() => null);
-  } catch (e) {
+  } catch {
     return {
       ok: false,
-      error: `Falha ao contatar a Evolution: ${e instanceof Error ? e.message : "erro de rede"}`,
+      error: "Falha ao contatar a Evolution (rede ou timeout).",
     };
   }
 
@@ -298,20 +299,23 @@ async function validateUazapiInstance(
     return { ok: false, error: "Informe o token da instância." };
   }
 
-  const base = normalizeBaseUrl(baseUrl);
-  const candidates = [`${base}/instance/status`, `${base}/status`];
+  const safe = await assertSafeOutboundUrl(baseUrl);
+  if (!safe.ok) return { ok: false, error: safe.error };
+
+  const candidates = [`${safe.href}/instance/status`, `${safe.href}/status`];
   let lastError = "UazAPI recusou o token.";
 
   for (const url of candidates) {
     let res: Response;
     let body: unknown;
     try {
-      res = await fetch(url, {
+      res = await safeFetch(url, {
         headers: { token, Accept: "application/json" },
+        timeoutMs: 10_000,
       });
       body = await res.json().catch(() => null);
-    } catch (e) {
-      lastError = `Falha ao contatar a UazAPI: ${e instanceof Error ? e.message : "erro de rede"}`;
+    } catch {
+      lastError = "Falha ao contatar a UazAPI (rede ou timeout).";
       continue;
     }
 
