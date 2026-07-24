@@ -1,0 +1,32 @@
+---
+description: Checklist de segurança pré-PR (single-stack)
+alwaysApply: true
+---
+
+# Segurança — Royal Tracking (single-stack)
+
+## Modelo
+
+- **Uma instalação = um Postgres = um cliente.** Isolamento entre clientes é operacional (stacks separadas).
+- **Não** introduzir `tenant_id`, RLS, `TENANCY_MODE` nem multi-tenant no app OSS.
+- Cloud futura (agregador de stacks) é outro produto — não muda o schema deste repo.
+
+## Antes de considerar um PR pronto
+
+Pergunte:
+
+1. Este diff pode vazar stack trace, SQL, paths, env ou mensagens internas ao cliente?
+2. Webhooks inbound autenticam de ponta a ponta (token/Basic/assinatura)?
+3. Há `fetch` para URL configurável pelo usuário sem proteção SSRF (HTTPS + bloquear privados)?
+4. Endpoints públicos / login / reset têm rate limit?
+5. Secrets ficam só no servidor (AES-GCM / env sem `NEXT_PUBLIC_`)?
+6. Sessão revalida usuário ativo e papel no banco onde importa?
+7. Logs mascaram PII/tokens (nunca `Authorization` / `Cookie` / senha)?
+
+## Regras rápidas
+
+- Erros ao cliente: códigos genéricos (`bad_request`, `unauthorized`, `internal`). Detalhe só no log do servidor.
+- Nunca confiar em Origin/body/query para autorizar ações do painel — só sessão + checagem no DB.
+- Produção: `ALLOWED_EVENT_DOMAINS` obrigatório (fail-closed).
+- Preferir helpers existentes: `publicError`, `authorizeInboundWebhook`, `assertSafeOutboundUrl`, `requirePermission`, `auditLog`, `rateLimit`, `redactForLog`.
+- Docs canônicas: `SECURITY.md`, `docs/WEBHOOK-AUTH.md`, `docs/SELF-HOSTED.md`. Ao mudar auth de webhook/SSRF/allowlist, atualize esses arquivos e o guia em `docs/integrations/`.

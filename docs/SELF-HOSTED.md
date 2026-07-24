@@ -1,8 +1,12 @@
 # Self-hosted — uma stack por domínio-raiz
 
-Royal Tracking é **single-tenant**: cada marca/apex sobe sua própria stack (app + Postgres + env). Não misture várias marcas no mesmo banco.
+Royal Tracking é **single-tenant / single-stack**: cada marca/apex sobe sua própria stack (app + Postgres + env). Não misture várias marcas no mesmo banco. Não há `tenant_id` no schema — o isolamento entre clientes é operacional (stacks separadas).
 
-O host do painel/snippet costuma ser um subdomínio (`tracking.…`); a allowlist de eventos usa o **apex** do site (`ALLOWED_EVENT_DOMAINS`), aceitando todos os subdomínios desse apex. Em produção a variável é obrigatória (boot falha se faltar ou for placeholder).
+Uma eventual oferta cloud será um **agregador de várias stacks single**, não um banco multi-tenant neste app.
+
+O host do painel/snippet costuma ser um subdomínio (`tracking.…`); a allowlist de eventos usa o **apex** do site (`ALLOWED_EVENT_DOMAINS`), aceitando todos os subdomínios desse apex. Em produção a variável é obrigatória (boot falha se faltar ou for placeholder); as APIs públicas também **falham fechadas** se a allowlist estiver vazia.
+
+Checklist de segurança da stack: [SECURITY.md](../SECURITY.md).
 
 ## Modelo
 
@@ -12,6 +16,12 @@ apex B  →  stack B  →  postgres B  +  ENCRYPTION_KEY B  +  admin B  +  ALLOW
 ```
 
 A identidade GA4 (FPID) reutiliza `ENCRYPTION_KEY` — não há secret extra para configurar no install.
+
+## Rate limit
+
+O limite por IP é **em memória no processo Node** (login, reset, tracking, webhooks, redirects). Com uma task Swarm isso cobre abuso básico. Se subir várias réplicas do app, cada réplica conta sozinha — troque a implementação atrás de `src/lib/rate-limit` (ex.: Redis) sem mudar as rotas.
+
+IP do cliente: `X-Forwarded-For` / `X-Real-IP` do Traefik (app não deve ficar exposto sem o proxy).
 
 ## Instalação (canônica — imagem Docker Hub)
 
@@ -30,11 +40,18 @@ Substitua `SEU_DOMINIO` pelo host configurado no Traefik:
 |-----|-----|
 | Painel | `https://SEU_DOMINIO/dashboard` |
 | Snippet | `https://SEU_DOMINIO/snippet.js` |
-| Identify | `https://SEU_DOMINIO/api/identify` |
-| Event | `https://SEU_DOMINIO/api/event` |
-| Webhook (por conexão) | `https://SEU_DOMINIO/api/webhook/in/{connectionId}` |
+| Identify / Event / Lead | `https://SEU_DOMINIO/api/{identify,event,lead}` |
+| Webhook curto | `https://SEU_DOMINIO/api/w/{slug}` |
+| Webhook (legado) | `https://SEU_DOMINIO/api/webhook/in/{connectionId}` |
+| Redirect links | `https://SEU_DOMINIO/r/{slug}` |
 
-No site do cliente, o snippet usa o mesmo domínio (ou `window.TRCK_ENDPOINT`).
+Auth dos webhooks (token / Basic / slug): **[WEBHOOK-AUTH.md](./WEBHOOK-AUTH.md)**.
+
+No site do cliente, o snippet usa o mesmo domínio (ou `window.TRCK_ENDPOINT`). A origem do site precisa estar na allowlist (`ALLOWED_EVENT_DOMAINS` = apex).
+
+## Integrações WhatsApp (Evolution / UazAPI)
+
+`base_url` deve ser **HTTPS** público. URLs `http://`, localhost, IPs privados ou metadata são rejeitadas (proteção SSRF).
 
 ## Atualizar
 
@@ -49,6 +66,8 @@ Pré-release:
 ```bash
 docker service update --image mauriciodantaz/royal-tracking:beta royaltracking_<slug>_app
 ```
+
+Após upgrade com harden de webhooks: revise marketplaces (Hotmart/Kiwify/Eduzz) se usavam `/api/w/…` sem token — ver [WEBHOOK-AUTH.md](./WEBHOOK-AUTH.md).
 
 Variante avançada (build na VPS → volume Swarm): ver [DEPLOY.md](../DEPLOY.md) e [`deploy/portainer-stack.yml`](../deploy/portainer-stack.yml).
 

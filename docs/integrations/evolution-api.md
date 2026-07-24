@@ -4,16 +4,18 @@ Cada **instância** Evolution vira uma connection no Royal Tracking. A stack reg
 
 ## Pré-requisitos
 
-- Evolution API self-hosted (`latest`) com URL pública HTTPS
+- Evolution API self-hosted (`latest`) com URL pública **HTTPS** (obrigatório)
 - Instância WhatsApp já criada (nome + **API key da instância** — não use a key global/admin)
 - Stack Royal Tracking no ar (`NEXTAUTH_URL` / app URL pública)
+
+A stack **recusa** `http://`, localhost, IPs privados e hosts de metadata (proteção SSRF). Só HTTPS público.
 
 ## Campos no Royal Tracking
 
 | Campo | O que é |
 |---|---|
 | **Nome** | Rótulo interno (ex.: “WA Comercial”) |
-| **URL da Evolution** | Base da API (ex. `https://evolution.seudominio.com`) |
+| **URL da Evolution** | Base da API HTTPS (ex. `https://evolution.seudominio.com`) |
 | **Nome da instância** | `instance` na Evolution |
 | **API key da instância** | Token/apikey **dessa** instância |
 
@@ -37,7 +39,7 @@ Comportamento do Royal Tracking:
 https://SEU_DOMINIO/api/w/{slug}
 ```
 
-Evento: `MESSAGES_UPSERT`. Header `x-webhook-token` também é enviado.
+Evento: `MESSAGES_UPSERT`. A Evolution envia o header `x-webhook-token` (secret gerado pela stack). POSTs sem esse token → **401**. Detalhes: [WEBHOOK-AUTH.md](../WEBHOOK-AUTH.md).
 
 Ao **excluir** a connection no Royal Tracking, se o webhook da instância ainda apontar para a nossa URL, desativamos (`enabled: false`). Webhooks de terceiros não são tocados.
 
@@ -69,4 +71,5 @@ Mapeamentos `Lead` → Meta CAPI / GA4 são criados automaticamente para pixels/
 ## Links
 
 - [Webhooks Evolution](https://doc.evolution-api.com/)
+- Auth inbound: [WEBHOOK-AUTH.md](../WEBHOOK-AUTH.md)
 - Visão geral: [INTEGRATIONS.md](../INTEGRATIONS.md)

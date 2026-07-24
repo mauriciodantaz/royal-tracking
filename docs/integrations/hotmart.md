@@ -13,47 +13,57 @@ A Hotmart envia compras para o Royal Tracking via **webhook inbound**. Não há 
 | Campo | O que é |
 |---|---|
 | **Nome** | Rótulo interno (ex.: “Hotmart Principal”) |
-| **Webhook token / hottok** | Segredo que a Hotmart envia e que a stack valida |
+| **Webhook token / hottok** | Segredo compartilhado — **obrigatório** em todo POST (mín. 8 caracteres) |
 
 ## Passo a passo
 
 ### 1. Criar a conexão no Royal Tracking
 
 1. Vá em **Integrações → Hotmart**.
-2. Preencha **Nome** e um **Webhook token** forte (você escolhe a string secreta, ou use o hottok que a Hotmart mostrar — o importante é ser o **mesmo** nos dois lados).
+2. Preencha **Nome** e um **Webhook token** forte (o mesmo valor nos dois lados — Hotmart e Royal Tracking).
 3. Clique em **Adicionar integração**.
-4. Na lista de contas, copie a URL gerada:
-
-```txt
-https://SEU_DOMINIO/api/webhook/in/{connectionId}
-```
+4. Na lista de contas, copie a URL da conexão (curta ou longa).
 
 ### 2. Configurar na Hotmart
 
-1. No painel Hotmart, abra a área de **Webhooks** / **Integrações**.
-2. Crie um webhook apontando para a URL copiada acima.
-3. Configure o token / **hottok** com o **mesmo valor** do campo **Webhook token** no Royal Tracking.
-4. Selecione eventos de compra aprovada / pagamento confirmado (conforme opções da Hotmart).
+Use **uma** destas formas (ambas exigem o mesmo token da conexão):
 
-A stack valida o header:
+**A — URL longa + header** (preferida se a Hotmart permitir header):
 
 ```txt
-x-webhook-token: <seu secret>
+https://SEU_DOMINIO/api/webhook/in/{connectionId}
+Header: x-webhook-token: <Webhook token da conexão>
 ```
 
-Também aceita `Authorization: Bearer <secret>` ou `?token=` em alguns fluxos.
+**B — URL curta + query** (quando só dá para colar URL):
+
+```txt
+https://SEU_DOMINIO/api/w/{slug}?token=<Webhook token da conexão>
+```
+
+Também aceitos: `Authorization: Bearer <token>` ou body `hottok` com o mesmo valor.
+
+Sem token válido a stack responde **401**.
+
+1. No painel Hotmart, abra **Webhooks** / **Integrações**.
+2. Crie o webhook com a URL (e header, se disponível).
+3. Selecione eventos de compra aprovada / pagamento confirmado.
 
 ### 3. Mapear destino
 
-Em **Integrações**, garanta mapeamentos `Purchase` → Meta CAPI e/ou GA4, para a compra fan-outar aos destinos.
+Em **Integrações**, garanta mapeamentos `Purchase` → Meta CAPI e/ou GA4.
+
+## Migração (stack já em produção)
+
+Se a URL curta `/api/w/{slug}` estava cadastrada **sem** `?token=`, atualize na Hotmart após o upgrade — senão os POSTs passam a falhar com 401. Detalhes: [WEBHOOK-AUTH.md](../WEBHOOK-AUTH.md).
 
 ## Como testar
 
-1. Faça uma compra de teste (ou use o “enviar teste” da Hotmart, se disponível).
-2. No Royal Tracking: **Faturamento** / **Eventos** — deve aparecer `Purchase` com canal **só server** e `webhook`.
+1. Compra de teste (ou “enviar teste” da Hotmart, se disponível).
+2. Royal Tracking → **Faturamento** / **Eventos**: `Purchase`, canal **só server**, `webhook`.
 3. Confira Meta Events Manager / GA4 se os destinos estiverem mapeados.
 
 ## Links
 
-- Documentação de webhooks da Hotmart (painel do produtor)
-- Visão geral do hub: [INTEGRATIONS.md](../INTEGRATIONS.md)
+- Auth de webhooks: [WEBHOOK-AUTH.md](../WEBHOOK-AUTH.md)
+- Hub: [INTEGRATIONS.md](../INTEGRATIONS.md)

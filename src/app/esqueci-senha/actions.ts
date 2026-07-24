@@ -1,5 +1,9 @@
 "use server";
 
+import { createHash } from "node:crypto";
+
+import { headers } from "next/headers";
+
 import {
   createAuthToken,
   RESET_TTL_MS,
@@ -8,10 +12,17 @@ import { isStackSuperAdmin } from "@/lib/auth/super-admin";
 import { ensureDbReady } from "@/lib/db/boot";
 import { queryOne } from "@/lib/db/pool";
 import type { UserRow } from "@/lib/db/types";
+import { safeConsoleError } from "@/lib/http/log-redact";
 import { resetEmail } from "@/lib/mail/templates";
 import { isSmtpConfigured, sendMail } from "@/lib/mail/smtp";
+import { rateLimit } from "@/lib/rate-limit";
+import { getClientIpFromHeaders } from "@/lib/tracking/request";
 
 export type ForgotResult = { ok: true; message: string };
+
+function emailKey(email: string): string {
+  return createHash("sha256").update(email.toLowerCase()).digest("hex").slice(0, 16);
+}
 
 /**
  * Always returns a neutral success message to avoid user enumeration,
@@ -31,14 +42,26 @@ export async function forgotPasswordAction(
       "Se o e-mail existir e puder recuperar senha, enviaremos as instruções.",
   };
 
-  if (!email) return neutral;
-
-  if (isStackSuperAdmin(email)) {
+  const h = await headers();
+  const ip = getClientIpFromHeaders(h);
+  const ipLimit = rateLimit(`reset:ip:${ip}`, 10, 60_000);
+  const emailLimit = email
+    ? rateLimit(`reset:email:${emailKey(email)}`, 5, 60_000)
+    : { ok: true };
+  if (!ipLimit.ok || !emailLimit.ok) {
     return {
       ok: true,
       message:
-        "A senha do super admin é definida na instalação do sistema e não pode ser redefinida por e-mail.",
+        "Se o e-mail existir e puder recuperar senha, enviaremos as instruções.",
     };
+  }
+
+  if (!email) return neutral;
+
+  // Super admin cannot reset via email — still return the same neutral message
+  // to avoid confirming that ADMIN_EMAIL is privileged.
+  if (isStackSuperAdmin(email)) {
+    return neutral;
   }
 
   if (!isSmtpConfigured()) {
@@ -70,7 +93,7 @@ export async function forgotPasswordAction(
       await sendMail({ to: user.email, ...tpl });
     }
   } catch (err) {
-    console.error("[esqueci-senha]", err);
+    safeConsoleError("esqueci-senha", err);
   }
 
   return neutral;

@@ -5,8 +5,13 @@
  * Ex.: ALLOWED_EVENT_DOMAINS=royalgrowth.com.br
  * aceita royalgrowth.com.br, www., lp., mkt., etc.
  *
- * Vazio / ausente = não filtra (dev / legado). Em produção, defina o apex.
+ * Dev: vazio = não filtra.
+ * Produção: fail-closed (boot também exige ALLOWED_EVENT_DOMAINS).
  */
+
+function isProductionRuntime(): boolean {
+  return process.env.NODE_ENV === "production";
+}
 
 export function getAllowedEventDomains(): string[] {
   const raw = process.env.ALLOWED_EVENT_DOMAINS ?? "";
@@ -56,7 +61,10 @@ export function getRequestClientHostname(request: Request): string | null {
 
 export function isRequestOriginAllowed(request: Request): boolean {
   const apexes = getAllowedEventDomains();
-  if (apexes.length === 0) return true;
+  if (apexes.length === 0) {
+    // Fail-closed in production; open only for local/dev.
+    return !isProductionRuntime();
+  }
   const host = getRequestClientHostname(request);
   if (!host) return false;
   return hostMatchesAnyApex(host, apexes);
@@ -64,7 +72,7 @@ export function isRequestOriginAllowed(request: Request): boolean {
 
 /**
  * Echoable Origin for credentialed CORS (never "*").
- * Empty ALLOWED_EVENT_DOMAINS → echo any Origin (dev / open).
+ * Empty ALLOWED_EVENT_DOMAINS → echo any Origin only in non-production.
  * With allowlist → echo only matching Origin; null when denied / missing.
  */
 export function resolveCorsAllowOrigin(request?: Request): string | null {
@@ -77,7 +85,9 @@ export function resolveCorsAllowOrigin(request?: Request): string | null {
   if (!originHost) return null;
 
   const apexes = getAllowedEventDomains();
-  if (apexes.length === 0) return origin;
+  if (apexes.length === 0) {
+    return isProductionRuntime() ? null : origin;
+  }
   if (!hostMatchesAnyApex(originHost, apexes)) return null;
   return origin;
 }

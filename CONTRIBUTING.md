@@ -74,3 +74,8 @@ docker compose up -d --build
 - [ ] Label `release:*` se o alvo for `beta`
 - [ ] Stack de exemplo atualizada se env/deploy mudou
 - [ ] Test plan no template do PR preenchido
+- [ ] Segurança (ver [SECURITY.md](./SECURITY.md) e rule `security-hardening`):
+  - [ ] Sem vazamento de `err.message`/stack/SQL ao cliente
+  - [ ] Webhooks inbound autenticados ([docs/WEBHOOK-AUTH.md](./docs/WEBHOOK-AUTH.md))
+  - [ ] Sem SSRF em URL configurável (HTTPS + bloquear privados)
+  - [ ] Sem introduzir multi-tenant / `tenant_id` no app OSS

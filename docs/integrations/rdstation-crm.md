@@ -50,10 +50,12 @@ Callback no app RD = a URL mostrada no painel (`…/oauth/callback`), não a do 
 3. Clique em **Conectar com OAuth** e autorize na RD (conta CRM).
 4. Após o callback, o sistema:
    - sincroniza funis e estágios (CRM API v2);
-   - cria webhooks apontando para `/api/webhook/in/{connectionId}` com header `x-webhook-token`;
+   - cria webhooks apontando para `/api/w/{slug}` com header `x-webhook-token` (secret gerado pela stack);
    - sugere mapeamentos estágio → evento Meta / GA4;
    - cria linhas de status **Ganho (`won`)** / **Perda (`lost`)** (padrão: won → Purchase / purchase; lost sem evento até você mapear).
 5. Ajuste as tabelas de mapeamento e salve.
+
+Auth inbound: [WEBHOOK-AUTH.md](../WEBHOOK-AUTH.md). Em geral **nada a reconfigurar** após upgrade da stack (a RD já envia o header).
 
 ## Mapeamento estágio → eventos
 
@@ -92,4 +94,5 @@ Ao excluir a conexão, o Royal Tracking tenta apagar os webhooks remotos na RD e
 ## Links
 
 - [CRM API v2 — Pipelines / Stages / Webhooks](https://developers.rdstation.com/crm-v2)
+- [WEBHOOK-AUTH.md](../WEBHOOK-AUTH.md)
 - [INTEGRATIONS.md](../INTEGRATIONS.md)

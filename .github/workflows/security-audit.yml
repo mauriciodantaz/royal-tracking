@@ -1,0 +1,26 @@
+name: Security audit
+
+on:
+  push:
+    branches: [dev, beta, main]
+  pull_request:
+    branches: [dev, beta, main]
+  schedule:
+    - cron: "0 9 * * 1"
+
+jobs:
+  npm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies
+        # Align with local/contrib install (next-auth optional peer vs nodemailer@9).
+        run: npm ci --legacy-peer-deps
+      # Fail on critical only: remaining highs are transitive (next nested
+      # postcss/sharp, shadcn→hono) without a non-breaking fix yet.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=critical --legacy-peer-deps

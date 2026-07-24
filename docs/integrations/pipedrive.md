@@ -51,8 +51,10 @@ Se o usuário desinstalar o app no Pipedrive, a plataforma envia `DELETE` na cal
 ## Segurança
 
 - Tokens e Client Secret ficam cifrados no banco (`ENCRYPTION_KEY`).
-- O webhook inbound exige HTTP Basic (`royal-tracking` + secret gerado pela stack).
+- O webhook inbound (`/api/w/{slug}`) exige HTTP Basic: user `royal-tracking`, password = secret gerado pela stack.
+- Após upgrade da stack: em geral **nada a fazer** (Basic Auth já era o fluxo).
 - Prefira um Private app próprio da sua stack; não compartilhe o Client Secret.
+- Detalhes: [WEBHOOK-AUTH.md](../WEBHOOK-AUTH.md).
 
 ## Env opcional (fallback legado)
 
@@ -67,4 +69,5 @@ Preferência: credenciais na UI da conexão (igual RD CRM).
 
 - [Pipedrive OAuth](https://pipedrive.readme.io/docs/marketplace-oauth-authorization)
 - [Webhooks](https://pipedrive.readme.io/docs/guide-for-webhooks)
+- [WEBHOOK-AUTH.md](../WEBHOOK-AUTH.md)
 - [INTEGRATIONS.md](../INTEGRATIONS.md)

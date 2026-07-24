@@ -42,8 +42,11 @@ Exemplo: `https://tracking.royalgrowth.com.br/api/integrations/rdstation_mkt/oau
 3. **Conectar com OAuth**.
 4. Após autorizar, o sistema:
    - popula os slots de lifecycle;
-   - cria webhooks `WEBHOOK.CONVERTED` e `WEBHOOK.MARKED_OPPORTUNITY` apontando para `/api/webhook/in/{connectionId}?token=...`.
+   - cria webhooks `WEBHOOK.CONVERTED` e `WEBHOOK.MARKED_OPPORTUNITY` apontando para  
+     `/api/w/{slug}?token=<secret>` (secret gerado pela stack).
 5. Mapeie cada slot → evento Meta / GA4 e salve.
+
+**Migração:** webhooks antigos **sem** `?token=` ainda são aceitos (auth = slug secreto). Novos registros já saem com token na query. Para forçar renovação: remova os IDs em metadata / use **Sincronizar** após limpar webhooks remotos — ver [WEBHOOK-AUTH.md](../WEBHOOK-AUTH.md).
 
 ## Slots de lifecycle
 
@@ -70,4 +73,5 @@ Excluir a conexão tenta remover as subscriptions de webhook na RD.
 ## Links
 
 - [RD Marketing — Webhooks](https://developers.rdstation.com/)
+- [WEBHOOK-AUTH.md](../WEBHOOK-AUTH.md)
 - [INTEGRATIONS.md](../INTEGRATIONS.md)

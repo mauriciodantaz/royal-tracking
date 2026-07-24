@@ -232,6 +232,7 @@ export async function ensureRdWebhooks(
       }
     }
   } else if (conn.provider === "rdstation_mkt") {
+    const urlWithToken = `${inboundUrl}${inboundUrl.includes("?") ? "&" : "?"}token=${encodeURIComponent(secret)}`;
     for (const eventType of [
       "WEBHOOK.CONVERTED",
       "WEBHOOK.MARKED_OPPORTUNITY",
@@ -239,7 +240,7 @@ export async function ensureRdWebhooks(
       if (webhookIds[eventType]) continue;
       const wh = await createMktWebhook(conn, {
         eventType,
-        url: inboundUrl,
+        url: urlWithToken,
       });
       if (wh?.uuid) {
         webhookIds[eventType] = wh.uuid;

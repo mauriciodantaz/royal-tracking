@@ -16,12 +16,14 @@ Igual UazAPI/Evolution no fluxo de Lead: a stack **só escuta** mensagens e grav
 
 ## O que acontece ao salvar
 
-1. Geramos um slug curto interno (a própria URL autentica).
+1. Geramos um slug curto interno — **a própria URL é o segredo** (Tallos não envia header custom; não exija `x-webhook-token` no Tallos).
 2. Exibimos a **URL pronta** para colar no Tallos.
 
 ```txt
 https://SEU_DOMINIO/api/w/{slug}
 ```
+
+Trate essa URL como senha: não publique em docs públicos nem em tickets abertos. Ver [WEBHOOK-AUTH.md](../WEBHOOK-AUTH.md).
 
 ### Configurar no Tallos
 
@@ -30,6 +32,8 @@ https://SEU_DOMINIO/api/w/{slug}
 3. Método **POST**, cole a URL copiada no Royal Tracking.
 4. **Ative todas as opções** do webhook.
 5. Salve.
+
+Após upgrade da stack: **nada a reconfigurar** (auth continua sendo a URL).
 
 A partir daí o fluxo é o mesmo do UazAPI: escutamos, descartamos o que não tem ticket, e com `[rt:código]` viramos Lead → Meta/GA4.
 
@@ -63,4 +67,5 @@ Prefira manter `[rt:…]`; sem o ticket o fallback por telefone ainda registra o
 
 ## Links
 
+- Auth inbound: [WEBHOOK-AUTH.md](../WEBHOOK-AUTH.md)
 - Visão geral: [INTEGRATIONS.md](../INTEGRATIONS.md)

@@ -5,6 +5,12 @@ All notable changes to Royal Tracking are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] - 2026-07-24
+
+### Changed
+
+- security: harden single-stack APIs, webhooks, and CI (#39)
+
 ## [0.10.0] - 2026-07-23
 
 ### Changed
@@ -36,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat(tracking): CTWA, Google Ads offline, links /r e qualidade WA (#25)
 
 ## [Unreleased]
+
+### Security
+
+- Harden single-stack: erros públicos genéricos, auth uniforme de webhooks, SSRF em Evolution/UazAPI, sessão DB-fresh, rate limit em login/APIs, headers, audit_events, CI npm audit — docs em [WEBHOOK-AUTH.md](./docs/WEBHOOK-AUTH.md) / [SECURITY.md](./SECURITY.md)
 
 ### Added
 

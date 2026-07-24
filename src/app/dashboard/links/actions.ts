@@ -2,9 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 
-import { auth } from "@/auth";
+import { requirePermission } from "@/lib/auth/permissions";
+import { auditLog } from "@/lib/audit/log";
 import { ensureDbReady } from "@/lib/db/boot";
 import { query, queryOne } from "@/lib/db/pool";
+import { safeActionMessage } from "@/lib/http/public-error";
 import {
   normalizePhoneDigits,
   slugifyLabel,
@@ -18,9 +20,11 @@ export type LinkActionResult =
 export async function createTrackedLinkAction(
   formData: FormData
 ): Promise<LinkActionResult> {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { ok: false, error: "unauthorized" };
+  let user;
+  try {
+    user = await requirePermission("links:manage");
+  } catch (err) {
+    return { ok: false, error: safeActionMessage(err) };
   }
 
   const label = String(formData.get("label") ?? "").trim();
@@ -38,10 +42,6 @@ export async function createTrackedLinkAction(
   if (slug.length < 2) {
     return { ok: false, error: "Slug muito curto." };
   }
-
-  const uuidRe =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  const createdBy = uuidRe.test(session.user.id) ? session.user.id : null;
 
   try {
     await ensureDbReady();
@@ -70,15 +70,22 @@ export async function createTrackedLinkAction(
         String(formData.get("utm_campaign") ?? "").trim() || null,
         String(formData.get("utm_term") ?? "").trim() || null,
         String(formData.get("utm_content") ?? "").trim() || null,
-        createdBy,
+        user.id,
       ]
     );
 
-    if (!row) return { ok: false, error: "db_error" };
+    if (!row) return { ok: false, error: "Não foi possível criar o link." };
+    await auditLog({
+      actorUserId: user.id,
+      action: "link.create",
+      resourceType: "tracked_link",
+      resourceId: row.id,
+      meta: { slug: row.slug },
+    });
     revalidatePath("/dashboard/links");
     return { ok: true, slug: row.slug };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = err instanceof Error ? err.message : "";
     if (/tracked_links/i.test(msg) && /does not exist/i.test(msg)) {
       return {
         ok: false,
@@ -89,20 +96,21 @@ export async function createTrackedLinkAction(
     if (/unique|duplicate/i.test(msg)) {
       return { ok: false, error: `Slug "${slug}" já existe.` };
     }
-    console.error("[links] create failed", err);
-    return { ok: false, error: msg.slice(0, 200) || "db_error" };
+    return { ok: false, error: safeActionMessage(err) };
   }
 }
 
 export async function toggleTrackedLinkAction(
   formData: FormData
 ): Promise<LinkActionResult> {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { ok: false, error: "unauthorized" };
+  let user;
+  try {
+    user = await requirePermission("links:manage");
+  } catch (err) {
+    return { ok: false, error: safeActionMessage(err) };
   }
   const id = String(formData.get("id") ?? "").trim();
-  if (!id) return { ok: false, error: "missing_id" };
+  if (!id) return { ok: false, error: "Link inválido." };
 
   try {
     await ensureDbReady();
@@ -110,33 +118,43 @@ export async function toggleTrackedLinkAction(
       `update tracked_links set active = not active, updated_at = now() where id = $1`,
       [id]
     );
+    await auditLog({
+      actorUserId: user.id,
+      action: "link.toggle",
+      resourceType: "tracked_link",
+      resourceId: id,
+    });
     revalidatePath("/dashboard/links");
     return { ok: true };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "db_error";
-    console.error("[links] toggle failed", err);
-    return { ok: false, error: msg.slice(0, 200) };
+    return { ok: false, error: safeActionMessage(err) };
   }
 }
 
 export async function deleteTrackedLinkAction(
   formData: FormData
 ): Promise<LinkActionResult> {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { ok: false, error: "unauthorized" };
+  let user;
+  try {
+    user = await requirePermission("links:manage");
+  } catch (err) {
+    return { ok: false, error: safeActionMessage(err) };
   }
   const id = String(formData.get("id") ?? "").trim();
-  if (!id) return { ok: false, error: "missing_id" };
+  if (!id) return { ok: false, error: "Link inválido." };
 
   try {
     await ensureDbReady();
     await query(`delete from tracked_links where id = $1`, [id]);
+    await auditLog({
+      actorUserId: user.id,
+      action: "link.delete",
+      resourceType: "tracked_link",
+      resourceId: id,
+    });
     revalidatePath("/dashboard/links");
     return { ok: true };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "db_error";
-    console.error("[links] delete failed", err);
-    return { ok: false, error: msg.slice(0, 200) };
+    return { ok: false, error: safeActionMessage(err) };
   }
 }

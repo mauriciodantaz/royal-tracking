@@ -28,7 +28,9 @@ Secrets: ver [`ops/DOCKER-HUB.md`](./ops/DOCKER-HUB.md).
 
 ## Regra de env
 
-Secrets ficam no `environment:` do YAML Portainer. Inclua `PROJECT_NAME`, `DB_POSTGRESDB_*` e `ALLOWED_EVENT_DOMAINS` (apex da marca).
+Secrets ficam no `environment:` do YAML Portainer. Inclua `PROJECT_NAME`, `DB_POSTGRESDB_*` e `ALLOWED_EVENT_DOMAINS` (apex do **site** do cliente — obrigatório em produção; APIs fail-closed se vazio).
+
+Pós-deploy: webhooks com auth ([docs/WEBHOOK-AUTH.md](./docs/WEBHOOK-AUTH.md)); checklist [SECURITY.md](./SECURITY.md) / [ops/DEPLOY-CHECKLIST.md](./ops/DEPLOY-CHECKLIST.md).
 
 ## Variante avançada — build na VPS (volume Swarm)
 

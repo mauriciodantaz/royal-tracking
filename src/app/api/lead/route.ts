@@ -8,7 +8,8 @@ import { isUniqueViolation, query, queryOne } from "@/lib/db/pool";
 import type { FormRow, VisitorRow } from "@/lib/db/types";
 import { dispatchEvent } from "@/lib/integrations/dispatch";
 import { getSnippetConnection } from "@/lib/integrations/connections";
-import { rateLimit } from "@/lib/rate-limit/memory";
+import { logAndPublicError, publicErrorBody } from "@/lib/http/public-error";
+import { rateLimit } from "@/lib/rate-limit";
 import {
   classifyChannel,
   clientWebFromBody,
@@ -517,13 +518,7 @@ export async function POST(request: NextRequest) {
     }
     return response;
   } catch (err) {
-    return jsonCors(
-      {
-        error: "server_error",
-        message: err instanceof Error ? err.message : "unknown",
-      },
-      { status: 500 },
-      request
-    );
+    logAndPublicError("api/lead", err);
+    return jsonCors(publicErrorBody("internal"), { status: 500 }, request);
   }
 }
