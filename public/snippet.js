@@ -1205,10 +1205,8 @@
     detectFramework();
     var ctx = ruleContext();
     var q = ctx.query || "";
-    if (
-      /(^|&)(q|s|search)=/.test(q) ||
-      pathSuggests(ctx.path, ["/search", "/busca"])
-    ) {
+    // Exige termo na query — path /busca sozinho (ex. Tray /loja/busca.php) não dispara search.
+    if (/(^|&)(q|s|search|palavra_busca)=([^&]+)/.test(q)) {
       sendEvent("search", {}).catch(function () {});
       return;
     }
@@ -1342,6 +1340,23 @@
     data = data || {};
     if (evaluateRules(ruleContext()).excludeLead) {
       return Promise.resolve({ ok: true, skipped: "exclude_lead" });
+    }
+    var leadEmail = data.email;
+    var leadPhone = data.phone;
+    if (!leadEmail && !leadPhone && data.fields && typeof data.fields === "object") {
+      leadEmail =
+        data.fields.email ||
+        data.fields.Email ||
+        leadEmail;
+      leadPhone =
+        data.fields.phone ||
+        data.fields.telefone ||
+        data.fields.whatsapp ||
+        data.fields.tel ||
+        leadPhone;
+    }
+    if (!leadEmail && !leadPhone) {
+      return Promise.resolve({ ok: true, skipped: "no_contact" });
     }
     if (wasLeadRecentlySent(null)) {
       return Promise.resolve({ ok: true, deduped: true });
@@ -1503,8 +1518,6 @@
         var keys = Object.keys(fields);
         if (!keys.length) return;
 
-        markLeadSent(form);
-
         var id = getTrckId() || window.TRCK_USER_ID;
         var eventId = uuid();
         var clicks = gatedClickIds();
@@ -1524,6 +1537,16 @@
         var nameVal =
           (classification.name && fields[classification.name.key]) ||
           undefined;
+        // Só registra form/lead quando há email ou telefone no payload.
+        if (
+          !(emailVal && String(emailVal).trim()) &&
+          !(phoneVal && String(phoneVal).trim())
+        ) {
+          return;
+        }
+
+        markLeadSent(form);
+
         var payload = {
           trck_user_id: id || undefined,
           form_label:

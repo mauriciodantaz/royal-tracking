@@ -32,6 +32,47 @@ export function formSamplePageUrl(pageUrl?: string | null): string | null {
   }
 }
 
+/**
+ * Normalize form labels that look like paths/URLs (Tray often uses action as name).
+ * Strips query/hash so `?loja=` does not split forms.
+ */
+export function normalizeFormLabel(label?: string | null): string {
+  if (!label || typeof label !== "string") return "";
+  const trimmed = label.trim();
+  if (!trimmed) return "";
+
+  if (
+    trimmed.startsWith("/") ||
+    /^https?:\/\//i.test(trimmed) ||
+    trimmed.includes("?") ||
+    trimmed.includes("#")
+  ) {
+    const asPath = formPathKey(trimmed);
+    if (asPath) return asPath;
+  }
+  return trimmed;
+}
+
+/**
+ * Action path used in fingerprint. Empty when action is missing or points at
+ * the same page as `pageUrl` (common on product add-to-cart forms).
+ */
+export function effectiveFormAction(
+  action?: string | null,
+  pageUrl?: string | null
+): string {
+  const actionPath = formPathKey(action, pageUrl);
+  if (!actionPath) return "";
+  const pagePath = formPathKey(pageUrl);
+  if (pagePath && actionPath === pagePath) return "";
+  return actionPath;
+}
+
+/**
+ * Form identity: effectiveAction | normalizedLabel | sortedFields.
+ * Page URL is intentionally excluded so the same ecommerce form on N product
+ * pages collapses to one card.
+ */
 export function fingerprintForm(input: {
   action?: string | null;
   label?: string | null;
@@ -39,10 +80,23 @@ export function fingerprintForm(input: {
   pageUrl?: string | null;
 }): string {
   const raw = [
-    formPathKey(input.action, input.pageUrl),
-    input.label ?? "",
+    effectiveFormAction(input.action, input.pageUrl),
+    normalizeFormLabel(input.label),
     input.fieldNames.slice().sort().join(","),
-    formPathKey(input.pageUrl),
   ].join("|");
   return createHash("sha256").update(raw).digest("hex").slice(0, 32);
+}
+
+/** Legacy merge key when `form_action` was never stored on `forms`. */
+export function formMergeIdentity(input: {
+  label?: string | null;
+  fieldNames: string[] | unknown;
+}): string {
+  const names = Array.isArray(input.fieldNames)
+    ? input.fieldNames.map(String)
+    : [];
+  return [
+    normalizeFormLabel(input.label),
+    names.slice().sort().join(","),
+  ].join("|");
 }

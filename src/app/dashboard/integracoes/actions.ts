@@ -557,6 +557,47 @@ export async function syncRdFunnelsAction(
   }
 }
 
+export async function setPipelineEnabledAction(input: {
+  connectionId: string;
+  pipelineExternalId: string;
+  enabled: boolean;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requirePermission("integrations:manage");
+  const connectionId = String(input.connectionId ?? "").trim();
+  const pipelineExternalId = String(input.pipelineExternalId ?? "").trim();
+  if (!connectionId || !pipelineExternalId) {
+    return { ok: false, error: "Parâmetros inválidos" };
+  }
+
+  const conn = await queryOne<IntegrationConnectionRow>(
+    `select * from integration_connections where id = $1`,
+    [connectionId]
+  );
+  if (
+    !conn ||
+    (conn.provider !== "rdstation_crm" && conn.provider !== "pipedrive")
+  ) {
+    return { ok: false, error: "Conexão CRM inválida" };
+  }
+
+  const table =
+    conn.provider === "pipedrive" ? "pipedrive_pipelines" : "rd_pipelines";
+
+  const updated = await queryOne<{ id: string }>(
+    `update ${table}
+     set enabled = $1, updated_at = now()
+     where connection_id = $2 and external_id = $3
+     returning id`,
+    [input.enabled === true, connectionId, pipelineExternalId]
+  );
+  if (!updated) {
+    return { ok: false, error: "Funil não encontrado" };
+  }
+
+  revalidateIntegrations(conn.provider);
+  return { ok: true };
+}
+
 export async function saveRdStageMapsAction(
   formData: FormData
 ): Promise<{ ok: true } | { ok: false; error: string }> {

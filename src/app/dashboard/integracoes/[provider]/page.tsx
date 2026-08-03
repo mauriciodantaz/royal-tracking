@@ -61,6 +61,8 @@ type StageMapRow = {
   ga4_event_name: string | null;
   stage_name: string | null;
   pipeline_name: string | null;
+  pipeline_external_id: string | null;
+  pipeline_enabled: boolean | null;
   stage_order: number | null;
 };
 
@@ -176,6 +178,8 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
              m.ga4_event_name,
              s.name as stage_name,
              p.name as pipeline_name,
+             p.external_id as pipeline_external_id,
+             coalesce(p.enabled, true) as pipeline_enabled,
              s.stage_order
            from pipedrive_stage_event_maps m
            left join pipedrive_stages s
@@ -212,6 +216,8 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
              m.ga4_event_name,
              s.name as stage_name,
              p.name as pipeline_name,
+             p.external_id as pipeline_external_id,
+             coalesce(p.enabled, true) as pipeline_enabled,
              s.stage_order
            from rd_stage_event_maps m
            left join rd_stages s
@@ -366,6 +372,8 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
             m.stage_external_id ||
             "Estágio",
           pipeline: m.pipeline_name || "",
+          pipeline_external_id: m.pipeline_external_id,
+          pipeline_enabled: m.pipeline_enabled !== false,
         })),
     ])
   );
