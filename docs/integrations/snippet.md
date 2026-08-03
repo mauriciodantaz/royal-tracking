@@ -6,7 +6,9 @@ O módulo **Site / Forms** não pede token. O snippet já está ativo na stack: 
 
 - Chama `/api/identify` e guarda `trck_user_id`
 - Dispara **PageView** (web Pixel/gtag + server) com o mesmo `event_id`
-- Captura submit de formulários → **Lead**, com **classificação multi-sinal** de campos (email/telefone/nome/CPF/etc.)
+- Captura submit de formulários → **Lead** **somente quando o payload tem email ou telefone** (classificação multi-sinal). Busca, quantidade, CEP etc. não viram form/lead
+- Formulários iguais em páginas diferentes (ecommerce) compartilham o mesmo fingerprint (`action` efetivo + label + campos; URL da página não entra)
+- Auto ecommerce `search`: só dispara se a query tiver termo (`q` / `s` / `search` / `palavra_busca`)
 - Envia `canonical_url` (UTMs/click IDs removidos) além de `event_source_url` cru para CAPI
 - SPA: escuta `pushState` / `replaceState` / `popstate` / `hashchange` com dedupe ~800ms
 - Painel **Regras**: exceções e eventos extras por URL, além dos opt-ins “funil de loja” e “dataLayer”. Exclusões built-in (`wp-admin`, logout, preview) já vêm ativas via `/api/tracking/config`

@@ -33,6 +33,7 @@ import { canonicalUrl } from "@/lib/tracking/canonical-url";
 import {
   fingerprintForm,
   formSamplePageUrl,
+  normalizeFormLabel,
 } from "@/lib/tracking/form-fingerprint";
 import {
   pickEmailPhoneNameFromClassification,
@@ -110,9 +111,12 @@ export async function POST(request: NextRequest) {
     body.field_classification as LeadHints | undefined
   );
   const picked = pickEmailPhoneNameFromClassification(fields, clientHints);
-  const email = body.email ?? picked.email;
-  const phone = body.phone ?? picked.phone;
+  const email = (body.email ?? picked.email)?.trim() || undefined;
+  const phone = (body.phone ?? picked.phone)?.trim() || undefined;
   const name = body.name ?? picked.name;
+  if (!email && !phone) {
+    return jsonCors({ ok: true, skipped: "no_contact" }, { status: 200 }, request);
+  }
   const fieldNames = Object.keys(fields);
   // Server-authoritative: ignore client form_fingerprint so ?query never splits forms.
   const fp = fingerprintForm({
@@ -137,8 +141,9 @@ export async function POST(request: NextRequest) {
         preserveParams: snippetSettings.url_preserve_params,
       });
 
-    const formLabel =
+    const rawLabel =
       body.form_label || body.form_action || `Form ${fp.slice(0, 8)}`;
+    const formLabel = normalizeFormLabel(rawLabel) || rawLabel;
     const sampleUrl = formSamplePageUrl(body.page_url);
 
     let form = await queryOne<FormRow>(
@@ -147,35 +152,40 @@ export async function POST(request: NextRequest) {
     );
     let formCountUpdated = false;
 
-    // Reclaim legacy rows fingerprinted with action/?query in the key.
-    if (!form && body.form_label && sampleUrl) {
+    // Reclaim legacy rows (old fingerprint included page path / query in label).
+    if (!form) {
       const legacy = await queryOne<FormRow>(
         `select * from forms
-         where label = $1
-           and field_names = $2::jsonb
+         where field_names = $1::jsonb
            and (
-             page_url = $3
-             or split_part(coalesce(page_url, ''), '?', 1) = $3
-             or page_url like $3 || '?%'
+             label = $2
+             or label = $3
+             or split_part(coalesce(label, ''), '?', 1) = $3
            )
          order by submission_count desc
          limit 1`,
-        [body.form_label, JSON.stringify(fieldNames), sampleUrl]
+        [
+          JSON.stringify(fieldNames),
+          body.form_label ?? formLabel,
+          formLabel,
+        ]
       );
       if (legacy) {
         try {
           form = await queryOne<FormRow>(
             `update forms
              set fingerprint = $1,
-                 page_url = $2,
+                 label = $2,
+                 page_url = coalesce($3, page_url),
                  submission_count = submission_count + 1,
-                 field_names = $3::jsonb,
-                 field_classification = $4::jsonb,
+                 field_names = $4::jsonb,
+                 field_classification = $5::jsonb,
                  updated_at = now()
-             where id = $5
+             where id = $6
              returning *`,
             [
               fp,
+              formLabel,
               sampleUrl,
               JSON.stringify(fieldNames),
               JSON.stringify(picked.classification),
