@@ -156,6 +156,20 @@ async function statusAlreadyEmitted(opts: {
   return Boolean(row);
 }
 
+async function isPipelineEnabled(
+  connectionId: string,
+  pipelineExternalId: string
+): Promise<boolean> {
+  if (!pipelineExternalId) return true;
+  const row = await queryOne<{ enabled: boolean }>(
+    `select enabled from pipedrive_pipelines
+     where connection_id = $1 and external_id = $2 limit 1`,
+    [connectionId, pipelineExternalId]
+  );
+  if (!row) return true;
+  return row.enabled !== false;
+}
+
 async function loadStageMap(
   connectionId: string,
   opts: { stageExternalId?: string; dealStatus?: DealStatus }
@@ -445,15 +459,19 @@ export async function processPipedriveWebhook(opts: {
   } | null = null;
 
   if (stageId && stageChanged) {
-    stageMap = await loadStageMap(conn.id, { stageExternalId: stageId });
-    if (stageMap && (stageMap.meta_event_name || stageMap.ga4_event_name)) {
-      const already = await stageAlreadyEmitted({
-        connectionId: conn.id,
-        dealExternalId: dealId,
-        pipelineExternalId: pipeKey,
-        stageExternalId: stageId,
-      });
-      if (!already) needStageEmit = true;
+    if (!(await isPipelineEnabled(conn.id, pipeKey))) {
+      stageMap = null;
+    } else {
+      stageMap = await loadStageMap(conn.id, { stageExternalId: stageId });
+      if (stageMap && (stageMap.meta_event_name || stageMap.ga4_event_name)) {
+        const already = await stageAlreadyEmitted({
+          connectionId: conn.id,
+          dealExternalId: dealId,
+          pipelineExternalId: pipeKey,
+          stageExternalId: stageId,
+        });
+        if (!already) needStageEmit = true;
+      }
     }
   }
 

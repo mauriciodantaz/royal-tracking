@@ -123,6 +123,21 @@ async function claimDealStatusEmit(opts: {
   return row ? "claimed" : "already_emitted";
 }
 
+async function isPipelineEnabled(
+  connectionId: string,
+  pipelineExternalId: string
+): Promise<boolean> {
+  if (!pipelineExternalId) return true;
+  const row = await queryOne<{ enabled: boolean }>(
+    `select enabled from rd_pipelines
+     where connection_id = $1 and external_id = $2 limit 1`,
+    [connectionId, pipelineExternalId]
+  );
+  // Unknown pipeline (not synced yet) → allow; explicitly disabled → block.
+  if (!row) return true;
+  return row.enabled !== false;
+}
+
 async function loadStageMap(
   connectionId: string,
   opts: {
@@ -455,8 +470,16 @@ async function processCrmDealWebhook(
 
   if (stageId) {
     const pipeKey = pipelineId || "";
-    const map = await loadStageMap(conn.id, { stageExternalId: stageId });
-    if (!map || (!map.meta_event_name && !map.ga4_event_name)) {
+    if (!(await isPipelineEnabled(conn.id, pipeKey))) {
+      stageSkipped = "pipeline_disabled";
+    }
+    const map =
+      stageSkipped === "pipeline_disabled"
+        ? null
+        : await loadStageMap(conn.id, { stageExternalId: stageId });
+    if (stageSkipped === "pipeline_disabled") {
+      // skip emit
+    } else if (!map || (!map.meta_event_name && !map.ga4_event_name)) {
       stageSkipped = "no_stage_map";
     } else {
       stageEventId = crmEventId(dealId, pipeKey, stageId);

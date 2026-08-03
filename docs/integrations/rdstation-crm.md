@@ -59,10 +59,15 @@ Auth inbound: [WEBHOOK-AUTH.md](../WEBHOOK-AUTH.md). Em geral **nada a reconfigu
 
 ## Mapeamento estágio → eventos
 
-Para cada estágio do funil, escolha:
+Cada funil tem um toggle **Ativo / Desativado**:
 
-- **Evento Meta** (ex.: `Lead`, `InitiateCheckout`, `Purchase`) — vazio = não enviar à Meta
-- **Evento GA4** (ex.: `generate_lead`, `begin_checkout`, `purchase`) — vazio = não enviar ao GA4
+- **Ativo:** mostra as etapas e os selects Meta/GA4
+- **Desativado:** mostra só o nome do funil; webhooks desse funil **não** emitem Meta/GA4 (won/lost globais seguem o mapa de status)
+
+Para cada estágio do funil ativo, escolha:
+
+- **Evento Meta** (ex.: `Lead`, `InitiateCheckout`, `Purchase`) — “Não enviar” = não enviar à Meta
+- **Evento GA4** (ex.: `generate_lead`, `begin_checkout`, `purchase`) — “Não enviar” = não enviar ao GA4
 
 O mesmo `event_id` determinístico (`sha256(rdcrm:deal:{dealId}:pipe:{pipelineId}:stage:{stageId})`) é usado nos dois destinos.
 

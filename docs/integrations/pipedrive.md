@@ -40,6 +40,7 @@ Conecte o Pipedrive com **OAuth 2.0** (Private app no Developer Hub). Após auto
 
 - Webhook v2 (`create` / `change` em deal).
 - Disparo **só na primeira vez** que a negociação chega em um estágio (dedup por `deal + pipeline + stage`).
+- Funil com toggle **Desativado** na UI: etapas ficam recolhidas e o webhook **não** emite Meta/GA4 daquele funil (won/lost globais continuam).
 - Won/lost têm dedup separado.
 - Match do visitante por **e-mail ou telefone** da person do deal (enrich via API só quando o claim de emit vence; retries/duplicatas são descartados sem consultar a API).
 - Alterações de deal que **não** mudam estágio nem status → ignoradas sem chamada à API.

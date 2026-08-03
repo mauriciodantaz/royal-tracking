@@ -11,6 +11,7 @@ import {
   deleteEventMapping,
   reconfigureWhatsappWebhookAction,
   saveRdStageMapsAction,
+  setPipelineEnabledAction,
   syncRdFunnelsAction,
   updateMetaTestEventCode,
   updateStackCurrency,
@@ -49,6 +50,14 @@ const GA4_EVENT_OPTIONS = [
   "purchase",
   "subscribe",
 ];
+
+const META_SELECT_ITEMS = META_EVENT_OPTIONS.map((opt) =>
+  opt ? { value: opt, label: opt } : { value: "__none__", label: "Não enviar" }
+);
+
+const GA4_SELECT_ITEMS = GA4_EVENT_OPTIONS.map((opt) =>
+  opt ? { value: opt, label: opt } : { value: "__none__", label: "Não enviar" }
+);
 
 type OutboundOption = {
   id: string;
@@ -326,6 +335,8 @@ type StageMapItem = {
   ga4_event_name: string;
   label: string;
   pipeline: string;
+  pipeline_external_id: string | null;
+  pipeline_enabled: boolean;
 };
 
 function secretPreviewForField(conn: Conn, key: string): string {
@@ -361,21 +372,34 @@ function isFunnelCrmProvider(provider: string): boolean {
 
 function groupStageMapsByPipeline(
   rows: StageMapItem[]
-): Array<{ pipeline: string; stages: StageMapItem[] }> {
+): Array<{
+  pipeline: string;
+  pipelineExternalId: string | null;
+  enabled: boolean;
+  stages: StageMapItem[];
+}> {
   const order: string[] = [];
   const byPipe = new Map<string, StageMapItem[]>();
   for (const row of rows) {
-    const key = row.pipeline?.trim() || "Funil";
+    const key = row.pipeline_external_id
+      ? `id:${row.pipeline_external_id}`
+      : `name:${row.pipeline?.trim() || "Funil"}`;
     if (!byPipe.has(key)) {
       byPipe.set(key, []);
       order.push(key);
     }
     byPipe.get(key)!.push(row);
   }
-  return order.map((pipeline) => ({
-    pipeline,
-    stages: byPipe.get(pipeline)!,
-  }));
+  return order.map((key) => {
+    const stages = byPipe.get(key)!;
+    const first = stages[0]!;
+    return {
+      pipeline: first.pipeline?.trim() || "Funil",
+      pipelineExternalId: first.pipeline_external_id,
+      enabled: first.pipeline_enabled !== false,
+      stages,
+    };
+  });
 }
 
 function MapEventRow({
@@ -398,6 +422,7 @@ function MapEventRow({
       <div className="space-y-1">
         <Label className="text-[11px]">Meta</Label>
         <Select
+          items={META_SELECT_ITEMS}
           value={row.meta_event_name || "__none__"}
           onValueChange={(value) => {
             const v = value === "__none__" ? "" : String(value ?? "");
@@ -419,6 +444,7 @@ function MapEventRow({
       <div className="space-y-1">
         <Label className="text-[11px]">GA4</Label>
         <Select
+          items={GA4_SELECT_ITEMS}
           value={row.ga4_event_name || "__none__"}
           onValueChange={(value) => {
             const v = value === "__none__" ? "" : String(value ?? "");
@@ -474,6 +500,16 @@ function RdStageMapsSection({
     );
   }
 
+  function setGroupEnabled(pipelineExternalId: string, enabled: boolean) {
+    setRows((prev) =>
+      prev.map((r) =>
+        r.pipeline_external_id === pipelineExternalId
+          ? { ...r, pipeline_enabled: enabled }
+          : r
+      )
+    );
+  }
+
   if (maps.length === 0) {
     return (
       <p className="text-xs text-muted-foreground">
@@ -492,28 +528,71 @@ function RdStageMapsSection({
               Mapeamento estágio → Meta / GA4
             </h2>
             <p className="text-xs text-muted-foreground">
-              Vazio = não enviar para aquele destino. Dedup por estágio da
-              negociação.
+              Vazio = não enviar para aquele destino. Funil desligado esconde as
+              etapas e bloqueia webhooks desse funil.
             </p>
           </div>
 
           <div className="space-y-6">
-            {groups.map((group) => (
-              <section key={group.pipeline} className="space-y-3">
-                <h2 className="text-sm font-semibold tracking-tight">
-                  {group.pipeline}
-                </h2>
-                <div className="space-y-2 pl-1 sm:pl-3">
-                  {group.stages.map((row) => (
-                    <MapEventRow
-                      key={row.id}
-                      row={row}
-                      updateRow={updateRow}
-                    />
-                  ))}
-                </div>
-              </section>
-            ))}
+            {groups.map((group) => {
+              const groupKey =
+                group.pipelineExternalId || `name:${group.pipeline}`;
+              const canToggle = Boolean(group.pipelineExternalId);
+              return (
+                <section key={groupKey} className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-sm font-semibold tracking-tight">
+                      {group.pipeline}
+                    </h2>
+                    {canToggle ? (
+                      <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          className="size-4 accent-foreground"
+                          checked={group.enabled}
+                          disabled={pending}
+                          onChange={(ev) => {
+                            const enabled = ev.target.checked;
+                            const pipeId = group.pipelineExternalId!;
+                            setGroupEnabled(pipeId, enabled);
+                            start(async () => {
+                              const r = await setPipelineEnabledAction({
+                                connectionId,
+                                pipelineExternalId: pipeId,
+                                enabled,
+                              });
+                              if (r.ok) {
+                                toast.success(
+                                  enabled
+                                    ? `Funil "${group.pipeline}" ativado`
+                                    : `Funil "${group.pipeline}" desativado`
+                                );
+                                onSaved();
+                              } else {
+                                setGroupEnabled(pipeId, !enabled);
+                                toast.error(r.error);
+                              }
+                            });
+                          }}
+                        />
+                        {group.enabled ? "Ativo" : "Desativado"}
+                      </label>
+                    ) : null}
+                  </div>
+                  {group.enabled ? (
+                    <div className="space-y-2 pl-1 sm:pl-3">
+                      {group.stages.map((row) => (
+                        <MapEventRow
+                          key={row.id}
+                          row={row}
+                          updateRow={updateRow}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </section>
+              );
+            })}
           </div>
         </div>
       ) : null}
