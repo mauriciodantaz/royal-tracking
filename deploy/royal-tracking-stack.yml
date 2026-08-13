@@ -26,6 +26,7 @@ services:
 
       # --- Instância ---
       PROJECT_NAME: "<NOME_DO_PROJETO>"
+      # PLATFORM_NAME: "Outro Nome"   # opcional — rebatiza o produto (padrão: Royal Tracking)
 
       # --- Postgres (externo na RoyalNet) ---
       DB_POSTGRESDB_HOST: postgres

@@ -4,7 +4,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { GtagLoader } from "@/components/tracking/gtag-loader";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
-import { getAppTitle, getProjectName } from "@/lib/env";
+import { getAppTitle, getPlatformName, getProjectName } from "@/lib/env";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -21,11 +21,12 @@ const jetbrains = JetBrains_Mono({
 
 export async function generateMetadata(): Promise<Metadata> {
   const projectName = getProjectName();
+  const platform = getPlatformName();
   return {
     title: getAppTitle(),
     description: projectName
       ? `Sistema de tracking com painel — ${projectName}`
-      : "Sistema de tracking com painel — Royal Tracking",
+      : `Sistema de tracking com painel — ${platform}`,
   };
 }
 

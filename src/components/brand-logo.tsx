@@ -6,12 +6,14 @@ type BrandLogoProps = {
   className?: string;
   markClassName?: string;
   showWordmark?: boolean;
+  name: string;
 };
 
 export function BrandLogo({
   className,
   markClassName,
   showWordmark = true,
+  name,
 }: BrandLogoProps) {
   return (
     <span className={cn("flex items-center gap-2.5", className)}>
@@ -26,7 +28,7 @@ export function BrandLogo({
       {showWordmark ? (
         <span className="leading-tight">
           <span className="block text-sm font-semibold tracking-tight text-foreground">
-            Royal Tracking
+            {name}
           </span>
           <span className="block text-xs text-muted-foreground">Server-side</span>
         </span>

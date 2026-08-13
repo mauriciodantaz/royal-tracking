@@ -25,6 +25,7 @@ services:
 
       # --- Instância ---
       PROJECT_NAME: Dev
+      # PLATFORM_NAME: "Outro Nome"   # opcional — rebatiza o produto (padrão: Royal Tracking)
 
       # --- Postgres ---
       DB_POSTGRESDB_HOST: postgres

@@ -13,10 +13,18 @@ export function getProjectName(): string {
   return process.env.PROJECT_NAME?.trim() ?? "";
 }
 
-/** Título HTML: "NOME DO PROJETO | Royal Tracking". */
+const DEFAULT_PLATFORM_NAME = "Royal Tracking";
+
+/** Nome do produto (env PLATFORM_NAME). Ausente/vazio → Royal Tracking. */
+export function getPlatformName(): string {
+  return process.env.PLATFORM_NAME?.trim() || DEFAULT_PLATFORM_NAME;
+}
+
+/** Título HTML: "NOME DO PROJETO | {plataforma}". */
 export function getAppTitle(): string {
   const name = getProjectName();
-  return name ? `${name} | Royal Tracking` : "Royal Tracking";
+  const platform = getPlatformName();
+  return name ? `${name} | ${platform}` : platform;
 }
 
 export type PostgresConfig =

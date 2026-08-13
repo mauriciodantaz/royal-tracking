@@ -2,12 +2,13 @@ import Link from "next/link";
 
 import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
+import { getPlatformName } from "@/lib/env";
 
 export default function HomePage() {
   return (
     <main className="mx-auto flex min-h-svh w-full max-w-3xl flex-col justify-center gap-8 px-6 py-16">
       <div className="space-y-3">
-        <BrandLogo />
+        <BrandLogo name={getPlatformName()} />
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
           Captura de eventos com painel
         </h1>
