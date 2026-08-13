@@ -92,10 +92,10 @@ function NavLinks({
   );
 }
 
-function Brand() {
+function Brand({ platformName }: { platformName: string }) {
   return (
     <Link href="/dashboard" className="px-1">
-      <BrandLogo />
+      <BrandLogo name={platformName} />
     </Link>
   );
 }
@@ -103,13 +103,15 @@ function Brand() {
 export function AppSidebar({
   showUsersNav,
   versionStatus,
+  platformName,
 }: {
   showUsersNav: boolean;
   versionStatus: VersionStatus;
+  platformName: string;
 }) {
   return (
     <aside className="glass sticky top-0 hidden h-svh w-60 shrink-0 flex-col border-r p-4 md:flex">
-      <Brand />
+      <Brand platformName={platformName} />
       <Separator className="my-4" />
       <NavLinks showUsersNav={showUsersNav} />
       <div className="mt-auto space-y-3 pt-4">
@@ -150,13 +152,15 @@ export function AppSidebar({
 export function MobileHeader({
   showUsersNav,
   versionStatus,
+  platformName,
 }: {
   showUsersNav: boolean;
   versionStatus: VersionStatus;
+  platformName: string;
 }) {
   return (
     <header className="glass sticky top-0 z-40 flex h-14 items-center justify-between border-b px-3 md:hidden">
-      <Brand />
+      <Brand platformName={platformName} />
       <div className="flex items-center gap-1">
         <ThemeToggle />
         <Sheet>

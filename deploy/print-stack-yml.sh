@@ -85,6 +85,7 @@ services:
 
       # --- Instância ---
       PROJECT_NAME: "$(yq "${PROJECT_NAME:-$PROJECT_SLUG}")"
+      # PLATFORM_NAME: "Outro Nome"   # opcional — rebatiza o produto (padrão: Royal Tracking)
 
       # --- Postgres (externo na RoyalNet) ---
       DB_POSTGRESDB_HOST: "$(yq "${_DB_HOST}")"

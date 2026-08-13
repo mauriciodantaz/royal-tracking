@@ -167,6 +167,7 @@ echo "==> .env"
 cat > "${PROJECT_DIR}/.env" <<EOF
 # Instância ${INSTANCE_PREFIX} — gerado por install.sh
 PROJECT_NAME="${PROJECT_NAME}"
+# PLATFORM_NAME=Acme Analytics
 DB_POSTGRESDB_HOST=${PG_HOST}
 DB_POSTGRESDB_PORT=5432
 DB_POSTGRESDB_USER=${PG_USER}
@@ -273,6 +274,7 @@ services:
 
       # --- Instância ---
       PROJECT_NAME: "$(_yaml_escape "${PROJECT_NAME}")"
+      # PLATFORM_NAME: "Outro Nome"   # opcional — rebatiza o produto (padrão: Royal Tracking)
 
       # --- Postgres (externo na RoyalNet) ---
       DB_POSTGRESDB_HOST: "$(_yaml_escape "${PG_HOST}")"
@@ -340,6 +342,7 @@ services:
 
       # --- Instância ---
       PROJECT_NAME: "$(_yaml_escape "${PROJECT_NAME}")"
+      # PLATFORM_NAME: "Outro Nome"   # opcional — rebatiza o produto (padrão: Royal Tracking)
 
       # --- Postgres (externo na RoyalNet) ---
       DB_POSTGRESDB_HOST: "$(_yaml_escape "${PG_HOST}")"
