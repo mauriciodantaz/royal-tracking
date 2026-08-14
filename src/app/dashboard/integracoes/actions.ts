@@ -24,6 +24,7 @@ import {
   ensurePipedriveWebhooks,
   syncPipedriveFunnels,
 } from "@/lib/pipedrive/sync";
+import { replayOrphanCrmEmits } from "@/lib/rd/replay-orphans";
 import {
   cleanupRdWebhooks,
   ensureRdWebhooks,
@@ -553,6 +554,48 @@ export async function syncRdFunnelsAction(
     return {
       ok: false,
       error: safeActionMessage(e, "Falha ao sincronizar funis"),
+    };
+  }
+}
+
+export async function replayOrphanCrmEmitsAction(
+  connectionId: string
+): Promise<
+  | {
+      ok: true;
+      attempted: number;
+      sent: number;
+      skipped: number;
+      failed: number;
+      errors: string[];
+    }
+  | { ok: false; error: string }
+> {
+  const actor = await requirePermission("integrations:manage");
+  try {
+    const conn = await queryOne<IntegrationConnectionRow>(
+      `select * from integration_connections where id = $1`,
+      [connectionId]
+    );
+    if (
+      !conn ||
+      (conn.provider !== "rdstation_crm" && conn.provider !== "rdstation_mkt")
+    ) {
+      return { ok: false, error: "Conexão RD inválida" };
+    }
+    const result = await replayOrphanCrmEmits(connectionId);
+    await auditLog({
+      actorUserId: actor.id,
+      action: "integration.crm_orphan_replay",
+      resourceType: "integration_connection",
+      resourceId: connectionId,
+    });
+    revalidateIntegrations(conn.provider);
+    return { ok: true, ...result };
+  } catch (e) {
+    return {
+      ok: false,
+      error: safeActionMessage(e, "Falha ao reenviar eventos órfãos"),
     };
   }
 }
