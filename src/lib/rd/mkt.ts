@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { IntegrationConnectionRow } from "@/lib/db/types";
-import { rdMktFetch } from "@/lib/rd/client";
+import { rdMktFetch, unwrapDataObject } from "@/lib/rd/client";
 
 export const MKT_LIFECYCLE_SLOTS = [
   {
@@ -115,6 +115,18 @@ export function inferMktLifecycle(
     return "lead";
   }
   return "converted";
+}
+
+export async function getMktContact(
+  conn: IntegrationConnectionRow,
+  uuid: string
+): Promise<Record<string, unknown> | null> {
+  const { res, json } = await rdMktFetch(
+    conn,
+    `/platform/contacts/uuid:${encodeURIComponent(uuid)}`
+  );
+  if (!res.ok) return null;
+  return unwrapDataObject(json);
 }
 
 export function extractMktContact(payload: Record<string, unknown>): {

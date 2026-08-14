@@ -117,6 +117,41 @@ async function claimDealStatusEmit(opts: {
   return row ? "claimed" : "already_emitted";
 }
 
+async function releaseDealStageEmit(opts: {
+  connectionId: string;
+  dealExternalId: string;
+  pipelineExternalId: string;
+  stageExternalId: string;
+}): Promise<void> {
+  await query(
+    `delete from pipedrive_deal_stage_emits
+     where connection_id = $1
+       and deal_external_id = $2
+       and pipeline_external_id = $3
+       and stage_external_id = $4`,
+    [
+      opts.connectionId,
+      opts.dealExternalId,
+      opts.pipelineExternalId,
+      opts.stageExternalId,
+    ]
+  );
+}
+
+async function releaseDealStatusEmit(opts: {
+  connectionId: string;
+  dealExternalId: string;
+  dealStatus: DealStatus;
+}): Promise<void> {
+  await query(
+    `delete from pipedrive_deal_status_emits
+     where connection_id = $1
+       and deal_external_id = $2
+       and deal_status = $3`,
+    [opts.connectionId, opts.dealExternalId, opts.dealStatus]
+  );
+}
+
 async function stageAlreadyEmitted(opts: {
   connectionId: string;
   dealExternalId: string;
@@ -536,6 +571,76 @@ export async function processPipedriveWebhook(opts: {
   if (!stageClaimed && !statusClaimed) {
     return { ok: true, deduped: true };
   }
+
+  try {
+    return await emitPipedriveAfterClaim({
+      conn,
+      dealId,
+      pipeKey,
+      stageId,
+      dealStatus,
+      data,
+      stageClaimed,
+      statusClaimed,
+      stageEventIdValue,
+      statusEventIdValue,
+      stageMap,
+      statusMap,
+    });
+  } catch (err) {
+    if (stageClaimed && stageId) {
+      await releaseDealStageEmit({
+        connectionId: conn.id,
+        dealExternalId: dealId,
+        pipelineExternalId: pipeKey,
+        stageExternalId: stageId,
+      });
+    }
+    if (statusClaimed && dealStatus) {
+      await releaseDealStatusEmit({
+        connectionId: conn.id,
+        dealExternalId: dealId,
+        dealStatus,
+      });
+    }
+    throw err;
+  }
+}
+
+async function emitPipedriveAfterClaim(opts: {
+  conn: IntegrationConnectionRow;
+  dealId: string;
+  pipeKey: string;
+  stageId: string | null;
+  dealStatus: DealStatus | null;
+  data: Record<string, unknown>;
+  stageClaimed: boolean;
+  statusClaimed: boolean;
+  stageEventIdValue: string | undefined;
+  statusEventIdValue: string | undefined;
+  stageMap: {
+    meta_event_name: string | null;
+    ga4_event_name: string | null;
+  } | null;
+  statusMap: {
+    meta_event_name: string | null;
+    ga4_event_name: string | null;
+  } | null;
+}): Promise<ProcessPipedriveResult> {
+  const {
+    conn,
+    dealId,
+    stageClaimed,
+    statusClaimed,
+    stageEventIdValue,
+    statusEventIdValue,
+    stageMap,
+    statusMap,
+  } = opts;
+  let { stageId, dealStatus } = opts;
+  const { data } = opts;
+  let pipelineId: string | null = null;
+  let personId: string | null = null;
 
   // Enrich only on first claim — deal + person for email/phone.
   let email: string | null = null;
