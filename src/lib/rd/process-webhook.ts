@@ -26,6 +26,11 @@ import {
   getCrmDeal,
 } from "@/lib/rd/crm";
 import {
+  asRecord,
+  parseCrmDealFields,
+  type CrmDealStatus,
+} from "@/lib/rd/deal-payload";
+import {
   extractMktContact,
   inferMktLifecycle,
   type MktLifecycleKey,
@@ -41,18 +46,7 @@ export type ProcessRdResult =
     }
   | { ok: false; error: string; status: number };
 
-function asRecord(v: unknown): Record<string, unknown> | null {
-  if (v && typeof v === "object" && !Array.isArray(v)) {
-    return v as Record<string, unknown>;
-  }
-  return null;
-}
-
-export type CrmDealStatus = "won" | "lost";
-
-function isCrmDealStatus(v: unknown): v is CrmDealStatus {
-  return v === "won" || v === "lost";
-}
+export type { CrmDealStatus };
 
 /** Deterministic id: once per deal + pipeline + stage. */
 function crmEventId(
@@ -123,6 +117,41 @@ async function claimDealStatusEmit(opts: {
   return row ? "claimed" : "already_emitted";
 }
 
+async function releaseDealStageEmit(opts: {
+  connectionId: string;
+  dealExternalId: string;
+  pipelineExternalId: string;
+  stageExternalId: string;
+}): Promise<void> {
+  await query(
+    `delete from rd_deal_stage_emits
+     where connection_id = $1
+       and deal_external_id = $2
+       and pipeline_external_id = $3
+       and stage_external_id = $4`,
+    [
+      opts.connectionId,
+      opts.dealExternalId,
+      opts.pipelineExternalId,
+      opts.stageExternalId,
+    ]
+  );
+}
+
+async function releaseDealStatusEmit(opts: {
+  connectionId: string;
+  dealExternalId: string;
+  dealStatus: CrmDealStatus;
+}): Promise<void> {
+  await query(
+    `delete from rd_deal_status_emits
+     where connection_id = $1
+       and deal_external_id = $2
+       and deal_status = $3`,
+    [opts.connectionId, opts.dealExternalId, opts.dealStatus]
+  );
+}
+
 async function isPipelineEnabled(
   connectionId: string,
   pipelineExternalId: string
@@ -138,7 +167,7 @@ async function isPipelineEnabled(
   return row.enabled !== false;
 }
 
-async function loadStageMap(
+export async function loadStageMap(
   connectionId: string,
   opts: {
     stageExternalId?: string;
@@ -170,7 +199,7 @@ async function loadStageMap(
   return null;
 }
 
-async function dispatchMapped(opts: {
+export async function dispatchMapped(opts: {
   eventId: string;
   metaEventName: string | null;
   ga4EventName: string | null;
@@ -262,7 +291,7 @@ async function dispatchMapped(opts: {
   return results;
 }
 
-async function persistEventLog(opts: {
+export async function persistEventLog(opts: {
   trckUserId: string | null;
   eventName: string;
   eventId: string;
@@ -348,36 +377,12 @@ async function processCrmDealWebhook(
     asRecord(root.deal) ||
     root;
 
-  let dealId =
-    (typeof document.id === "string" && document.id) ||
-    (typeof document.deal_id === "string" && document.deal_id) ||
-    null;
-  let stageId =
-    (typeof document.stage_id === "string" && document.stage_id) ||
-    (typeof document.deal_stage_id === "string" && document.deal_stage_id) ||
-    null;
-  let pipelineId =
-    (typeof document.pipeline_id === "string" && document.pipeline_id) ||
-    (typeof document.deal_pipeline_id === "string" &&
-      document.deal_pipeline_id) ||
-    null;
-  let dealStatus: CrmDealStatus | null = isCrmDealStatus(document.status)
-    ? document.status
-    : null;
+  let { dealId, stageId, pipelineId, dealStatus, value, contactIds } =
+    parseCrmDealFields(document);
 
   let email: string | null = null;
   let phone: string | null = null;
   let name: string | null = null;
-  let value: number | undefined;
-
-  if (typeof document.total_price === "number") value = document.total_price;
-  else if (typeof document.one_time_price === "number") {
-    value = document.one_time_price;
-  }
-
-  let contactIds = Array.isArray(document.contact_ids)
-    ? document.contact_ids.filter((x): x is string => typeof x === "string")
-    : [];
 
   const needsDealFetch =
     Boolean(dealId) &&
@@ -386,32 +391,13 @@ async function processCrmDealWebhook(
   if (needsDealFetch && dealId) {
     const deal = await getCrmDeal(conn, dealId);
     if (deal) {
-      dealId = typeof deal.id === "string" ? deal.id : dealId;
-      stageId =
-        (typeof deal.stage_id === "string" && deal.stage_id) || stageId;
-      pipelineId =
-        (typeof deal.pipeline_id === "string" && deal.pipeline_id) ||
-        pipelineId;
-      if (!dealStatus && isCrmDealStatus(deal.status)) {
-        dealStatus = deal.status;
-      }
-      if (typeof deal.total_price === "number") value = deal.total_price;
-      else if (typeof deal.one_time_price === "number") {
-        value = deal.one_time_price;
-      }
-      const ids = Array.isArray(deal.contact_ids)
-        ? deal.contact_ids.filter((x): x is string => typeof x === "string")
-        : contactIds;
-      if (ids.length) contactIds = ids;
-      if (ids[0] && !email) {
-        const contact = await getCrmContact(conn, ids[0]);
-        if (contact) {
-          const extracted = extractContactEmailPhone(contact);
-          email = extracted.email;
-          phone = extracted.phone;
-          name = extracted.name;
-        }
-      }
+      const fetched = parseCrmDealFields(deal);
+      dealId = fetched.dealId || dealId;
+      stageId = fetched.stageId || stageId;
+      pipelineId = fetched.pipelineId || pipelineId;
+      if (!dealStatus && fetched.dealStatus) dealStatus = fetched.dealStatus;
+      if (fetched.value != null) value = fetched.value;
+      if (fetched.contactIds.length) contactIds = fetched.contactIds;
     }
   }
 
@@ -493,32 +479,42 @@ async function processCrmDealWebhook(
       if (claim === "already_emitted") {
         stageDeduped = true;
       } else {
-        const eventName = map.meta_event_name || map.ga4_event_name || "Lead";
-        const results = await dispatchMapped({
-          eventId: stageEventId,
-          metaEventName: map.meta_event_name,
-          ga4EventName: map.ga4_event_name,
-          eventSourceUrl: null,
-          userData,
-          customData:
-            value != null
-              ? { value, currency: "BRL", content_type: "product" }
-              : undefined,
-          gaClientId: gaResolved.clientId,
-          gaClientIdSource: gaResolved.source,
-          gaIdentityMeta: gaResolved.meta,
-          gaSessionId: visitor?.ga_session_id,
-          gclid: attr.gclid,
-          wbraid: attr.wbraid,
-          gbraid: attr.gbraid,
-        });
-        await persistEventLog({
-          trckUserId,
-          eventName,
-          eventId: stageEventId,
-          visitor,
-          results,
-        });
+        try {
+          const eventName = map.meta_event_name || map.ga4_event_name || "Lead";
+          const results = await dispatchMapped({
+            eventId: stageEventId,
+            metaEventName: map.meta_event_name,
+            ga4EventName: map.ga4_event_name,
+            eventSourceUrl: null,
+            userData,
+            customData:
+              value != null
+                ? { value, currency: "BRL", content_type: "product" }
+                : undefined,
+            gaClientId: gaResolved.clientId,
+            gaClientIdSource: gaResolved.source,
+            gaIdentityMeta: gaResolved.meta,
+            gaSessionId: visitor?.ga_session_id,
+            gclid: attr.gclid,
+            wbraid: attr.wbraid,
+            gbraid: attr.gbraid,
+          });
+          await persistEventLog({
+            trckUserId,
+            eventName,
+            eventId: stageEventId,
+            visitor,
+            results,
+          });
+        } catch (err) {
+          await releaseDealStageEmit({
+            connectionId: conn.id,
+            dealExternalId: dealId,
+            pipelineExternalId: pipeKey,
+            stageExternalId: stageId,
+          });
+          throw err;
+        }
       }
     }
   }
@@ -542,33 +538,42 @@ async function processCrmDealWebhook(
       if (claim === "already_emitted") {
         statusDeduped = true;
       } else {
-        const eventName =
-          statusMap.meta_event_name || statusMap.ga4_event_name || "Lead";
-        const includeValue = dealStatus === "won" && value != null;
-        const results = await dispatchMapped({
-          eventId: statusEventId,
-          metaEventName: statusMap.meta_event_name,
-          ga4EventName: statusMap.ga4_event_name,
-          eventSourceUrl: null,
-          userData,
-          customData: includeValue
-            ? { value, currency: "BRL", content_type: "product" }
-            : undefined,
-          gaClientId: gaResolved.clientId,
-          gaClientIdSource: gaResolved.source,
-          gaIdentityMeta: gaResolved.meta,
-          gaSessionId: visitor?.ga_session_id,
-          gclid: attr.gclid,
-          wbraid: attr.wbraid,
-          gbraid: attr.gbraid,
-        });
-        await persistEventLog({
-          trckUserId,
-          eventName,
-          eventId: statusEventId,
-          visitor,
-          results,
-        });
+        try {
+          const eventName =
+            statusMap.meta_event_name || statusMap.ga4_event_name || "Lead";
+          const includeValue = dealStatus === "won" && value != null;
+          const results = await dispatchMapped({
+            eventId: statusEventId,
+            metaEventName: statusMap.meta_event_name,
+            ga4EventName: statusMap.ga4_event_name,
+            eventSourceUrl: null,
+            userData,
+            customData: includeValue
+              ? { value, currency: "BRL", content_type: "product" }
+              : undefined,
+            gaClientId: gaResolved.clientId,
+            gaClientIdSource: gaResolved.source,
+            gaIdentityMeta: gaResolved.meta,
+            gaSessionId: visitor?.ga_session_id,
+            gclid: attr.gclid,
+            wbraid: attr.wbraid,
+            gbraid: attr.gbraid,
+          });
+          await persistEventLog({
+            trckUserId,
+            eventName,
+            eventId: statusEventId,
+            visitor,
+            results,
+          });
+        } catch (err) {
+          await releaseDealStatusEmit({
+            connectionId: conn.id,
+            dealExternalId: dealId,
+            dealStatus,
+          });
+          throw err;
+        }
       }
     }
   }
@@ -655,75 +660,85 @@ async function processMktWebhook(
     return { ok: true, deduped: true, event_id: eventId };
   }
 
-  const match = await matchAndMergeVisitor({
-    email: contact.email,
-    phone: contact.phone,
-  });
-  const visitor = match.visitor;
-  const attr = resolveConversionAttribution(visitor);
-  const trckUserId = visitor?.trck_user_id ?? null;
-  const gaResolved = await resolveAndPersistGaClientId({
-    stored: visitor?.ga_client_id,
-    storedSource: visitor?.ga_client_id_source,
-    storedBrowserGa: visitor?.browser_ga_client_id,
-    trckUserId,
-    visitorCreatedAt: visitor?.created_at,
-  });
-  const eventName = map.meta_event_name || map.ga4_event_name || "Lead";
+  try {
+    const match = await matchAndMergeVisitor({
+      email: contact.email,
+      phone: contact.phone,
+    });
+    const visitor = match.visitor;
+    const attr = resolveConversionAttribution(visitor);
+    const trckUserId = visitor?.trck_user_id ?? null;
+    const gaResolved = await resolveAndPersistGaClientId({
+      stored: visitor?.ga_client_id,
+      storedSource: visitor?.ga_client_id_source,
+      storedBrowserGa: visitor?.browser_ga_client_id,
+      trckUserId,
+      visitorCreatedAt: visitor?.created_at,
+    });
+    const eventName = map.meta_event_name || map.ga4_event_name || "Lead";
 
-  const results = await dispatchMapped({
-    eventId,
-    metaEventName: map.meta_event_name,
-    ga4EventName: map.ga4_event_name,
-    userData: {
-      email: contact.email ?? visitor?.email,
-      emailHash: hashEmail(contact.email) ?? visitor?.email_hash,
-      phoneHash: hashPhone(contact.phone) ?? visitor?.phone_hash,
-      firstNameHash:
-        hashPii(contact.name?.split(/\s+/)[0]) ?? visitor?.first_name_hash,
-      lastNameHash:
-        hashPii(contact.name?.split(/\s+/).slice(1).join(" ")) ??
-        visitor?.last_name_hash,
-      cityHash: visitor?.city_hash,
-      stateHash: visitor?.state_hash,
-      countryHash: visitor?.country_hash,
-      externalId: trckUserId,
-      externalIdHash:
-        visitor?.external_id_hash ?? (trckUserId ? hashPii(trckUserId) : null),
-      fbp: attr.fbp,
-      fbc: attr.fbc,
-      ctwaClid: attr.ctwa_clid,
-      clientIpAddress: visitor?.ip,
-      clientUserAgent: visitor?.user_agent,
-    },
-    gaClientId: gaResolved.clientId,
-    gaClientIdSource: gaResolved.source,
-    gaIdentityMeta: gaResolved.meta,
-    gaSessionId: visitor?.ga_session_id,
-    gclid: attr.gclid,
-    wbraid: attr.wbraid,
-    gbraid: attr.gbraid,
-  });
+    const results = await dispatchMapped({
+      eventId,
+      metaEventName: map.meta_event_name,
+      ga4EventName: map.ga4_event_name,
+      userData: {
+        email: contact.email ?? visitor?.email,
+        emailHash: hashEmail(contact.email) ?? visitor?.email_hash,
+        phoneHash: hashPhone(contact.phone) ?? visitor?.phone_hash,
+        firstNameHash:
+          hashPii(contact.name?.split(/\s+/)[0]) ?? visitor?.first_name_hash,
+        lastNameHash:
+          hashPii(contact.name?.split(/\s+/).slice(1).join(" ")) ??
+          visitor?.last_name_hash,
+        cityHash: visitor?.city_hash,
+        stateHash: visitor?.state_hash,
+        countryHash: visitor?.country_hash,
+        externalId: trckUserId,
+        externalIdHash:
+          visitor?.external_id_hash ?? (trckUserId ? hashPii(trckUserId) : null),
+        fbp: attr.fbp,
+        fbc: attr.fbc,
+        ctwaClid: attr.ctwa_clid,
+        clientIpAddress: visitor?.ip,
+        clientUserAgent: visitor?.user_agent,
+      },
+      gaClientId: gaResolved.clientId,
+      gaClientIdSource: gaResolved.source,
+      gaIdentityMeta: gaResolved.meta,
+      gaSessionId: visitor?.ga_session_id,
+      gclid: attr.gclid,
+      wbraid: attr.wbraid,
+      gbraid: attr.gbraid,
+    });
 
-  await persistEventLog({
-    trckUserId,
-    eventName,
-    eventId,
-    visitor,
-    results,
-  });
-  await upsertDealState(
-    conn.id,
-    contact.dealId,
-    stageKey,
-    hashEmail(contact.email)
-  );
+    await persistEventLog({
+      trckUserId,
+      eventName,
+      eventId,
+      visitor,
+      results,
+    });
+    await upsertDealState(
+      conn.id,
+      contact.dealId,
+      stageKey,
+      hashEmail(contact.email)
+    );
 
-  return {
-    ok: true,
-    event_id: eventId,
-    match: { status: match.match_status, reason: match.match_reason },
-  };
+    return {
+      ok: true,
+      event_id: eventId,
+      match: { status: match.match_status, reason: match.match_reason },
+    };
+  } catch (err) {
+    await releaseDealStageEmit({
+      connectionId: conn.id,
+      dealExternalId: contact.dealId,
+      pipelineExternalId: "mkt",
+      stageExternalId: stageKey,
+    });
+    throw err;
+  }
 }
 
 async function upsertDealState(

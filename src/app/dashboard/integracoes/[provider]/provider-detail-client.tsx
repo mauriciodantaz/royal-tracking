@@ -10,6 +10,7 @@ import {
   deleteConnection,
   deleteEventMapping,
   reconfigureWhatsappWebhookAction,
+  replayOrphanCrmEmitsAction,
   saveRdStageMapsAction,
   setPipelineEnabledAction,
   syncRdFunnelsAction,
@@ -1032,6 +1033,33 @@ export function ProviderDetailClient({
                     >
                       Sincronizar funis
                     </Button>
+                    {mod.provider === "rdstation_crm" ||
+                    mod.provider === "rdstation_mkt" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={pending || !c.oauthConnected}
+                        onClick={() =>
+                          start(async () => {
+                            const r = await replayOrphanCrmEmitsAction(c.id);
+                            if (r.ok) {
+                              toast.success(
+                                `Reenvio: ${r.sent} enviados, ${r.skipped} pulados, ${r.failed} falhas (${r.attempted} neste lote)`
+                              );
+                              if (r.errors.length) {
+                                toast.error(r.errors.slice(0, 3).join(" · "));
+                              }
+                              refresh();
+                            } else {
+                              toast.error(r.error);
+                            }
+                          })
+                        }
+                      >
+                        Reenviar órfãos
+                      </Button>
+                    ) : null}
                   </div>
                 ) : null}
 

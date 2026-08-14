@@ -8,6 +8,7 @@ import type {
   IntegrationEventMappingRow,
   Json,
 } from "@/lib/db/types";
+import { buildListConnectionsQuery } from "@/lib/integrations/list-connections-query";
 import type { IntegrationProvider } from "@/lib/integrations/registry";
 
 export async function listConnections(opts?: {
@@ -16,23 +17,8 @@ export async function listConnections(opts?: {
   direction?: string;
 }): Promise<IntegrationConnectionRow[]> {
   await ensureDbReady();
-  const clauses: string[] = [];
-  const params: unknown[] = [];
-  if (opts?.provider) {
-    params.push(opts.provider);
-    clauses.push(`provider = $${params.length}`);
-  }
-  if (opts?.activeOnly) {
-    clauses.push(`active = true`);
-  }
-  if (opts?.direction) {
-    params.push(opts.direction);
-    clauses.push(`(direction = $${params.length} or direction = 'both')`);
-  }
-  const where = clauses.length ? `where ${clauses.join(" and ")}` : "";
-  const result = await query<IntegrationConnectionRow>(
-    `select * from integration_connections ${where} order by provider, label`
-  );
+  const { text, params } = buildListConnectionsQuery(opts);
+  const result = await query<IntegrationConnectionRow>(text, params);
   return result.rows;
 }
 
