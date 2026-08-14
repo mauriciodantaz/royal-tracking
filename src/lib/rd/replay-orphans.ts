@@ -106,7 +106,10 @@ async function replayCrmDeal(opts: {
   if (!conn) return "skipped";
 
   const deal = await getCrmDeal(conn, opts.dealId);
-  const parsed = deal ? parseCrmDealFields(deal) : null;
+  if (!deal) {
+    throw new Error("crm_deal_unavailable");
+  }
+  const parsed = parseCrmDealFields(deal);
   let email: string | null = null;
   let phone: string | null = null;
   let name: string | null = null;
@@ -163,7 +166,9 @@ async function replayMktConverted(opts: {
   if (!conn) return "skipped";
 
   const raw = await getMktContact(conn, opts.contactKey);
-  if (!raw) return "skipped";
+  if (!raw) {
+    throw new Error("mkt_contact_unavailable");
+  }
   const contact = extractMktContact(raw);
   const ctx = await buildVisitorContext({
     email: contact.email,
@@ -196,7 +201,8 @@ async function replayMktConverted(opts: {
 }
 
 export async function replayOrphanCrmEmits(
-  connectionId: string
+  connectionId: string,
+  opts?: { limit?: number }
 ): Promise<ReplayOrphansResult> {
   await ensureDbReady();
   const conn = await getConnection(connectionId);
@@ -227,8 +233,17 @@ export async function replayOrphanCrmEmits(
     [connectionId]
   );
 
+  const limit = opts?.limit && opts.limit > 0 ? opts.limit : undefined;
+  let stageRows = stageOrphans.rows;
+  let statusRows = statusOrphans.rows;
+  if (limit != null) {
+    stageRows = stageRows.slice(0, limit);
+    const remaining = limit - stageRows.length;
+    statusRows = remaining > 0 ? statusRows.slice(0, remaining) : [];
+  }
+
   const result: ReplayOrphansResult = {
-    attempted: stageOrphans.rows.length + statusOrphans.rows.length,
+    attempted: stageRows.length + statusRows.length,
     sent: 0,
     skipped: 0,
     failed: 0,
@@ -239,7 +254,7 @@ export async function replayOrphanCrmEmits(
     if (result.errors.length < 12) result.errors.push(msg);
   };
 
-  for (const row of stageOrphans.rows) {
+  for (const row of stageRows) {
     try {
       if (row.pipeline_external_id === "mkt") {
         const lifecycle = row.stage_external_id.replace(/^mkt:/, "");
@@ -285,7 +300,7 @@ export async function replayOrphanCrmEmits(
     }
   }
 
-  for (const row of statusOrphans.rows) {
+  for (const row of statusRows) {
     try {
       if (!isCrmDealStatus(row.deal_status)) {
         result.skipped += 1;

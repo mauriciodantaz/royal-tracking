@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - CRM/Pipedrive stage and won/lost webhooks now pass query params when listing Meta/GA4 destinations, so events actually fan out instead of dying with Postgres `42P02` after the emit is claimed.
+- Replay of CRM/MKT orphans fails (and leaves the emit) when the deal/contact API is unavailable, instead of writing an empty `events_log` row that blocks a later retry.
 
 ## [0.13.0] - 2026-08-13
 
