@@ -583,7 +583,7 @@ export async function replayOrphanCrmEmitsAction(
     ) {
       return { ok: false, error: "Conexão RD inválida" };
     }
-    const result = await replayOrphanCrmEmits(connectionId);
+    const result = await replayOrphanCrmEmits(connectionId, { limit: 40 });
     await auditLog({
       actorUserId: actor.id,
       action: "integration.crm_orphan_replay",

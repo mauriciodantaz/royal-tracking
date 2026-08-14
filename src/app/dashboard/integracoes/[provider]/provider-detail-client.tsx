@@ -1045,7 +1045,7 @@ export function ProviderDetailClient({
                             const r = await replayOrphanCrmEmitsAction(c.id);
                             if (r.ok) {
                               toast.success(
-                                `Reenvio: ${r.sent} enviados, ${r.skipped} pulados, ${r.failed} falhas (${r.attempted} órfãos)`
+                                `Reenvio: ${r.sent} enviados, ${r.skipped} pulados, ${r.failed} falhas (${r.attempted} neste lote)`
                               );
                               if (r.errors.length) {
                                 toast.error(r.errors.slice(0, 3).join(" · "));
