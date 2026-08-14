@@ -1,7 +1,10 @@
+# Dependabot lê este arquivo na default branch (`main`), mas as PRs
+# devem abrir em `dev`: main só recebe promoção beta → stable.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: weekly
       day: monday
@@ -9,12 +12,30 @@ updates:
     labels:
       - "dependencies"
       - "release:hotfix"
+    groups:
+      tailwind:
+        patterns:
+          - "tailwindcss"
+          - "@tailwindcss/*"
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+    ignore:
+      # Imagem é node:22; major 26 quebra o alinhamento com o runtime.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: monthly
     open-pull-requests-limit: 3
     labels:
       - "dependencies"
       - "release:none"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
