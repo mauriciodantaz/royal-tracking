@@ -38,4 +38,25 @@ describe("buildCapiPayload", () => {
     assert.equal(event.action_source, "website");
     assert.equal(event.messaging_channel, undefined);
   });
+
+  it("strips GA4 items from Meta custom_data", () => {
+    const body = buildCapiPayload({
+      eventName: "Purchase",
+      eventId: "evt_buy",
+      userData: { emailHash: "em" },
+      customData: {
+        value: 10,
+        currency: "BRL",
+        content_ids: ["sku"],
+        content_name: "Tecido",
+        content_type: "product",
+        items: [{ item_id: "sku", item_name: "Tecido", quantity: 1, price: 10 }],
+      },
+    });
+    const event = (body.data as Record<string, unknown>[])[0]!;
+    const custom = event.custom_data as Record<string, unknown>;
+    assert.equal(custom.value, 10);
+    assert.deepEqual(custom.content_ids, ["sku"]);
+    assert.equal(custom.items, undefined);
+  });
 });

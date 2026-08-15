@@ -175,6 +175,8 @@ export async function processPurchaseEvent(opts: {
     gclid: attr.gclid,
     wbraid: attr.wbraid,
     gbraid: attr.gbraid,
+    transactionId: purchase.transaction_id,
+    gaUserId: trckUserId,
   });
 
   const now = new Date().toISOString();

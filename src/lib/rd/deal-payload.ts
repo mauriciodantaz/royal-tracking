@@ -1,3 +1,9 @@
+import {
+  parseCrmProductList,
+  parseNumeric,
+  type CrmDealProduct,
+} from "@/lib/crm/sale-payload";
+
 export type CrmDealStatus = "won" | "lost";
 
 export function asRecord(v: unknown): Record<string, unknown> | null {
@@ -30,6 +36,8 @@ export function parseCrmDealFields(document: Record<string, unknown>): {
   dealStatus: CrmDealStatus | null;
   value: number | undefined;
   contactIds: string[];
+  dealName: string | null;
+  products: CrmDealProduct[];
 } {
   const dealId = stringId(document.id) || stringId(document.deal_id);
   const stageId =
@@ -42,19 +50,33 @@ export function parseCrmDealFields(document: Record<string, unknown>): {
     nestedId(document, "deal_pipeline");
   const dealStatus = isCrmDealStatus(document.status) ? document.status : null;
 
-  let value: number | undefined;
-  if (typeof document.total_price === "number") value = document.total_price;
-  else if (typeof document.one_time_price === "number") {
-    value = document.one_time_price;
-  } else if (typeof document.amount_total === "number") {
-    value = document.amount_total;
-  } else if (typeof document.amount_unique === "number") {
-    value = document.amount_unique;
-  }
+  const value =
+    parseNumeric(document.total_price) ??
+    parseNumeric(document.one_time_price) ??
+    parseNumeric(document.amount_total) ??
+    parseNumeric(document.amount_unique);
 
   const contactIds = Array.isArray(document.contact_ids)
     ? document.contact_ids.filter((x): x is string => typeof x === "string")
     : [];
 
-  return { dealId, stageId, pipelineId, dealStatus, value, contactIds };
+  const dealName =
+    (typeof document.name === "string" && document.name.trim()) ||
+    (typeof document.title === "string" && document.title.trim()) ||
+    null;
+
+  const products = parseCrmProductList(
+    document.deal_products ?? document.products
+  );
+
+  return {
+    dealId,
+    stageId,
+    pipelineId,
+    dealStatus,
+    value,
+    contactIds,
+    dealName,
+    products,
+  };
 }

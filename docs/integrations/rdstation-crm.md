@@ -79,17 +79,21 @@ Ganho e perda **não** usam webhook separado: chegam em `crm_deal_created` / `cr
 
 | Status | Seed padrão Meta | Seed padrão GA4 | Dedup |
 |---|---|---|---|
-| `won` | `Purchase` | `purchase` (com `value` se houver preço) | uma vez por deal |
+| `won` | `Purchase` | `purchase` (value + `items` do deal) | uma vez por deal |
 | `lost` | (vazio) | (vazio) | uma vez por deal |
 
 `event_id` de status: `sha256(rdcrm:deal:{dealId}:status:{won|lost})` — **independente** do emit por estágio (os dois podem disparar no ciclo de vida do deal).
 
 ## Identidade e deduplicação
 
-- Contato: o webhook só traz IDs; o sistema busca `GET /deals/{id}` + `GET /contacts/{id}` para e-mail, telefone e nome, depois casa com `visitors` / leads da 1ª visita
+- Contato: o webhook só traz IDs; o sistema busca `GET /deals/{id}` + `GET /contacts/{id}` (+ `GET /deals/{id}/products`) para e-mail, telefone, nome, valor e produtos
+- Se o contato não casar com um visitante do snippet, **cria** um visitante (e-mail/telefone) ou emite GA4 com `client_id` sintético do deal — o Measurement Protocol não é pulado
+- `purchase` no GA4 leva `transaction_id` = id do deal, `items` (produtos ou fallback com o nome da negociação) e `user_id` = `trck_user_id` quando houver
+- Won também grava linha em `purchases` (`rdcrm:{dealId}`)
 - Reutiliza `fbp`, `fbc`, `ga_client_id`, UTMs, IP e UA quando houver match
 - **Estágio:** uma vez por `deal_id + pipeline_id + stage_id` (`rd_deal_stage_emits`)
 - **Status won/lost:** uma vez por `deal_id + status` (`rd_deal_status_emits`)
+- **Reenviar órfãos** na UI também reenvia GA4 que ficou `skipped` por `missing_ga_client_id`
 - Refresh OAuth automático enquanto o `refresh_token` for válido; se falhar, a UI mostra aviso de reautorização
 
 ## Remover conexão

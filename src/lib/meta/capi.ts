@@ -35,6 +35,13 @@ export type MetaCustomData = {
   content_ids?: string[];
   content_name?: string;
   content_type?: string;
+  /** GA4 ecommerce items — stripped from Meta CAPI custom_data. */
+  items?: Array<{
+    item_id: string;
+    item_name: string;
+    quantity?: number;
+    price?: number;
+  }>;
 };
 
 export type MetaEventInput = {
@@ -48,6 +55,16 @@ export type MetaEventInput = {
   /** Defaults to website (site/forms/purchase). Use business_messaging for CTWA. */
   actionSource?: MetaActionSource;
 };
+
+function metaCustomDataOnly(c: MetaCustomData): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (c.value != null) out.value = c.value;
+  if (c.currency) out.currency = c.currency;
+  if (c.content_ids) out.content_ids = c.content_ids;
+  if (c.content_name) out.content_name = c.content_name;
+  if (c.content_type) out.content_type = c.content_type;
+  return out;
+}
 
 function buildUserData(u: MetaUserData): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -98,7 +115,7 @@ export function buildCapiPayload(input: MetaEventInput) {
     event.event_source_url = input.eventSourceUrl;
   }
   if (input.customData) {
-    event.custom_data = input.customData;
+    event.custom_data = metaCustomDataOnly(input.customData);
   }
 
   const body: Record<string, unknown> = {

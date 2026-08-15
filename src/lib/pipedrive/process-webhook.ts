@@ -1,30 +1,23 @@
 import "server-only";
 
+import { dispatchMapped, persistEventLog } from "@/lib/crm/dispatch";
+import { persistCrmWonPurchase } from "@/lib/crm/persist-won";
+import {
+  buildCrmSaleCustomData,
+  parseCrmProductList,
+  parseNumeric,
+} from "@/lib/crm/sale-payload";
 import { ensureDbReady } from "@/lib/db/boot";
 import { query, queryOne } from "@/lib/db/pool";
 import type { IntegrationConnectionRow } from "@/lib/db/types";
-import { listConnections } from "@/lib/integrations/connections";
-import {
-  sendToConnection,
-  type OutboundResult,
-} from "@/lib/integrations/outbound";
 import {
   extractPersonEmailPhone,
   getDeal,
+  getDealProducts,
   getPerson,
 } from "@/lib/pipedrive/api";
-import {
-  classifyChannel,
-  serverFlagsFromDispatch,
-} from "@/lib/tracking/channel";
-import type {
-  GaClientIdSource,
-  GaIdentityMeta,
-} from "@/lib/tracking/ga-client-id";
-import { resolveConversionAttribution } from "@/lib/tracking/attribution";
-import { hashEmail, hashPhone, hashPii, sha256 } from "@/lib/tracking/hash";
-import { matchAndMergeVisitor } from "@/lib/tracking/match";
-import { resolveAndPersistGaClientId } from "@/lib/tracking/persist-ga-client-id";
+import { hashEmail, sha256 } from "@/lib/tracking/hash";
+import { ensureVisitorFromPii } from "@/lib/tracking/ensure-visitor-from-pii";
 
 export type ProcessPipedriveResult =
   | {
@@ -205,7 +198,7 @@ async function isPipelineEnabled(
   return row.enabled !== false;
 }
 
-async function loadStageMap(
+export async function loadStageMap(
   connectionId: string,
   opts: { stageExternalId?: string; dealStatus?: DealStatus }
 ): Promise<{
@@ -227,153 +220,6 @@ async function loadStageMap(
     );
   }
   return null;
-}
-
-async function dispatchMapped(opts: {
-  eventId: string;
-  metaEventName: string | null;
-  ga4EventName: string | null;
-  userData: Parameters<typeof sendToConnection>[1]["userData"];
-  customData?: Parameters<typeof sendToConnection>[1]["customData"];
-  gaClientId?: string | null;
-  gaClientIdSource?: GaClientIdSource | null;
-  gaIdentityMeta?: GaIdentityMeta | null;
-  gaSessionId?: string | null;
-  eventSourceUrl?: string | null;
-  gclid?: string | null;
-  wbraid?: string | null;
-  gbraid?: string | null;
-}): Promise<OutboundResult[]> {
-  const results: OutboundResult[] = [];
-  if (opts.metaEventName) {
-    const metas = await listConnections({
-      provider: "meta_pixel",
-      activeOnly: true,
-    });
-    for (const dest of metas) {
-      results.push(
-        await sendToConnection(dest, {
-          eventId: opts.eventId,
-          eventName: opts.metaEventName,
-          eventSourceUrl: opts.eventSourceUrl,
-          userData: opts.userData,
-          customData: opts.customData,
-          gaClientId: opts.gaClientId,
-          gaClientIdSource: opts.gaClientIdSource,
-          gaIdentityMeta: opts.gaIdentityMeta,
-          gaSessionId: opts.gaSessionId,
-          gclid: opts.gclid,
-          wbraid: opts.wbraid,
-          gbraid: opts.gbraid,
-        })
-      );
-    }
-  }
-  if (opts.ga4EventName) {
-    const ga4s = await listConnections({
-      provider: "ga4",
-      activeOnly: true,
-    });
-    for (const dest of ga4s) {
-      results.push(
-        await sendToConnection(dest, {
-          eventId: opts.eventId,
-          eventName: opts.ga4EventName,
-          eventSourceUrl: opts.eventSourceUrl,
-          userData: opts.userData,
-          customData: opts.customData,
-          gaClientId: opts.gaClientId,
-          gaClientIdSource: opts.gaClientIdSource,
-          gaIdentityMeta: opts.gaIdentityMeta,
-          gaSessionId: opts.gaSessionId,
-          gclid: opts.gclid,
-          wbraid: opts.wbraid,
-          gbraid: opts.gbraid,
-        })
-      );
-    }
-  }
-  const adsEventName = opts.metaEventName || opts.ga4EventName;
-  if (adsEventName) {
-    const ads = await listConnections({
-      provider: "google_ads",
-      activeOnly: true,
-    });
-    for (const dest of ads) {
-      results.push(
-        await sendToConnection(dest, {
-          eventId: opts.eventId,
-          eventName: adsEventName,
-          eventSourceUrl: opts.eventSourceUrl,
-          userData: opts.userData,
-          customData: opts.customData,
-          gaClientId: opts.gaClientId,
-          gaClientIdSource: opts.gaClientIdSource,
-          gaIdentityMeta: opts.gaIdentityMeta,
-          gaSessionId: opts.gaSessionId,
-          gclid: opts.gclid,
-          wbraid: opts.wbraid,
-          gbraid: opts.gbraid,
-        })
-      );
-    }
-  }
-  return results;
-}
-
-async function persistEventLog(opts: {
-  trckUserId: string | null;
-  eventName: string;
-  eventId: string;
-  visitor: Awaited<ReturnType<typeof matchAndMergeVisitor>>["visitor"];
-  results: OutboundResult[];
-}): Promise<"inserted" | "deduped"> {
-  const metaResults = opts.results.filter((r) => r.provider === "meta_pixel");
-  const ga4Results = opts.results.filter((r) => r.provider === "ga4");
-  const { serverMeta, serverGa4 } = serverFlagsFromDispatch(opts.results);
-  const channelClass = classifyChannel({
-    webMeta: false,
-    webGa4: false,
-    serverMeta,
-    serverGa4,
-  });
-
-  const inserted = await queryOne<{ id: string }>(
-    `insert into events_log (
-       trck_user_id, event_name, event_id,
-       utm_source, utm_medium, utm_campaign, utm_term, utm_content,
-       payload_meta, response_meta, payload_ga4, response_ga4,
-       ip, geo_country, geo_region, geo_city,
-       ingest_path, web_meta, web_ga4, server_meta, server_ga4, channel_class
-     ) values (
-       $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13,$14,$15,$16,
-       'webhook', false, false, $17, $18, $19
-     )
-     on conflict (event_id) do nothing
-     returning id`,
-    [
-      opts.trckUserId,
-      opts.eventName,
-      opts.eventId,
-      opts.visitor?.utm_source ?? null,
-      opts.visitor?.utm_medium ?? null,
-      opts.visitor?.utm_campaign ?? null,
-      opts.visitor?.utm_term ?? null,
-      opts.visitor?.utm_content ?? null,
-      JSON.stringify(metaResults.map((r) => r.payload)),
-      JSON.stringify(metaResults),
-      JSON.stringify(ga4Results.map((r) => r.payload)),
-      JSON.stringify(ga4Results),
-      opts.visitor?.ip ?? null,
-      opts.visitor?.geo_country ?? null,
-      opts.visitor?.geo_region ?? null,
-      opts.visitor?.geo_city ?? null,
-      serverMeta,
-      serverGa4,
-      channelClass,
-    ]
-  );
-  return inserted ? "inserted" : "deduped";
 }
 
 async function upsertDealState(
@@ -646,9 +492,14 @@ async function emitPipedriveAfterClaim(opts: {
   let email: string | null = null;
   let phone: string | null = null;
   let name: string | null = null;
-  let value: number | undefined;
-
-  if (typeof data.value === "number") value = data.value;
+  let value = parseNumeric(data.value);
+  let currency =
+    typeof data.currency === "string" ? data.currency : null;
+  let dealName =
+    (typeof data.title === "string" && data.title) ||
+    (typeof data.name === "string" && data.name) ||
+    null;
+  let products = parseCrmProductList(data.products);
 
   const deal = await getDeal(conn, dealId);
   if (deal) {
@@ -658,12 +509,21 @@ async function emitPipedriveAfterClaim(opts: {
     if (!dealStatus && isDealStatus(deal.status)) {
       dealStatus = deal.status;
     }
-    if (typeof deal.value === "number") value = deal.value;
+    const dealValue = parseNumeric(deal.value);
+    if (dealValue != null) value = dealValue;
+    if (typeof deal.currency === "string" && deal.currency) {
+      currency = deal.currency;
+    }
+    if (typeof deal.title === "string" && deal.title) dealName = deal.title;
     const personName =
       deal.person_name && typeof deal.person_name === "string"
         ? deal.person_name
         : null;
     if (personName) name = personName;
+  }
+
+  if (products.length === 0) {
+    products = parseCrmProductList(await getDealProducts(conn, dealId));
   }
 
   if (personId) {
@@ -676,37 +536,20 @@ async function emitPipedriveAfterClaim(opts: {
     }
   }
 
-  const match = await matchAndMergeVisitor({ email, phone });
-  const visitor = match.visitor;
-  const attr = resolveConversionAttribution(visitor);
-  const trckUserId = visitor?.trck_user_id ?? null;
-  const gaResolved = await resolveAndPersistGaClientId({
-    stored: visitor?.ga_client_id,
-    storedSource: visitor?.ga_client_id_source,
-    storedBrowserGa: visitor?.browser_ga_client_id,
-    trckUserId,
-    visitorCreatedAt: visitor?.created_at,
+  const identity = await ensureVisitorFromPii({
+    email,
+    phone,
+    name,
+    dealId,
   });
-  const userData: Parameters<typeof sendToConnection>[1]["userData"] = {
-    email: email ?? visitor?.email,
-    emailHash: hashEmail(email) ?? visitor?.email_hash,
-    phoneHash: hashPhone(phone) ?? visitor?.phone_hash,
-    firstNameHash: hashPii(name?.split(/\s+/)[0]) ?? visitor?.first_name_hash,
-    lastNameHash:
-      hashPii(name?.split(/\s+/).slice(1).join(" ")) ??
-      visitor?.last_name_hash,
-    cityHash: visitor?.city_hash,
-    stateHash: visitor?.state_hash,
-    countryHash: visitor?.country_hash,
-    externalId: trckUserId,
-    externalIdHash:
-      visitor?.external_id_hash ?? (trckUserId ? hashPii(trckUserId) : null),
-    fbp: attr.fbp,
-    fbc: attr.fbc,
-    ctwaClid: attr.ctwa_clid,
-    clientIpAddress: visitor?.ip,
-    clientUserAgent: visitor?.user_agent,
-  };
+  const { visitor, trckUserId, gaResolved, attr, match, userData } = identity;
+  const customData = buildCrmSaleCustomData({
+    dealId,
+    dealName,
+    value,
+    currency,
+    products,
+  });
 
   if (stageClaimed && stageEventIdValue && stageMap) {
     const eventName =
@@ -717,10 +560,7 @@ async function emitPipedriveAfterClaim(opts: {
       ga4EventName: stageMap.ga4_event_name,
       eventSourceUrl: null,
       userData,
-      customData:
-        value != null
-          ? { value, currency: "BRL", content_type: "product" }
-          : undefined,
+      customData,
       gaClientId: gaResolved.clientId,
       gaClientIdSource: gaResolved.source,
       gaIdentityMeta: gaResolved.meta,
@@ -728,6 +568,8 @@ async function emitPipedriveAfterClaim(opts: {
       gclid: attr.gclid,
       wbraid: attr.wbraid,
       gbraid: attr.gbraid,
+      transactionId: dealId,
+      gaUserId: trckUserId,
     });
     await persistEventLog({
       trckUserId,
@@ -741,16 +583,13 @@ async function emitPipedriveAfterClaim(opts: {
   if (statusClaimed && statusEventIdValue && statusMap && dealStatus) {
     const eventName =
       statusMap.meta_event_name || statusMap.ga4_event_name || "Lead";
-    const includeValue = dealStatus === "won" && value != null;
     const results = await dispatchMapped({
       eventId: statusEventIdValue,
       metaEventName: statusMap.meta_event_name,
       ga4EventName: statusMap.ga4_event_name,
       eventSourceUrl: null,
       userData,
-      customData: includeValue
-        ? { value, currency: "BRL", content_type: "product" }
-        : undefined,
+      customData: dealStatus === "won" ? customData : undefined,
       gaClientId: gaResolved.clientId,
       gaClientIdSource: gaResolved.source,
       gaIdentityMeta: gaResolved.meta,
@@ -758,6 +597,8 @@ async function emitPipedriveAfterClaim(opts: {
       gclid: attr.gclid,
       wbraid: attr.wbraid,
       gbraid: attr.gbraid,
+      transactionId: dealId,
+      gaUserId: trckUserId,
     });
     await persistEventLog({
       trckUserId,
@@ -766,6 +607,18 @@ async function emitPipedriveAfterClaim(opts: {
       visitor,
       results,
     });
+    if (dealStatus === "won") {
+      await persistCrmWonPurchase({
+        provider: "pipedrive",
+        dealId,
+        eventId: statusEventIdValue,
+        email,
+        phone,
+        visitor,
+        customData,
+        gaClientId: gaResolved.clientId,
+      });
+    }
   }
 
   await upsertDealState(

@@ -34,6 +34,8 @@ export type DispatchInput = {
   wbraid?: string | null;
   gbraid?: string | null;
   conversionDateTime?: string | null;
+  transactionId?: string | null;
+  gaUserId?: string | null;
 };
 
 export type DispatchResult = {
@@ -71,6 +73,8 @@ export async function dispatchEvent(
       wbraid: input.wbraid,
       gbraid: input.gbraid,
       conversionDateTime: input.conversionDateTime,
+      transactionId: input.transactionId,
+      gaUserId: input.gaUserId,
     };
     results.push(await sendToConnection(t.dest, outbound));
   }

@@ -6,7 +6,7 @@ Conecte o Pipedrive com **OAuth 2.0** (Private app no Developer Hub). Após auto
 
 - Conta Pipedrive (sandbox de developer ou produção)
 - App **Private** no [Developer Hub](https://pipedrive.readme.io/docs/marketplace-creating-a-proper-app)
-- Escopos mínimos no app: `base`, `deals:read`, `contacts:read`, `webhooks:full` (e admin se o Hub exigir para webhooks do app)
+- Escopos mínimos no app: `base`, `deals:read`, `products:read`, `contacts:read`, `webhooks:full` (e admin se o Hub exigir para webhooks do app)
 
 ## Campos no Royal Tracking
 
@@ -42,7 +42,9 @@ Conecte o Pipedrive com **OAuth 2.0** (Private app no Developer Hub). Após auto
 - Disparo **só na primeira vez** que a negociação chega em um estágio (dedup por `deal + pipeline + stage`).
 - Funil com toggle **Desativado** na UI: etapas ficam recolhidas e o webhook **não** emite Meta/GA4 daquele funil (won/lost globais continuam).
 - Won/lost têm dedup separado.
-- Match do visitante por **e-mail ou telefone** da person do deal (enrich via API só quando o claim de emit vence; retries/duplicatas são descartados sem consultar a API).
+- Match do visitante por **e-mail ou telefone** da person do deal (enrich via API só quando o claim de emit vence; retries/duplicatas são descartados sem consultar a API). Sem match, cria visitante ou emite GA4 com `client_id` sintético do deal.
+- Won busca `GET /deals/{id}/products`, manda `items` no GA4 (`transaction_id` = id do deal) e grava `purchases` (`pipedrive:{dealId}`).
+- **Reenviar órfãos** reenvia emits sem `events_log` e GA4 `skipped` por falta de `client_id`.
 - Alterações de deal que **não** mudam estágio nem status → ignoradas sem chamada à API.
 
 ## Desinstalação
