@@ -119,6 +119,7 @@ async function replayPipedriveDeal(opts: {
     eventId: opts.eventId,
     visitor: identity.visitor,
     results,
+    ingestPath: conn.provider,
     replaceExisting: opts.replaceExisting,
   });
   if (opts.persistWon && customData) {

@@ -577,6 +577,7 @@ async function emitPipedriveAfterClaim(opts: {
       eventId: stageEventIdValue,
       visitor,
       results,
+      ingestPath: conn.provider,
     });
   }
 
@@ -606,6 +607,7 @@ async function emitPipedriveAfterClaim(opts: {
       eventId: statusEventIdValue,
       visitor,
       results,
+      ingestPath: conn.provider,
     });
     if (dealStatus === "won") {
       await persistCrmWonPurchase({

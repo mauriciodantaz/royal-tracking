@@ -221,7 +221,7 @@ export async function processPurchaseEvent(opts: {
        ingest_path, web_meta, web_ga4, server_meta, server_ga4, channel_class
      ) values (
        $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13,$14,$15,$16,
-       'webhook', false, false, $17, $18, $19
+       $17, false, false, $18, $19, $20
      )
      on conflict (event_id) do nothing`,
     [
@@ -241,6 +241,7 @@ export async function processPurchaseEvent(opts: {
       visitor?.geo_country ?? null,
       visitor?.geo_region ?? null,
       visitor?.geo_city ?? null,
+      opts.sourceProvider,
       serverMeta,
       serverGa4,
       channelClass,

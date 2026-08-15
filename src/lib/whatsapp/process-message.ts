@@ -405,7 +405,7 @@ export async function processNormalizedWhatsappMessage(opts: {
          $1,'Lead',$2,$3,$4,$5,$6,$7,
          $8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb,
          $12,$13,$14,$15,
-         'webhook',false,false,$16,$17,$18
+         $16,false,false,$17,$18,$19
        )
        on conflict (event_id) do nothing`,
       [
@@ -424,6 +424,7 @@ export async function processNormalizedWhatsappMessage(opts: {
         visitor?.geo_country ?? null,
         visitor?.geo_region ?? null,
         visitor?.geo_city ?? null,
+        conn.provider,
         serverMeta,
         serverGa4,
         channelClass,

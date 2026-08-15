@@ -353,6 +353,7 @@ async function processCrmDealWebhook(
             eventId: stageEventId,
             visitor,
             results,
+            ingestPath: conn.provider,
           });
         } catch (err) {
           await releaseDealStageEmit({
@@ -412,6 +413,7 @@ async function processCrmDealWebhook(
             eventId: statusEventId,
             visitor,
             results,
+            ingestPath: conn.provider,
           });
           if (dealStatus === "won") {
             await persistCrmWonPurchase({
@@ -550,6 +552,7 @@ async function processMktWebhook(
       eventId,
       visitor,
       results,
+      ingestPath: conn.provider,
     });
     await upsertDealState(
       conn.id,

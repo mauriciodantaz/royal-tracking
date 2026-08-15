@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,11 +20,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { EventRow } from "@/lib/dashboard/event-types";
+import { ingestPathLabel } from "@/lib/dashboard/ingest-path-label";
 
 export type { EventRow };
 
 const POLL_MS = 3000;
 const HIGHLIGHT_MS = 4000;
+const SEARCH_DEBOUNCE_MS = 300;
 
 function channelLabel(c: string | null | undefined): string {
   switch (c) {
@@ -66,22 +68,10 @@ function platformsForEvent(e: EventRow): string[] {
   return out;
 }
 
-function sourceLabel(ingest: string | null | undefined): string {
-  switch (ingest) {
-    case "webhook":
-      return "Webhook";
-    case "snippet":
-      return "Snippet";
-    case "api":
-      return "API";
-    default:
-      return ingest?.trim() ? ingest : "—";
-  }
-}
-
 function rowFingerprint(e: EventRow): string {
   return [
     e.id,
+    e.ingest_path ?? "",
     e.channel_class ?? "",
     e.web_meta ? "1" : "0",
     e.web_ga4 ? "1" : "0",
@@ -94,48 +84,80 @@ function rowFingerprint(e: EventRow): string {
   ].join("|");
 }
 
-function listFingerprint(rows: EventRow[]): string {
-  return rows.map(rowFingerprint).join(";");
-}
-
-function mergeEvents(
+function mergePolledEvents(
   prev: EventRow[],
-  next: EventRow[]
+  polled: EventRow[]
 ): { rows: EventRow[]; addedIds: string[] } {
-  if (listFingerprint(prev) === listFingerprint(next)) {
+  const polledById = new Map(polled.map((p) => [p.id, p]));
+  let changed = false;
+  const replaced = prev.map((r) => {
+    const n = polledById.get(r.id);
+    if (!n) return r;
+    if (rowFingerprint(n) === rowFingerprint(r)) return r;
+    changed = true;
+    return n;
+  });
+  const prevIds = new Set(prev.map((r) => r.id));
+  const added = polled.filter((p) => !prevIds.has(p.id));
+  if (!changed && added.length === 0) {
     return { rows: prev, addedIds: [] };
   }
-
-  const prevIds = new Set(prev.map((r) => r.id));
-  const addedIds = next.filter((r) => !prevIds.has(r.id)).map((r) => r.id);
-  return { rows: next, addedIds };
+  return { rows: [...added, ...replaced], addedIds: added.map((r) => r.id) };
 }
 
-export function EventsTable({ events }: { events: EventRow[] }) {
+type EventsPageResponse = {
+  events?: EventRow[];
+  nextCursor?: string | null;
+};
+
+async function fetchEventsPage(opts: {
+  q?: string;
+  cursor?: string | null;
+}): Promise<EventsPageResponse> {
+  const params = new URLSearchParams();
+  const q = opts.q?.trim();
+  if (q) params.set("q", q);
+  if (opts.cursor) params.set("cursor", opts.cursor);
+  const qs = params.toString();
+  const res = await fetch(`/api/dashboard/events${qs ? `?${qs}` : ""}`, {
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error("fetch_failed");
+  }
+  return (await res.json()) as EventsPageResponse;
+}
+
+export function EventsTable({
+  events,
+  nextCursor: initialCursor,
+}: {
+  events: EventRow[];
+  nextCursor: string | null;
+}) {
   const [rows, setRows] = useState(events);
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
+  const [cursor, setCursor] = useState(initialCursor);
   const [selected, setSelected] = useState<EventRow | null>(null);
   const [live, setLive] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [highlightIds, setHighlightIds] = useState<Set<string>>(() => new Set());
   const rowsRef = useRef(events);
+  const skipSearchFetch = useRef(true);
   const highlightTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(
     new Map()
   );
 
-  function applyEvents(next: EventRow[], flashNew: boolean) {
-    const { rows: merged, addedIds } = mergeEvents(rowsRef.current, next);
-    if (merged === rowsRef.current) return;
-    rowsRef.current = merged;
-    setRows(merged);
-
-    if (!flashNew || !addedIds.length) return;
-
+  function flashIds(addedIds: string[]) {
+    if (!addedIds.length) return;
     setHighlightIds((old) => {
       const copy = new Set(old);
       for (const id of addedIds) copy.add(id);
       return copy;
     });
-
     for (const id of addedIds) {
       const prevTimer = highlightTimers.current.get(id);
       if (prevTimer) clearTimeout(prevTimer);
@@ -152,9 +174,51 @@ export function EventsTable({ events }: { events: EventRow[] }) {
     }
   }
 
+  function applyPoll(next: EventRow[], flashNew: boolean) {
+    const { rows: merged, addedIds } = mergePolledEvents(rowsRef.current, next);
+    if (merged === rowsRef.current) return;
+    rowsRef.current = merged;
+    setRows(merged);
+    if (flashNew) flashIds(addedIds);
+  }
+
   useEffect(() => {
-    applyEvents(events, false);
-  }, [events]);
+    rowsRef.current = events;
+    setRows(events);
+    setCursor(initialCursor);
+  }, [events, initialCursor]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  useEffect(() => {
+    if (skipSearchFetch.current) {
+      skipSearchFetch.current = false;
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    void (async () => {
+      try {
+        const data = await fetchEventsPage({ q: debouncedQ });
+        if (cancelled) return;
+        const next = data.events ?? [];
+        rowsRef.current = next;
+        setRows(next);
+        setCursor(data.nextCursor ?? null);
+        setLive(true);
+      } catch {
+        if (!cancelled) setLive(false);
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -167,19 +231,10 @@ export function EventsTable({ events }: { events: EventRow[] }) {
       }
 
       try {
-        const res = await fetch("/api/dashboard/events", {
-          credentials: "same-origin",
-          cache: "no-store",
-        });
-        if (!res.ok) {
-          if (!cancelled) setLive(false);
-          schedule();
-          return;
-        }
-        const data = (await res.json()) as { events?: EventRow[] };
+        const data = await fetchEventsPage({ q: debouncedQ });
         if (cancelled) return;
         setLive(true);
-        applyEvents(data.events ?? [], true);
+        applyPoll(data.events ?? [], true);
       } catch {
         if (!cancelled) setLive(false);
       }
@@ -210,32 +265,33 @@ export function EventsTable({ events }: { events: EventRow[] }) {
       for (const t of highlightTimers.current.values()) clearTimeout(t);
       highlightTimers.current.clear();
     };
-  }, []);
+  }, [debouncedQ]);
 
-  const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter((e) => {
-      const platforms = platformsForEvent(e).join(" ").toLowerCase();
-      return (
-        e.event_name.toLowerCase().includes(term) ||
-        e.event_id.toLowerCase().includes(term) ||
-        (e.trck_user_id?.toLowerCase().includes(term) ?? false) ||
-        (e.utm_source?.toLowerCase().includes(term) ?? false) ||
-        (e.utm_campaign?.toLowerCase().includes(term) ?? false) ||
-        channelLabel(e.channel_class).includes(term) ||
-        (e.ingest_path?.toLowerCase().includes(term) ?? false) ||
-        platforms.includes(term) ||
-        sourceLabel(e.ingest_path).toLowerCase().includes(term)
-      );
-    });
-  }, [rows, q]);
+  async function loadMore() {
+    if (!cursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const data = await fetchEventsPage({ q: debouncedQ, cursor });
+      const extra = data.events ?? [];
+      const existing = new Set(rowsRef.current.map((r) => r.id));
+      const appended = extra.filter((e) => !existing.has(e.id));
+      const merged = [...rowsRef.current, ...appended];
+      rowsRef.current = merged;
+      setRows(merged);
+      setCursor(data.nextCursor ?? null);
+      setLive(true);
+    } catch {
+      setLive(false);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <Input
-          placeholder="Filtrar por evento, Meta, GA4, canal, UTM…"
+          placeholder="Filtrar por evento, origem, UTM, user…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           className="max-w-md"
@@ -251,6 +307,9 @@ export function EventsTable({ events }: { events: EventRow[] }) {
           />
           {live ? "Ao vivo" : "Reconectando…"}
         </span>
+        {searching ? (
+          <span className="text-xs text-muted-foreground">Buscando…</span>
+        ) : null}
       </div>
       <div className="glass overflow-x-auto rounded-[var(--radius)] border">
         <Table>
@@ -268,7 +327,7 @@ export function EventsTable({ events }: { events: EventRow[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((e) => {
+            {rows.map((e) => {
               const platforms = platformsForEvent(e);
               const highlight = highlightIds.has(e.id);
               return (
@@ -309,7 +368,7 @@ export function EventsTable({ events }: { events: EventRow[] }) {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
-                    {sourceLabel(e.ingest_path)}
+                    {ingestPathLabel(e.ingest_path)}
                   </TableCell>
                   <TableCell className="max-w-[120px] truncate font-mono text-xs">
                     {e.trck_user_id ?? "—"}
@@ -333,7 +392,7 @@ export function EventsTable({ events }: { events: EventRow[] }) {
                 </TableRow>
               );
             })}
-            {!filtered.length ? (
+            {!rows.length ? (
               <TableRow>
                 <TableCell
                   colSpan={9}
@@ -346,6 +405,18 @@ export function EventsTable({ events }: { events: EventRow[] }) {
           </TableBody>
         </Table>
       </div>
+      {cursor ? (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={loadingMore}
+            onClick={() => void loadMore()}
+          >
+            {loadingMore ? "Carregando…" : "Carregar mais"}
+          </Button>
+        </div>
+      ) : null}
 
       <Dialog
         open={Boolean(selected)}
@@ -362,7 +433,7 @@ export function EventsTable({ events }: { events: EventRow[] }) {
               <p className="text-xs break-words text-muted-foreground">
                 Plataformas: {platformsForEvent(selected).join(", ") || "—"}
                 {" · "}
-                Origem: {sourceLabel(selected.ingest_path)}
+                Origem: {ingestPathLabel(selected.ingest_path)}
                 {" · "}
                 Canal: {channelLabel(selected.channel_class)}
                 {" · "}

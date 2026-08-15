@@ -98,6 +98,7 @@ export async function persistEventLog(opts: {
   eventId: string;
   visitor: VisitorRow | null;
   results: OutboundResult[];
+  ingestPath: string;
   replaceExisting?: boolean;
 }): Promise<"inserted" | "deduped"> {
   const metaResults = opts.results.filter((r) => r.provider === "meta_pixel");
@@ -118,7 +119,8 @@ export async function persistEventLog(opts: {
          response_ga4 = excluded.response_ga4,
          server_meta = excluded.server_meta,
          server_ga4 = excluded.server_ga4,
-         channel_class = excluded.channel_class`
+         channel_class = excluded.channel_class,
+         ingest_path = excluded.ingest_path`
     : `on conflict (event_id) do nothing`;
 
   const inserted = await queryOne<{ id: string }>(
@@ -130,7 +132,7 @@ export async function persistEventLog(opts: {
        ingest_path, web_meta, web_ga4, server_meta, server_ga4, channel_class
      ) values (
        $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13,$14,$15,$16,
-       'webhook', false, false, $17, $18, $19
+       $17, false, false, $18, $19, $20
      )
      ${conflictSql}
      returning id`,
@@ -151,6 +153,7 @@ export async function persistEventLog(opts: {
       opts.visitor?.geo_country ?? null,
       opts.visitor?.geo_region ?? null,
       opts.visitor?.geo_city ?? null,
+      opts.ingestPath,
       serverMeta,
       serverGa4,
       channelClass,

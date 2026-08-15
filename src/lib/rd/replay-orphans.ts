@@ -122,6 +122,7 @@ async function replayCrmDeal(opts: {
     eventId: opts.eventId,
     visitor: identity.visitor,
     results,
+    ingestPath: conn.provider,
     replaceExisting: opts.replaceExisting,
   });
   if (opts.persistWon && customData) {
@@ -182,6 +183,7 @@ async function replayMktConverted(opts: {
     eventId: opts.eventId,
     visitor: identity.visitor,
     results,
+    ingestPath: conn.provider,
     replaceExisting: opts.replaceExisting,
   });
   return "sent";

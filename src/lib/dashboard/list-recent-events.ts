@@ -1,8 +1,20 @@
 import "server-only";
 
 import type { EventRow } from "@/lib/dashboard/event-types";
+import {
+  buildListEventsQuery,
+  encodeEventCursor,
+  type ListEventsOpts,
+} from "@/lib/dashboard/list-events-query";
 import { ensureDbReady } from "@/lib/db/boot";
 import { query } from "@/lib/db/pool";
+
+export type { ListEventsOpts };
+
+export type EventPage = {
+  events: EventRow[];
+  nextCursor: string | null;
+};
 
 type EventRowDb = Omit<EventRow, "created_at"> & {
   created_at: Date | string;
@@ -18,17 +30,23 @@ function serializeRow(row: EventRowDb): EventRow {
   };
 }
 
-export async function listRecentEvents(limit = 200): Promise<EventRow[]> {
+export async function listRecentEvents(
+  opts?: ListEventsOpts
+): Promise<EventPage> {
   await ensureDbReady();
-  const result = await query<EventRowDb>(
-    `select id, event_name, event_id, trck_user_id, utm_source, utm_campaign,
-            geo_country, geo_city, created_at, payload_meta, response_meta,
-            payload_ga4, response_ga4,
-            ingest_path, channel_class, web_meta, web_ga4, server_meta, server_ga4
-     from events_log
-     order by created_at desc
-     limit $1`,
-    [limit]
-  );
-  return result.rows.map(serializeRow);
+  const built = buildListEventsQuery(opts);
+  const result = await query<EventRowDb>(built.text, built.params);
+  const limit = built.params.at(-1) as number;
+  const pageSize = limit - 1;
+  const hasMore = result.rows.length > pageSize;
+  const rows = hasMore ? result.rows.slice(0, pageSize) : result.rows;
+  const events = rows.map(serializeRow);
+  const last = events.at(-1);
+  return {
+    events,
+    nextCursor:
+      hasMore && last
+        ? encodeEventCursor({ createdAt: last.created_at, id: last.id })
+        : null,
+  };
 }
