@@ -5,6 +5,13 @@ All notable changes to Royal Tracking are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- CRM (RD Station e Pipedrive) now send complete GA4 purchases: deal products as `items`, `transaction_id` = deal id, visitor created (or synthetic `client_id`) when there is no site match, and won deals persisted to `purchases`. Replay also retries GA4 deliveries skipped for `missing_ga_client_id`.
+- Event log origin column shows the generating platform (Snippet, RD Station CRM, Pipedrive, …). `/dashboard/eventos` paginates the full history (50 per page) and loads the next page when you scroll to the bottom.
+
 ## [0.13.2] - 2026-08-14
 
 ### Changed
@@ -16,13 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - fix: CRM stage/won events never reached Meta/GA4 (#58)
-
-## [Unreleased]
-
-### Fixed
-
-- CRM/Pipedrive stage and won/lost webhooks now pass query params when listing Meta/GA4 destinations, so events actually fan out instead of dying with Postgres `42P02` after the emit is claimed.
-- Replay of CRM/MKT orphans fails (and leaves the emit) when the deal/contact API is unavailable, instead of writing an empty `events_log` row that blocks a later retry.
 
 ## [0.13.0] - 2026-08-13
 

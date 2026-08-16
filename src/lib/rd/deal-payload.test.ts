@@ -33,4 +33,20 @@ describe("parseCrmDealFields", () => {
     assert.equal(parsed.pipelineId, "pipe-flat");
     assert.equal(parsed.value, 10);
   });
+
+  it("coerces string amounts and reads deal_products", () => {
+    const parsed = parseCrmDealFields({
+      id: "deal2",
+      name: "Pedido",
+      amount_total: "80.5",
+      deal_products: [
+        { product_id: "sku1", name: "Tecido", price: "40", quantity: 2 },
+      ],
+    });
+    assert.equal(parsed.value, 80.5);
+    assert.equal(parsed.dealName, "Pedido");
+    assert.equal(parsed.products.length, 1);
+    assert.equal(parsed.products[0]?.itemId, "sku1");
+    assert.equal(parsed.products[0]?.price, 40);
+  });
 });

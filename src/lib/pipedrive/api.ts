@@ -97,6 +97,18 @@ export async function getDeal(
   return unwrapDataObject(json);
 }
 
+export async function getDealProducts(
+  conn: IntegrationConnectionRow,
+  dealId: string
+): Promise<Record<string, unknown>[]> {
+  const { res, json } = await pipedriveFetch(
+    conn,
+    `/deals/${encodeURIComponent(dealId)}/products`
+  );
+  if (!res.ok) return [];
+  return unwrapDataList(json);
+}
+
 export async function getPerson(
   conn: IntegrationConnectionRow,
   personId: string

@@ -24,7 +24,7 @@ import {
   ensurePipedriveWebhooks,
   syncPipedriveFunnels,
 } from "@/lib/pipedrive/sync";
-import { replayOrphanCrmEmits } from "@/lib/rd/replay-orphans";
+import { replayCrmConnection } from "@/lib/crm/replay";
 import {
   cleanupRdWebhooks,
   ensureRdWebhooks,
@@ -579,11 +579,13 @@ export async function replayOrphanCrmEmitsAction(
     );
     if (
       !conn ||
-      (conn.provider !== "rdstation_crm" && conn.provider !== "rdstation_mkt")
+      (conn.provider !== "rdstation_crm" &&
+        conn.provider !== "rdstation_mkt" &&
+        conn.provider !== "pipedrive")
     ) {
-      return { ok: false, error: "Conexão RD inválida" };
+      return { ok: false, error: "Conexão CRM inválida" };
     }
-    const result = await replayOrphanCrmEmits(connectionId, { limit: 40 });
+    const result = await replayCrmConnection(connectionId, { limit: 40 });
     await auditLog({
       actorUserId: actor.id,
       action: "integration.crm_orphan_replay",
