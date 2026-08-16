@@ -70,6 +70,18 @@ export async function getCrmDeal(
   return unwrapDataObject(json);
 }
 
+export async function getCrmDealProducts(
+  conn: IntegrationConnectionRow,
+  dealId: string
+): Promise<Record<string, unknown>[]> {
+  const { res, json } = await rdCrmFetch(
+    conn,
+    `/deals/${encodeURIComponent(dealId)}/products`
+  );
+  if (!res.ok) return [];
+  return unwrapDataList(json);
+}
+
 export async function getCrmContact(
   conn: IntegrationConnectionRow,
   contactId: string

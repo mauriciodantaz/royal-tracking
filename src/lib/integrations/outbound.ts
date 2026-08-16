@@ -18,6 +18,7 @@ import { ensureDbReady } from "@/lib/db/boot";
 import { queryOne } from "@/lib/db/pool";
 import { notifyIntegrationBroken } from "@/lib/mail/alerts";
 import { uploadGoogleAdsClickConversion } from "@/lib/google-ads/upload";
+import { buildGa4MpPayload } from "@/lib/integrations/ga4-mp-payload";
 import {
   maskGaClientId,
   type GaClientIdSource,
@@ -42,6 +43,10 @@ export type OutboundEventInput = {
   wbraid?: string | null;
   gbraid?: string | null;
   conversionDateTime?: string | null;
+  /** GA4 purchase transaction_id (deal/order id). Defaults to eventId. */
+  transactionId?: string | null;
+  /** GA4 MP user_id (typically trck_user_id). */
+  gaUserId?: string | null;
 };
 
 export type OutboundResult = {
@@ -231,28 +236,15 @@ export async function sendToGa4Connection(
     return result;
   }
 
-  const eventParams: Record<string, unknown> = {
-    engagement_time_msec: 1,
-  };
-  if (input.customData?.value != null) eventParams.value = input.customData.value;
-  if (input.customData?.currency) eventParams.currency = input.customData.currency;
-  if (input.customData?.content_ids) {
-    eventParams.items = input.customData.content_ids.map((id) => ({
-      item_id: id,
-      item_name: input.customData?.content_name,
-    }));
-  }
-  if (input.gaSessionId) eventParams.session_id = input.gaSessionId;
-  eventParams.event_id = input.eventId;
-  if (input.eventName === "purchase" || input.eventName === "Purchase") {
-    eventParams.transaction_id = input.eventId;
-  }
-
-  // Body sent to Google MP (no extra fields — Google may reject unknowns).
-  const payload = {
-    client_id: input.gaClientId,
-    events: [{ name: input.eventName, params: eventParams }],
-  };
+  const payload = buildGa4MpPayload({
+    eventName: input.eventName,
+    eventId: input.eventId,
+    clientId: input.gaClientId,
+    customData: input.customData,
+    gaSessionId: input.gaSessionId,
+    userId: input.gaUserId ?? input.userData.externalId,
+    transactionId: input.transactionId,
+  });
   const loggedPayload = {
     ...payload,
     ...identityLog,

@@ -1034,7 +1034,8 @@ export function ProviderDetailClient({
                       Sincronizar funis
                     </Button>
                     {mod.provider === "rdstation_crm" ||
-                    mod.provider === "rdstation_mkt" ? (
+                    mod.provider === "rdstation_mkt" ||
+                    mod.provider === "pipedrive" ? (
                       <Button
                         type="button"
                         size="sm"
