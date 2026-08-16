@@ -4,6 +4,7 @@ name: Docker Hub cleanup tags
 #   OK: X.Y.Z | X.Y.Z-beta | stable | latest | beta
 #   Apaga: X.Y.Z-stable (legado), v*, beta-<sha>, etc.
 #   Se X.Y.Z e X.Y.Z-beta existem (versão já promovida), apaga X.Y.Z-beta.
+#   Se X.Y.Z-beta nunca foi promovida e já existe stable maior, apaga a beta órfã.
 # Não afeta o canal `dev` (VPS-only, sem tags Hub).
 
 on:
@@ -88,16 +89,26 @@ jobs:
                   names.append(t["name"])
               page += 1
 
+          def parse_ver(s):
+              return tuple(int(p) for p in s.split("."))
+
           stable_vers = {m.group(1) for n in names if (m := ver_re.match(n))}
+          max_stable = max((parse_ver(v) for v in stable_vers), default=None)
 
           for name in names:
               if name.endswith("-stable") or not keep_re.match(name):
                   delete_tag(name, auth)
                   continue
               m = beta_re.match(name)
-              if m and m.group(1) in stable_vers:
+              if m:
+                  ver = m.group(1)
                   # Já promovida: uma tip por SemVer = só X.Y.Z (stable).
-                  delete_tag(name, auth)
-                  continue
+                  if ver in stable_vers:
+                      delete_tag(name, auth)
+                      continue
+                  # Beta nunca promovida e já superada (ex. 0.13.1-beta após 0.14.0).
+                  if max_stable and parse_ver(ver) < max_stable:
+                      delete_tag(name, auth)
+                      continue
               print(f"KEEP {name}")
           PY
