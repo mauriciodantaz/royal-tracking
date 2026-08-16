@@ -146,10 +146,23 @@ export function EventsTable({
   const [searching, setSearching] = useState(false);
   const [highlightIds, setHighlightIds] = useState<Set<string>>(() => new Set());
   const rowsRef = useRef(events);
+  const cursorRef = useRef(cursor);
+  const debouncedQRef = useRef(debouncedQ);
+  const loadingMoreRef = useRef(false);
+  const loadGen = useRef(0);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const skipSearchFetch = useRef(true);
   const highlightTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(
     new Map()
   );
+
+  useEffect(() => {
+    cursorRef.current = cursor;
+  }, [cursor]);
+
+  useEffect(() => {
+    debouncedQRef.current = debouncedQ;
+  }, [debouncedQ]);
 
   function flashIds(addedIds: string[]) {
     if (!addedIds.length) return;
@@ -199,6 +212,9 @@ export function EventsTable({
       return;
     }
     let cancelled = false;
+    loadGen.current += 1;
+    loadingMoreRef.current = false;
+    setLoadingMore(false);
     setSearching(true);
     void (async () => {
       try {
@@ -268,10 +284,17 @@ export function EventsTable({
   }, [debouncedQ]);
 
   async function loadMore() {
-    if (!cursor || loadingMore) return;
+    const pageCursor = cursorRef.current;
+    if (!pageCursor || loadingMoreRef.current) return;
+    const gen = loadGen.current;
+    loadingMoreRef.current = true;
     setLoadingMore(true);
     try {
-      const data = await fetchEventsPage({ q: debouncedQ, cursor });
+      const data = await fetchEventsPage({
+        q: debouncedQRef.current,
+        cursor: pageCursor,
+      });
+      if (gen !== loadGen.current) return;
       const extra = data.events ?? [];
       const existing = new Set(rowsRef.current.map((r) => r.id));
       const appended = extra.filter((e) => !existing.has(e.id));
@@ -281,11 +304,27 @@ export function EventsTable({
       setCursor(data.nextCursor ?? null);
       setLive(true);
     } catch {
-      setLive(false);
+      if (gen === loadGen.current) setLive(false);
     } finally {
-      setLoadingMore(false);
+      if (gen === loadGen.current) {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      }
     }
   }
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !cursor) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) void loadMore();
+      },
+      { root: null, rootMargin: "240px 0px", threshold: 0 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [cursor, loadingMore]);
 
   return (
     <div className="space-y-4">
@@ -405,17 +444,11 @@ export function EventsTable({
           </TableBody>
         </Table>
       </div>
-      {cursor ? (
-        <div className="flex justify-center">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={loadingMore}
-            onClick={() => void loadMore()}
-          >
-            {loadingMore ? "Carregando…" : "Carregar mais"}
-          </Button>
-        </div>
+      <div ref={sentinelRef} className="h-px" aria-hidden />
+      {loadingMore ? (
+        <p className="text-center text-xs text-muted-foreground" aria-live="polite">
+          Carregando mais…
+        </p>
       ) : null}
 
       <Dialog
