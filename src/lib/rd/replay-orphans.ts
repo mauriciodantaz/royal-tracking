@@ -21,7 +21,11 @@ import {
 } from "@/lib/rd/deal-payload";
 import { extractMktContact, getMktContact } from "@/lib/rd/mkt";
 import {
-  dispatchMapped,
+  crmMapHasDest,
+  dispatchCrmEvent,
+  type CrmStageMap,
+} from "@/lib/crm/dispatch";
+import {
   loadStageMap,
   persistEventLog,
 } from "@/lib/rd/process-webhook";
@@ -52,7 +56,7 @@ async function replayCrmDeal(opts: {
   conn: Awaited<ReturnType<typeof getConnection>>;
   dealId: string;
   eventId: string;
-  map: { meta_event_name: string | null; ga4_event_name: string | null };
+  map: CrmStageMap;
   includeValue: boolean;
   persistWon?: boolean;
   replaceExisting?: boolean;
@@ -97,12 +101,11 @@ async function replayCrmDeal(opts: {
         products,
       })
     : undefined;
-  const eventName =
-    opts.map.meta_event_name || opts.map.ga4_event_name || "Lead";
-  const results = await dispatchMapped({
+  const { results, eventName } = await dispatchCrmEvent({
+    sourceProvider: conn.provider,
+    sourceConnectionId: conn.id,
+    map: opts.map,
     eventId: opts.eventId,
-    metaEventName: opts.map.meta_event_name,
-    ga4EventName: opts.map.ga4_event_name,
     eventSourceUrl: null,
     userData: identity.userData,
     customData,
@@ -144,7 +147,7 @@ async function replayMktConverted(opts: {
   conn: Awaited<ReturnType<typeof getConnection>>;
   contactKey: string;
   eventId: string;
-  map: { meta_event_name: string | null; ga4_event_name: string | null };
+  map: CrmStageMap;
   replaceExisting?: boolean;
 }): Promise<"sent" | "skipped"> {
   const conn = opts.conn;
@@ -161,12 +164,11 @@ async function replayMktConverted(opts: {
     name: contact.name,
     dealId: opts.contactKey,
   });
-  const eventName =
-    opts.map.meta_event_name || opts.map.ga4_event_name || "Lead";
-  const results = await dispatchMapped({
+  const { results, eventName } = await dispatchCrmEvent({
+    sourceProvider: conn.provider,
+    sourceConnectionId: conn.id,
+    map: opts.map,
     eventId: opts.eventId,
-    metaEventName: opts.map.meta_event_name,
-    ga4EventName: opts.map.ga4_event_name,
     userData: identity.userData,
     gaClientId: identity.gaResolved.clientId,
     gaClientIdSource: identity.gaResolved.source,
@@ -293,7 +295,7 @@ export async function replayOrphanCrmEmits(
         const map = await loadStageMap(connectionId, {
           mktLifecycle: lifecycle,
         });
-        if (!map || (!map.meta_event_name && !map.ga4_event_name)) {
+        if (!crmMapHasDest(map)) {
           result.skipped += 1;
           continue;
         }
@@ -312,7 +314,7 @@ export async function replayOrphanCrmEmits(
       const map = await loadStageMap(connectionId, {
         stageExternalId: row.stage_external_id,
       });
-      if (!map || (!map.meta_event_name && !map.ga4_event_name)) {
+      if (!crmMapHasDest(map)) {
         result.skipped += 1;
         continue;
       }
@@ -342,7 +344,7 @@ export async function replayOrphanCrmEmits(
       }
       const dealStatus: CrmDealStatus = row.deal_status;
       const map = await loadStageMap(connectionId, { dealStatus });
-      if (!map || (!map.meta_event_name && !map.ga4_event_name)) {
+      if (!crmMapHasDest(map)) {
         result.skipped += 1;
         continue;
       }

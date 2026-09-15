@@ -59,4 +59,23 @@ describe("buildCapiPayload", () => {
     assert.deepEqual(custom.content_ids, ["sku"]);
     assert.equal(custom.items, undefined);
   });
+
+  it("forwards extra properties but never items", () => {
+    const body = buildCapiPayload({
+      eventName: "orcamento_aprovado",
+      eventId: "evt_custom",
+      userData: { emailHash: "em" },
+      customData: {
+        value: 20,
+        currency: "BRL",
+        properties: { funil: "comercial", items: "should_skip" },
+        items: [{ item_id: "x", item_name: "Y" }],
+      },
+    });
+    const event = (body.data as Record<string, unknown>[])[0]!;
+    const custom = event.custom_data as Record<string, unknown>;
+    assert.equal(custom.funil, "comercial");
+    assert.equal(custom.items, undefined);
+  });
 });
+

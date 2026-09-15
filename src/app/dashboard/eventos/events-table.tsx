@@ -51,6 +51,37 @@ function hasPayload(data: unknown): boolean {
 }
 
 /** Destinos que receberam / emitiram o evento (web e/ou server). */
+function destNamesFromPayload(data: unknown, dest: "meta" | "ga4"): string[] {
+  if (!Array.isArray(data)) return [];
+  const names = new Set<string>();
+  for (const row of data) {
+    if (!row || typeof row !== "object") continue;
+    const rec = row as Record<string, unknown>;
+    if (dest === "meta") {
+      const events = rec.data;
+      if (Array.isArray(events)) {
+        for (const ev of events) {
+          if (ev && typeof ev === "object") {
+            const name = (ev as Record<string, unknown>).event_name;
+            if (typeof name === "string" && name) names.add(name);
+          }
+        }
+      }
+    } else {
+      const events = rec.events;
+      if (Array.isArray(events)) {
+        for (const ev of events) {
+          if (ev && typeof ev === "object") {
+            const name = (ev as Record<string, unknown>).name;
+            if (typeof name === "string" && name) names.add(name);
+          }
+        }
+      }
+    }
+  }
+  return [...names];
+}
+
 function platformsForEvent(e: EventRow): string[] {
   const out: string[] = [];
   const meta =
@@ -465,6 +496,14 @@ export function EventsTable({
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto text-sm">
               <p className="text-xs break-words text-muted-foreground">
                 Plataformas: {platformsForEvent(selected).join(", ") || "—"}
+                {" · "}
+                Meta:{" "}
+                {destNamesFromPayload(selected.payload_meta, "meta").join(", ") ||
+                  "—"}
+                {" · "}
+                GA4:{" "}
+                {destNamesFromPayload(selected.payload_ga4, "ga4").join(", ") ||
+                  "—"}
                 {" · "}
                 Origem: {ingestPathLabel(selected.ingest_path)}
                 {" · "}

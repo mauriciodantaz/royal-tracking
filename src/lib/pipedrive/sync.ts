@@ -200,12 +200,27 @@ export async function ensurePipedriveWebhooks(
 
   meta.pipedrive_webhook_ids = webhookIds;
   meta.webhooks_configured_at = new Date().toISOString();
+  delete meta.webhook_error;
   await query(
     `update integration_connections set metadata = $1::jsonb, updated_at = now() where id = $2`,
     [JSON.stringify(meta), conn.id]
   );
 
   return { created };
+}
+
+export async function persistPipedriveWebhookError(
+  connectionId: string,
+  error: string
+): Promise<void> {
+  const conn = await getConnection(connectionId);
+  if (!conn) return;
+  const meta = metadataRecord(conn.metadata);
+  meta.webhook_error = error.slice(0, 400);
+  await query(
+    `update integration_connections set metadata = $1::jsonb, updated_at = now() where id = $2`,
+    [JSON.stringify(meta), connectionId]
+  );
 }
 
 export async function cleanupPipedriveWebhooks(
@@ -266,6 +281,8 @@ export async function postOauthPipedriveSetup(
   try {
     await ensurePipedriveWebhooks(connectionId);
   } catch (err) {
+    const message = err instanceof Error ? err.message : "webhook_setup_failed";
     console.error("[pipedrive] ensurePipedriveWebhooks failed", err);
+    await persistPipedriveWebhookError(connectionId, message);
   }
 }

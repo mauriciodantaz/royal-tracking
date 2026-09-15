@@ -45,4 +45,22 @@ describe("buildGa4MpPayload", () => {
       { item_id: "x", item_name: "Deal" },
     ]);
   });
+
+  it("forwards sanitized extra params and keeps event_id", () => {
+    const body = buildGa4MpPayload({
+      eventName: "orcamento_aprovado",
+      eventId: "e2",
+      clientId: "1.2",
+      customData: {
+        properties: {
+          funil: "comercial",
+          google_secret: "no",
+        },
+      },
+    });
+    const params = body.events[0]!.params;
+    assert.equal(params.funil, "comercial");
+    assert.equal(params.google_secret, undefined);
+    assert.equal(params.event_id, "e2");
+  });
 });

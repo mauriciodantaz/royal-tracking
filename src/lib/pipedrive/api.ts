@@ -6,6 +6,7 @@ import {
   unwrapDataList,
   unwrapDataObject,
 } from "@/lib/pipedrive/client";
+import { pipedriveId } from "@/lib/pipedrive/ids";
 
 export type PipedrivePipeline = { id: string; name: string; order?: number };
 export type PipedriveStage = {
@@ -159,6 +160,27 @@ export async function deleteWebhook(
   await pipedriveFetch(conn, `/webhooks/${encodeURIComponent(webhookId)}`, {
     method: "DELETE",
   });
+}
+
+export function extractDealPersonPii(deal: Record<string, unknown>): {
+  personId: string | null;
+  email: string | null;
+  phone: string | null;
+  name: string | null;
+} {
+  const personId = pipedriveId(deal.person_id);
+  let email: string | null = null;
+  let phone: string | null = null;
+  let name =
+    (typeof deal.person_name === "string" && deal.person_name) || null;
+  const nested = deal.person_id;
+  if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+    const extracted = extractPersonEmailPhone(nested as Record<string, unknown>);
+    email = extracted.email;
+    phone = extracted.phone;
+    if (extracted.name) name = extracted.name;
+  }
+  return { personId, email, phone, name };
 }
 
 export function extractPersonEmailPhone(person: Record<string, unknown>): {
