@@ -1,6 +1,11 @@
 import "server-only";
 
-import { dispatchMapped, persistEventLog } from "@/lib/crm/dispatch";
+import {
+  crmMapHasDest,
+  dispatchCrmEvent,
+  persistEventLog,
+  type CrmStageMap,
+} from "@/lib/crm/dispatch";
 import { persistCrmWonPurchase } from "@/lib/crm/persist-won";
 import {
   buildCrmSaleCustomData,
@@ -28,7 +33,7 @@ import {
   type MktLifecycleKey,
 } from "@/lib/rd/mkt";
 
-export { dispatchMapped, persistEventLog };
+export { dispatchCrmEvent, persistEventLog, type CrmStageMap };
 
 export type ProcessRdResult =
   | {
@@ -168,24 +173,27 @@ export async function loadStageMap(
     mktLifecycle?: string;
     dealStatus?: CrmDealStatus;
   }
-): Promise<{ meta_event_name: string | null; ga4_event_name: string | null } | null> {
+): Promise<CrmStageMap | null> {
   if (opts.stageExternalId) {
     return queryOne(
-      `select meta_event_name, ga4_event_name from rd_stage_event_maps
+      `select meta_event_name, ga4_event_name, custom_event_id
+       from rd_stage_event_maps
        where connection_id = $1 and stage_external_id = $2 limit 1`,
       [connectionId, opts.stageExternalId]
     );
   }
   if (opts.mktLifecycle) {
     return queryOne(
-      `select meta_event_name, ga4_event_name from rd_stage_event_maps
+      `select meta_event_name, ga4_event_name, custom_event_id
+       from rd_stage_event_maps
        where connection_id = $1 and mkt_lifecycle = $2 limit 1`,
       [connectionId, opts.mktLifecycle]
     );
   }
   if (opts.dealStatus) {
     return queryOne(
-      `select meta_event_name, ga4_event_name from rd_stage_event_maps
+      `select meta_event_name, ga4_event_name, custom_event_id
+       from rd_stage_event_maps
        where connection_id = $1 and deal_status = $2 limit 1`,
       [connectionId, opts.dealStatus]
     );
@@ -314,7 +322,7 @@ async function processCrmDealWebhook(
         : await loadStageMap(conn.id, { stageExternalId: stageId });
     if (stageSkipped === "pipeline_disabled") {
       // skip emit
-    } else if (!map || (!map.meta_event_name && !map.ga4_event_name)) {
+    } else if (!crmMapHasDest(map)) {
       stageSkipped = "no_stage_map";
     } else {
       stageEventId = crmEventId(dealId, pipeKey, stageId);
@@ -329,11 +337,11 @@ async function processCrmDealWebhook(
         stageDeduped = true;
       } else {
         try {
-          const eventName = map.meta_event_name || map.ga4_event_name || "Lead";
-          const results = await dispatchMapped({
+          const { results, eventName } = await dispatchCrmEvent({
+            sourceProvider: conn.provider,
+            sourceConnectionId: conn.id,
+            map,
             eventId: stageEventId,
-            metaEventName: map.meta_event_name,
-            ga4EventName: map.ga4_event_name,
             eventSourceUrl: null,
             userData,
             customData,
@@ -374,7 +382,7 @@ async function processCrmDealWebhook(
 
   if (dealStatus) {
     const statusMap = await loadStageMap(conn.id, { dealStatus });
-    if (!statusMap || (!statusMap.meta_event_name && !statusMap.ga4_event_name)) {
+    if (!crmMapHasDest(statusMap)) {
       statusSkipped = "no_status_map";
     } else {
       statusEventId = crmStatusEventId(dealId, dealStatus);
@@ -388,12 +396,11 @@ async function processCrmDealWebhook(
         statusDeduped = true;
       } else {
         try {
-          const eventName =
-            statusMap.meta_event_name || statusMap.ga4_event_name || "Lead";
-          const results = await dispatchMapped({
+          const { results, eventName } = await dispatchCrmEvent({
+            sourceProvider: conn.provider,
+            sourceConnectionId: conn.id,
+            map: statusMap,
             eventId: statusEventId,
-            metaEventName: statusMap.meta_event_name,
-            ga4EventName: statusMap.ga4_event_name,
             eventSourceUrl: null,
             userData,
             customData: dealStatus === "won" ? customData : undefined,
@@ -493,7 +500,7 @@ async function processMktWebhook(
   const stageKey = `mkt:${lifecycle}`;
 
   const map = await loadStageMap(conn.id, { mktLifecycle: lifecycle });
-  if (!map || (!map.meta_event_name && !map.ga4_event_name)) {
+  if (!crmMapHasDest(map)) {
     await upsertDealState(
       conn.id,
       contact.dealId,
@@ -529,12 +536,11 @@ async function processMktWebhook(
       dealId: contact.dealId,
     });
     const { visitor, trckUserId, gaResolved, attr, match, userData } = identity;
-    const eventName = map.meta_event_name || map.ga4_event_name || "Lead";
-
-    const results = await dispatchMapped({
+    const { results, eventName } = await dispatchCrmEvent({
+      sourceProvider: conn.provider,
+      sourceConnectionId: conn.id,
+      map,
       eventId,
-      metaEventName: map.meta_event_name,
-      ga4EventName: map.ga4_event_name,
       userData,
       gaClientId: gaResolved.clientId,
       gaClientIdSource: gaResolved.source,

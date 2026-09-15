@@ -12,7 +12,7 @@ O módulo **Site / Forms** não pede token. O snippet já está ativo na stack: 
 - Envia `canonical_url` (UTMs/click IDs removidos) além de `event_source_url` cru para CAPI
 - SPA: escuta `pushState` / `replaceState` / `popstate` / `hashchange` com dedupe ~800ms
 - Painel **Regras**: exceções e eventos extras por URL, além dos opt-ins “funil de loja” e “dataLayer”. Exclusões built-in (`wp-admin`, logout, preview) já vêm ativas via `/api/tracking/config`
-- Expõe `window.trck.event` / `identify` / `lead` / `canonicalUrl` / `getConfig`
+- Expõe `window.trck.event` / `identify` / `lead` / `canonicalUrl` / `getConfig`. Nomes livres passam pelo motor; se o slug existir no [catálogo](../CUSTOM-EVENTS.md), usam os nomes Meta/GA4 cadastrados.
 - Anexa `trck_user_id` em links de checkout/WhatsApp/Hotmart/etc.
 - Em `wa.me` / `api.whatsapp.com`, coloca `[rt:código]` no final do `text=` (código curto do visitor; não altera o resto da mensagem)
 - Captura `gclid` / `ttclid` / `wbraid` / `gbraid` e monta `fbc` a partir de `fbclid` quando o cookie `_fbc` não existir

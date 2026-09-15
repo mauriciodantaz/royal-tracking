@@ -22,6 +22,7 @@ import { validateIntegrationCredentials } from "@/lib/integrations/validate-cred
 import {
   cleanupPipedriveWebhooks,
   ensurePipedriveWebhooks,
+  persistPipedriveWebhookError,
   syncPipedriveFunnels,
 } from "@/lib/pipedrive/sync";
 import { replayCrmConnection } from "@/lib/crm/replay";
@@ -538,7 +539,10 @@ export async function syncRdFunnelsAction(
       try {
         await ensurePipedriveWebhooks(connectionId);
       } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "webhook_setup_failed";
         console.error("[pipedrive] ensurePipedriveWebhooks", err);
+        await persistPipedriveWebhookError(connectionId, message);
       }
     } else {
       result = await syncRdFunnels(connectionId);
@@ -678,6 +682,7 @@ export async function saveRdStageMapsAction(
     deal_status?: string | null;
     meta_event_name?: string | null;
     ga4_event_name?: string | null;
+    custom_event_id?: string | null;
   }> = [];
   try {
     maps = JSON.parse(mapsJson) as typeof maps;
@@ -698,29 +703,36 @@ export async function saveRdStageMapsAction(
       m.deal_status === "won" || m.deal_status === "lost"
         ? m.deal_status
         : null;
+    const customEventId =
+      m.custom_event_id && String(m.custom_event_id).trim()
+        ? String(m.custom_event_id).trim()
+        : null;
 
     if (m.id) {
       await query(
         `update ${mapsTable} set
            meta_event_name = $1,
            ga4_event_name = $2,
+           custom_event_id = $3,
            updated_at = now()
-         where id = $3 and connection_id = $4`,
-        [meta, ga4, m.id, connectionId]
+         where id = $4 and connection_id = $5`,
+        [meta, ga4, customEventId, m.id, connectionId]
       );
     } else if (m.stage_external_id) {
       await query(
         `insert into ${mapsTable} (
-           connection_id, stage_external_id, meta_event_name, ga4_event_name, updated_at
-         ) values ($1,$2,$3,$4, now())`,
-        [connectionId, m.stage_external_id, meta, ga4]
+           connection_id, stage_external_id, meta_event_name, ga4_event_name,
+           custom_event_id, updated_at
+         ) values ($1,$2,$3,$4,$5, now())`,
+        [connectionId, m.stage_external_id, meta, ga4, customEventId]
       );
     } else if (m.mkt_lifecycle && conn.provider !== "pipedrive") {
       await query(
         `insert into rd_stage_event_maps (
-           connection_id, mkt_lifecycle, meta_event_name, ga4_event_name, updated_at
-         ) values ($1,$2,$3,$4, now())`,
-        [connectionId, m.mkt_lifecycle, meta, ga4]
+           connection_id, mkt_lifecycle, meta_event_name, ga4_event_name,
+           custom_event_id, updated_at
+         ) values ($1,$2,$3,$4,$5, now())`,
+        [connectionId, m.mkt_lifecycle, meta, ga4, customEventId]
       );
     } else if (dealStatus) {
       const existing = await queryOne<{ id: string }>(
@@ -733,16 +745,18 @@ export async function saveRdStageMapsAction(
           `update ${mapsTable} set
              meta_event_name = $1,
              ga4_event_name = $2,
+             custom_event_id = $3,
              updated_at = now()
-           where id = $3 and connection_id = $4`,
-          [meta, ga4, existing.id, connectionId]
+           where id = $4 and connection_id = $5`,
+          [meta, ga4, customEventId, existing.id, connectionId]
         );
       } else {
         await query(
           `insert into ${mapsTable} (
-             connection_id, deal_status, meta_event_name, ga4_event_name, updated_at
-           ) values ($1,$2,$3,$4, now())`,
-          [connectionId, dealStatus, meta, ga4]
+             connection_id, deal_status, meta_event_name, ga4_event_name,
+             custom_event_id, updated_at
+           ) values ($1,$2,$3,$4,$5, now())`,
+          [connectionId, dealStatus, meta, ga4, customEventId]
         );
       }
     }
@@ -756,6 +770,12 @@ export async function saveRdStageMapsAction(
     }
   } catch (err) {
     console.error("[crm] ensureWebhooks after maps", err);
+    if (conn.provider === "pipedrive") {
+      await persistPipedriveWebhookError(
+        connectionId,
+        err instanceof Error ? err.message : "webhook_setup_failed"
+      );
+    }
   }
 
   await auditLog({

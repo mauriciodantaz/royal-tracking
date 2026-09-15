@@ -210,3 +210,28 @@ export type FormLeadRow = {
   created_at: string;
   updated_at: string;
 };
+
+export type CustomEventRow = {
+  id: string;
+  slug: string;
+  label: string;
+  meta_event_name: string | null;
+  ga4_event_name: string | null;
+  meta_enabled: boolean;
+  ga4_enabled: boolean;
+  include_value: boolean;
+  include_items: boolean;
+  default_currency: string | null;
+  default_params: Json;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CustomEventAliasRow = {
+  id: string;
+  custom_event_id: string;
+  source_provider: string | null;
+  received_name: string;
+  created_at: string;
+};

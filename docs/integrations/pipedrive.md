@@ -45,7 +45,11 @@ Conecte o Pipedrive com **OAuth 2.0** (Private app no Developer Hub). Após auto
 - Match do visitante por **e-mail ou telefone** da person do deal (enrich via API só quando o claim de emit vence; retries/duplicatas são descartados sem consultar a API). Sem match, cria visitante ou emite GA4 com `client_id` sintético do deal.
 - Won busca `GET /deals/{id}/products`, manda `items` no GA4 (`transaction_id` = id do deal) e grava `purchases` (`pipedrive:{dealId}`).
 - **Reenviar órfãos** reenvia emits sem `events_log` e GA4 `skipped` por falta de `client_id`.
-- Alterações de deal que **não** mudam estágio nem status → ignoradas sem chamada à API.
+- Alterações de deal que **não** mudam estágio nem status → ignoradas sem chamada à API. O painel registra esse skip em `integration_delivery_log`.
+- `person_id` da API v1 (objeto `{value, email, phone}`) é extraído; o replay não chama `/persons/[object Object]`.
+- Se o registro do webhook remoto falhar, o erro aparece na conexão Pipedrive. Use **Sincronizar funis** de novo depois de corrigir escopos (`webhooks:full`).
+- Estágios podem apontar para um evento do [catálogo](../CUSTOM-EVENTS.md) ou usar nome Meta/GA4 livre (Personalizado).
+- O envio usa o mesmo motor `dispatchEvent` do snippet (identidade, atribuição, CAPI e Measurement Protocol).
 
 ## Desinstalação
 

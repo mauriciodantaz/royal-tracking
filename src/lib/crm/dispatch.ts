@@ -2,21 +2,35 @@ import "server-only";
 
 import { queryOne } from "@/lib/db/pool";
 import type { VisitorRow } from "@/lib/db/types";
-import { listConnections } from "@/lib/integrations/connections";
-import {
-  sendToConnection,
-  type OutboundEventInput,
-  type OutboundResult,
+import { dispatchEvent } from "@/lib/integrations/dispatch";
+import type {
+  OutboundEventInput,
+  OutboundResult,
 } from "@/lib/integrations/outbound";
 import {
   classifyChannel,
   serverFlagsFromDispatch,
 } from "@/lib/tracking/channel";
+import { getCustomEventById } from "@/lib/tracking/custom-events";
 
-export async function dispatchMapped(opts: {
+export type CrmStageMap = {
+  meta_event_name: string | null;
+  ga4_event_name: string | null;
+  custom_event_id?: string | null;
+};
+
+export function crmMapHasDest(map: CrmStageMap | null): map is CrmStageMap {
+  if (!map) return false;
+  return Boolean(
+    map.custom_event_id || map.meta_event_name || map.ga4_event_name
+  );
+}
+
+export async function dispatchCrmEvent(opts: {
+  sourceProvider: string;
+  sourceConnectionId: string;
+  map: CrmStageMap;
   eventId: string;
-  metaEventName: string | null;
-  ga4EventName: string | null;
   userData: OutboundEventInput["userData"];
   customData?: OutboundEventInput["customData"];
   gaClientId?: string | null;
@@ -29,9 +43,29 @@ export async function dispatchMapped(opts: {
   gbraid?: string | null;
   transactionId?: string | null;
   gaUserId?: string | null;
-}): Promise<OutboundResult[]> {
-  const results: OutboundResult[] = [];
-  const base: Omit<OutboundEventInput, "eventName"> = {
+}): Promise<{ results: OutboundResult[]; eventName: string }> {
+  let sourceEvent =
+    opts.map.meta_event_name || opts.map.ga4_event_name || "Lead";
+  let destOverrides: { meta?: string | null; ga4?: string | null } | undefined =
+    {
+      meta: opts.map.meta_event_name,
+      ga4: opts.map.ga4_event_name,
+    };
+
+  if (opts.map.custom_event_id) {
+    const catalog = await getCustomEventById(opts.map.custom_event_id);
+    if (catalog?.active) {
+      sourceEvent = catalog.slug;
+      destOverrides = undefined;
+    }
+  }
+
+  const dispatch = await dispatchEvent({
+    sourceProvider: opts.sourceProvider,
+    sourceConnectionId: opts.sourceConnectionId,
+    sourceEvent,
+    destOverrides,
+    includeGoogleAds: true,
     eventId: opts.eventId,
     eventSourceUrl: opts.eventSourceUrl,
     userData: opts.userData,
@@ -45,50 +79,57 @@ export async function dispatchMapped(opts: {
     gbraid: opts.gbraid,
     transactionId: opts.transactionId,
     gaUserId: opts.gaUserId,
+  });
+
+  return {
+    results: dispatch.results,
+    eventName: dispatch.resolvedEventName,
   };
-  if (opts.metaEventName) {
-    const metas = await listConnections({
-      provider: "meta_pixel",
-      activeOnly: true,
-    });
-    for (const dest of metas) {
-      results.push(
-        await sendToConnection(dest, {
-          ...base,
-          eventName: opts.metaEventName,
-        })
-      );
-    }
-  }
-  if (opts.ga4EventName) {
-    const ga4s = await listConnections({
-      provider: "ga4",
-      activeOnly: true,
-    });
-    for (const dest of ga4s) {
-      results.push(
-        await sendToConnection(dest, {
-          ...base,
-          eventName: opts.ga4EventName,
-        })
-      );
-    }
-  }
-  const adsEventName = opts.metaEventName || opts.ga4EventName;
-  if (adsEventName) {
-    const ads = await listConnections({
-      provider: "google_ads",
-      activeOnly: true,
-    });
-    for (const dest of ads) {
-      results.push(
-        await sendToConnection(dest, {
-          ...base,
-          eventName: adsEventName,
-        })
-      );
-    }
-  }
+}
+
+/** Wrapper legado: mesmo motor central, com override Meta/GA4 + Ads. */
+export async function dispatchMapped(opts: {
+  eventId: string;
+  metaEventName: string | null;
+  ga4EventName: string | null;
+  sourceProvider?: string;
+  sourceConnectionId?: string;
+  customEventId?: string | null;
+  userData: OutboundEventInput["userData"];
+  customData?: OutboundEventInput["customData"];
+  gaClientId?: string | null;
+  gaClientIdSource?: OutboundEventInput["gaClientIdSource"];
+  gaIdentityMeta?: OutboundEventInput["gaIdentityMeta"];
+  gaSessionId?: string | null;
+  eventSourceUrl?: string | null;
+  gclid?: string | null;
+  wbraid?: string | null;
+  gbraid?: string | null;
+  transactionId?: string | null;
+  gaUserId?: string | null;
+}): Promise<OutboundResult[]> {
+  const { results } = await dispatchCrmEvent({
+    sourceProvider: opts.sourceProvider ?? "crm",
+    sourceConnectionId: opts.sourceConnectionId ?? "",
+    map: {
+      meta_event_name: opts.metaEventName,
+      ga4_event_name: opts.ga4EventName,
+      custom_event_id: opts.customEventId,
+    },
+    eventId: opts.eventId,
+    userData: opts.userData,
+    customData: opts.customData,
+    gaClientId: opts.gaClientId,
+    gaClientIdSource: opts.gaClientIdSource,
+    gaIdentityMeta: opts.gaIdentityMeta,
+    gaSessionId: opts.gaSessionId,
+    eventSourceUrl: opts.eventSourceUrl,
+    gclid: opts.gclid,
+    wbraid: opts.wbraid,
+    gbraid: opts.gbraid,
+    transactionId: opts.transactionId,
+    gaUserId: opts.gaUserId,
+  });
   return results;
 }
 

@@ -6,11 +6,17 @@ import {
   parseCrmProductList,
   parseNumeric,
 } from "@/lib/crm/sale-payload";
-import { dispatchMapped, persistEventLog } from "@/lib/crm/dispatch";
+import {
+  crmMapHasDest,
+  dispatchCrmEvent,
+  persistEventLog,
+  type CrmStageMap,
+} from "@/lib/crm/dispatch";
 import { ensureDbReady } from "@/lib/db/boot";
 import { query } from "@/lib/db/pool";
 import { getConnection } from "@/lib/integrations/connections";
 import {
+  extractDealPersonPii,
   extractPersonEmailPhone,
   getDeal,
   getDealProducts,
@@ -51,7 +57,7 @@ async function replayPipedriveDeal(opts: {
   conn: Awaited<ReturnType<typeof getConnection>>;
   dealId: string;
   eventId: string;
-  map: { meta_event_name: string | null; ga4_event_name: string | null };
+  map: CrmStageMap;
   includeValue: boolean;
   persistWon?: boolean;
   replaceExisting?: boolean;
@@ -63,18 +69,17 @@ async function replayPipedriveDeal(opts: {
   if (!deal) {
     throw new Error("pipedrive_deal_unavailable");
   }
-  const personId =
-    deal.person_id != null ? String(deal.person_id) : null;
-  let email: string | null = null;
-  let phone: string | null = null;
-  let name: string | null =
-    typeof deal.person_name === "string" ? deal.person_name : null;
+  const fromDeal = extractDealPersonPii(deal);
+  const personId = fromDeal.personId;
+  let email: string | null = fromDeal.email;
+  let phone: string | null = fromDeal.phone;
+  let name: string | null = fromDeal.name;
   if (personId) {
     const person = await getPerson(conn, personId);
     if (person) {
       const extracted = extractPersonEmailPhone(person);
-      email = extracted.email;
-      phone = extracted.phone;
+      email = extracted.email || email;
+      phone = extracted.phone || phone;
       if (extracted.name) name = extracted.name;
     }
   }
@@ -94,12 +99,11 @@ async function replayPipedriveDeal(opts: {
         products,
       })
     : undefined;
-  const eventName =
-    opts.map.meta_event_name || opts.map.ga4_event_name || "Lead";
-  const results = await dispatchMapped({
+  const { results, eventName } = await dispatchCrmEvent({
+    sourceProvider: "pipedrive",
+    sourceConnectionId: conn.id,
+    map: opts.map,
     eventId: opts.eventId,
-    metaEventName: opts.map.meta_event_name,
-    ga4EventName: opts.map.ga4_event_name,
     eventSourceUrl: null,
     userData: identity.userData,
     customData,
@@ -235,7 +239,7 @@ export async function replayOrphanPipedriveEmits(
       const map = await loadStageMap(connectionId, {
         stageExternalId: row.stage_external_id,
       });
-      if (!map || (!map.meta_event_name && !map.ga4_event_name)) {
+      if (!crmMapHasDest(map)) {
         result.skipped += 1;
         continue;
       }
@@ -266,7 +270,7 @@ export async function replayOrphanPipedriveEmits(
       const map = await loadStageMap(connectionId, {
         dealStatus: row.deal_status,
       });
-      if (!map || (!map.meta_event_name && !map.ga4_event_name)) {
+      if (!crmMapHasDest(map)) {
         result.skipped += 1;
         continue;
       }

@@ -44,6 +44,19 @@ const fieldClassificationSchema = z
   )
   .optional();
 
+const eventParamValueSchema = z.union([
+  z.string().max(500),
+  z.number(),
+  z.boolean(),
+]);
+
+const eventItemSchema = z.object({
+  item_id: z.string().min(1).max(128),
+  item_name: z.string().min(1).max(200),
+  quantity: z.number().optional(),
+  price: z.number().optional(),
+});
+
 export const eventSchema = z.object({
   trck_user_id: z.string().min(1).max(128),
   event_name: z.string().min(1).max(64),
@@ -55,6 +68,8 @@ export const eventSchema = z.object({
   content_ids: z.array(z.string()).optional(),
   content_name: z.string().max(200).optional(),
   content_type: z.string().max(64).optional(),
+  items: z.array(eventItemSchema).max(50).optional(),
+  params: z.record(z.string(), eventParamValueSchema).optional(),
   utm_source: z.string().max(200).optional(),
   utm_medium: z.string().max(200).optional(),
   utm_campaign: z.string().max(200).optional(),

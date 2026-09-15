@@ -138,13 +138,15 @@ export async function POST(request: NextRequest) {
       body.value !== undefined ||
       body.content_ids ||
       body.content_name ||
-      body.content_type
+      body.content_type ||
+      body.items
         ? {
             value: body.value,
             currency: body.currency,
             content_ids: body.content_ids,
             content_name: body.content_name,
             content_type: body.content_type,
+            items: body.items,
           }
         : undefined;
 
@@ -182,6 +184,7 @@ export async function POST(request: NextRequest) {
         clientUserAgent: visitor?.user_agent ?? userAgent,
       },
       customData,
+      extraParams: body.params,
       gaClientId: gaResolved.clientId,
       gaClientIdSource: gaResolved.source,
       gaIdentityMeta: gaResolved.meta,

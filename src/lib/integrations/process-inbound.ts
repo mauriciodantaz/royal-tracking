@@ -1,6 +1,10 @@
 import "server-only";
 
 import type { IntegrationConnectionRow } from "@/lib/db/types";
+import {
+  parseGenericInbound,
+  processGenericInboundEvent,
+} from "@/lib/integrations/generic-inbound";
 import { processPurchaseEvent } from "@/lib/integrations/process-purchase";
 import { processPipedriveWebhook } from "@/lib/pipedrive/process-webhook";
 import { processRdWebhook } from "@/lib/rd/process-webhook";
@@ -65,14 +69,8 @@ export async function processInboundConnection(opts: {
     return result;
   }
 
-  const rec =
-    raw && typeof raw === "object" && !Array.isArray(raw)
-      ? (raw as Record<string, unknown>)
-      : null;
-  const sourceEvent =
-    (typeof rec?.event === "string" && rec.event) ||
-    (typeof rec?.event_name === "string" && rec.event_name) ||
-    "Lead";
+  const parsed = parseGenericInbound(raw);
+  const sourceEvent = parsed?.sourceEvent || "Lead";
 
   if (
     sourceEvent.toLowerCase().includes("purchase") ||
@@ -89,11 +87,15 @@ export async function processInboundConnection(opts: {
     return result;
   }
 
+  if (parsed) {
+    return processGenericInboundEvent({ conn, parsed });
+  }
+
   return {
     ok: true,
     received: true,
     provider: conn.provider,
     source_event: sourceEvent,
-    note: "CRM lead ingest via dedicated adapters in phase 2; purchase parsers active for marketplaces",
+    skipped: "unrecognized_payload",
   };
 }

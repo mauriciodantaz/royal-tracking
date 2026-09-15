@@ -35,13 +35,15 @@ export type MetaCustomData = {
   content_ids?: string[];
   content_name?: string;
   content_type?: string;
-  /** GA4 ecommerce items — stripped from Meta CAPI custom_data. */
+  /** GA4 ecommerce items. Stripped from Meta CAPI custom_data. */
   items?: Array<{
     item_id: string;
     item_name: string;
     quantity?: number;
     price?: number;
   }>;
+  /** Extra custom_data keys (Meta). Never forwarded as `items`. */
+  properties?: Record<string, string | number | boolean>;
 };
 
 export type MetaEventInput = {
@@ -63,6 +65,13 @@ function metaCustomDataOnly(c: MetaCustomData): Record<string, unknown> {
   if (c.content_ids) out.content_ids = c.content_ids;
   if (c.content_name) out.content_name = c.content_name;
   if (c.content_type) out.content_type = c.content_type;
+  if (c.properties) {
+    for (const [key, value] of Object.entries(c.properties)) {
+      if (key === "items" || key === "value" || key === "currency") continue;
+      if (out[key] != null) continue;
+      out[key] = value;
+    }
+  }
   return out;
 }
 
