@@ -179,6 +179,7 @@ type Conn = {
   needsReauth?: boolean;
   webhookStatus?: string | null;
   webhookStatusMessage?: string | null;
+  webhookSetupError?: string | null;
 };
 
 function isWhatsappProvider(provider: string): boolean {
@@ -327,6 +328,14 @@ function WaMeLinkGenerator() {
   );
 }
 
+type CatalogOption = {
+  id: string;
+  slug: string;
+  label: string;
+  meta_event_name: string | null;
+  ga4_event_name: string | null;
+};
+
 type StageMapItem = {
   id: string;
   stage_external_id: string | null;
@@ -334,6 +343,7 @@ type StageMapItem = {
   deal_status: string | null;
   meta_event_name: string;
   ga4_event_name: string;
+  custom_event_id: string | null;
   label: string;
   pipeline: string;
   pipeline_external_id: string | null;
@@ -403,29 +413,76 @@ function groupStageMapsByPipeline(
   });
 }
 
+function destSelectValue(current: string, options: string[]): string {
+  if (!current) return "__none__";
+  return options.includes(current) ? current : "__custom__";
+}
+
 function MapEventRow({
   row,
+  customEvents,
   updateRow,
 }: {
   row: StageMapItem;
+  customEvents: CatalogOption[];
   updateRow: (
     id: string,
-    patch: Partial<Pick<StageMapItem, "meta_event_name" | "ga4_event_name">>
+    patch: Partial<
+      Pick<
+        StageMapItem,
+        "meta_event_name" | "ga4_event_name" | "custom_event_id"
+      >
+    >
   ) => void;
 }) {
+  const metaValue = destSelectValue(row.meta_event_name, META_EVENT_OPTIONS);
+  const ga4Value = destSelectValue(row.ga4_event_name, GA4_EVENT_OPTIONS);
   return (
-    <div className="grid gap-2 rounded-lg border border-border/40 p-3 sm:grid-cols-[minmax(0,1.2fr)_1fr_1fr]">
-      <div className="min-w-0 self-center">
+    <div className="grid gap-2 rounded-lg border border-border/40 p-3 sm:grid-cols-[minmax(0,1.1fr)_1fr_1fr]">
+      <div className="min-w-0 space-y-2">
         <h3 className="truncate text-sm font-medium leading-snug">
           {row.label}
         </h3>
+        {customEvents.length > 0 ? (
+          <div className="space-y-1">
+            <Label className="text-[11px]">Catálogo</Label>
+            <Select
+              value={row.custom_event_id || "__none__"}
+              onValueChange={(value) => {
+                const id = value === "__none__" ? "" : String(value ?? "");
+                const picked = customEvents.find((e) => e.id === id);
+                updateRow(row.id, {
+                  custom_event_id: id || null,
+                  meta_event_name: picked?.meta_event_name ?? row.meta_event_name,
+                  ga4_event_name: picked?.ga4_event_name ?? row.ga4_event_name,
+                });
+              }}
+            >
+              <SelectTrigger className="w-full min-w-0">
+                <SelectValue placeholder="Nenhum" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Nenhum</SelectItem>
+                {customEvents.map((ev) => (
+                  <SelectItem key={ev.id} value={ev.id}>
+                    {ev.label} ({ev.slug})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
       </div>
       <div className="space-y-1">
         <Label className="text-[11px]">Meta</Label>
         <Select
-          items={META_SELECT_ITEMS}
-          value={row.meta_event_name || "__none__"}
+          items={[...META_SELECT_ITEMS, { value: "__custom__", label: "Personalizado…" }]}
+          value={metaValue}
           onValueChange={(value) => {
+            if (value === "__custom__") {
+              updateRow(row.id, { meta_event_name: row.meta_event_name || "Custom" });
+              return;
+            }
             const v = value === "__none__" ? "" : String(value ?? "");
             updateRow(row.id, { meta_event_name: v });
           }}
@@ -439,15 +496,30 @@ function MapEventRow({
                 {opt || "Não enviar"}
               </SelectItem>
             ))}
+            <SelectItem value="__custom__">Personalizado…</SelectItem>
           </SelectContent>
         </Select>
+        {metaValue === "__custom__" ? (
+          <Input
+            className="font-mono text-xs"
+            value={row.meta_event_name}
+            onChange={(ev) =>
+              updateRow(row.id, { meta_event_name: ev.target.value })
+            }
+            placeholder="Nome enviado à Meta"
+          />
+        ) : null}
       </div>
       <div className="space-y-1">
         <Label className="text-[11px]">GA4</Label>
         <Select
-          items={GA4_SELECT_ITEMS}
-          value={row.ga4_event_name || "__none__"}
+          items={[...GA4_SELECT_ITEMS, { value: "__custom__", label: "Personalizado…" }]}
+          value={ga4Value}
           onValueChange={(value) => {
+            if (value === "__custom__") {
+              updateRow(row.id, { ga4_event_name: row.ga4_event_name || "custom_event" });
+              return;
+            }
             const v = value === "__none__" ? "" : String(value ?? "");
             updateRow(row.id, { ga4_event_name: v });
           }}
@@ -461,8 +533,19 @@ function MapEventRow({
                 {opt || "Não enviar"}
               </SelectItem>
             ))}
+            <SelectItem value="__custom__">Personalizado…</SelectItem>
           </SelectContent>
         </Select>
+        {ga4Value === "__custom__" ? (
+          <Input
+            className="font-mono text-xs"
+            value={row.ga4_event_name}
+            onChange={(ev) =>
+              updateRow(row.id, { ga4_event_name: ev.target.value })
+            }
+            placeholder="Nome enviado ao GA4"
+          />
+        ) : null}
       </div>
     </div>
   );
@@ -471,12 +554,14 @@ function MapEventRow({
 function RdStageMapsSection({
   connectionId,
   maps,
+  customEvents,
   pending,
   start,
   onSaved,
 }: {
   connectionId: string;
   maps: StageMapItem[];
+  customEvents: CatalogOption[];
   pending: boolean;
   start: ReturnType<typeof useTransition>[1];
   onSaved: () => void;
@@ -494,7 +579,12 @@ function RdStageMapsSection({
 
   function updateRow(
     id: string,
-    patch: Partial<Pick<StageMapItem, "meta_event_name" | "ga4_event_name">>
+    patch: Partial<
+      Pick<
+        StageMapItem,
+        "meta_event_name" | "ga4_event_name" | "custom_event_id"
+      >
+    >
   ) {
     setRows((prev) =>
       prev.map((r) => (r.id === id ? { ...r, ...patch } : r))
@@ -586,6 +676,7 @@ function RdStageMapsSection({
                         <MapEventRow
                           key={row.id}
                           row={row}
+                          customEvents={customEvents}
                           updateRow={updateRow}
                         />
                       ))}
@@ -611,7 +702,12 @@ function RdStageMapsSection({
           </div>
           <div className="space-y-2">
             {statusRows.map((row) => (
-              <MapEventRow key={row.id} row={row} updateRow={updateRow} />
+              <MapEventRow
+                key={row.id}
+                row={row}
+                customEvents={customEvents}
+                updateRow={updateRow}
+              />
             ))}
           </div>
         </div>
@@ -635,6 +731,7 @@ function RdStageMapsSection({
                   deal_status: r.deal_status,
                   meta_event_name: r.meta_event_name || null,
                   ga4_event_name: r.ga4_event_name || null,
+                  custom_event_id: r.custom_event_id || null,
                 }))
               )
             );
@@ -673,6 +770,7 @@ export function ProviderDetailClient({
   stackCurrency,
   stackTestEventCode,
   stageMapsByConnection = {},
+  customEvents = [],
   oauthCallbackUrl = null,
 }: {
   module: IntegrationModuleDef;
@@ -684,6 +782,7 @@ export function ProviderDetailClient({
   stackCurrency: string;
   stackTestEventCode: string;
   stageMapsByConnection?: Record<string, StageMapItem[]>;
+  customEvents?: CatalogOption[];
   oauthCallbackUrl?: string | null;
 }) {
   const router = useRouter();
@@ -794,7 +893,12 @@ export function ProviderDetailClient({
                     </p>
                     {c.needsReauth ? (
                       <p className="mt-1 text-xs text-destructive">
-                        Refresh OAuth falhou — reconecte com OAuth.
+                        Refresh OAuth falhou. Reconecte com OAuth.
+                      </p>
+                    ) : null}
+                    {c.webhookSetupError ? (
+                      <p className="mt-1 text-xs text-destructive">
+                        Webhook Pipedrive não registrado: {c.webhookSetupError}
                       </p>
                     ) : null}
                   </div>
@@ -1071,6 +1175,7 @@ export function ProviderDetailClient({
                       .join(",")}`}
                     connectionId={c.id}
                     maps={stageMapsByConnection[c.id] ?? []}
+                    customEvents={customEvents}
                     pending={pending}
                     start={start}
                     onSaved={refresh}

@@ -1092,6 +1092,36 @@
     return params;
   }
 
+  function serverParamsFromExtra(extra) {
+    if (!extra) return undefined;
+    if (extra.params && typeof extra.params === "object") return extra.params;
+    var skip = {
+      event_id: 1,
+      value: 1,
+      currency: 1,
+      content_ids: 1,
+      content_name: 1,
+      content_type: 1,
+      items: 1,
+      params: 1,
+      event_source_url: 1,
+      canonical_url: 1,
+      ga_client_id: 1,
+      client_web: 1,
+      trck_user_id: 1,
+      event_name: 1,
+    };
+    var out = {};
+    for (var k in extra) {
+      if (!Object.prototype.hasOwnProperty.call(extra, k) || skip[k]) continue;
+      var v = extra[k];
+      if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+        out[k] = v;
+      }
+    }
+    return Object.keys(out).length ? out : undefined;
+  }
+
   function sendEvent(name, extra) {
     var id = getTrckId() || window.TRCK_USER_ID;
     if (!id) return Promise.resolve();
@@ -1125,6 +1155,10 @@
       body.client_web = web;
       body.canonical_url = canon;
       if (!body.ga_client_id) body.ga_client_id = getGaClientId();
+      if (!body.params) {
+        var extraParams = serverParamsFromExtra(extra);
+        if (extraParams) body.params = extraParams;
+      }
       return post("/api/event", body);
     });
   }

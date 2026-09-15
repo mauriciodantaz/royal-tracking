@@ -1,6 +1,11 @@
 import "server-only";
 
-import { dispatchMapped, persistEventLog } from "@/lib/crm/dispatch";
+import {
+  crmMapHasDest,
+  dispatchCrmEvent,
+  persistEventLog,
+  type CrmStageMap,
+} from "@/lib/crm/dispatch";
 import { persistCrmWonPurchase } from "@/lib/crm/persist-won";
 import {
   buildCrmSaleCustomData,
@@ -10,12 +15,15 @@ import {
 import { ensureDbReady } from "@/lib/db/boot";
 import { query, queryOne } from "@/lib/db/pool";
 import type { IntegrationConnectionRow } from "@/lib/db/types";
+import { logDelivery } from "@/lib/integrations/connections";
 import {
+  extractDealPersonPii,
   extractPersonEmailPhone,
   getDeal,
   getDealProducts,
   getPerson,
 } from "@/lib/pipedrive/api";
+import { isPipedriveDealEntity, pipedriveId } from "@/lib/pipedrive/ids";
 import { hashEmail, sha256 } from "@/lib/tracking/hash";
 import { ensureVisitorFromPii } from "@/lib/tracking/ensure-visitor-from-pii";
 
@@ -43,9 +51,27 @@ function isDealStatus(v: unknown): v is DealStatus {
 }
 
 function idStr(v: unknown): string | null {
-  if (typeof v === "string" && v) return v;
-  if (typeof v === "number" && Number.isFinite(v)) return String(v);
-  return null;
+  return pipedriveId(v);
+}
+
+async function logPipedriveSkip(opts: {
+  connectionId: string;
+  reason: string;
+  dealId?: string | null;
+  extra?: Record<string, unknown>;
+}): Promise<void> {
+  try {
+    await logDelivery({
+      eventId: `pipedrive:skip:${opts.dealId || "unknown"}:${opts.reason}`,
+      connectionId: opts.connectionId,
+      provider: "pipedrive",
+      status: "skipped",
+      error: opts.reason,
+      requestPayload: opts.extra ?? null,
+    });
+  } catch (err) {
+    console.error("[pipedrive] log skip failed", err);
+  }
 }
 
 function stageEventId(
@@ -201,20 +227,19 @@ async function isPipelineEnabled(
 export async function loadStageMap(
   connectionId: string,
   opts: { stageExternalId?: string; dealStatus?: DealStatus }
-): Promise<{
-  meta_event_name: string | null;
-  ga4_event_name: string | null;
-} | null> {
+): Promise<CrmStageMap | null> {
   if (opts.stageExternalId) {
     return queryOne(
-      `select meta_event_name, ga4_event_name from pipedrive_stage_event_maps
+      `select meta_event_name, ga4_event_name, custom_event_id
+       from pipedrive_stage_event_maps
        where connection_id = $1 and stage_external_id = $2 limit 1`,
       [connectionId, opts.stageExternalId]
     );
   }
   if (opts.dealStatus) {
     return queryOne(
-      `select meta_event_name, ga4_event_name from pipedrive_stage_event_maps
+      `select meta_event_name, ga4_event_name, custom_event_id
+       from pipedrive_stage_event_maps
        where connection_id = $1 and deal_status = $2 limit 1`,
       [connectionId, opts.dealStatus]
     );
@@ -277,7 +302,12 @@ export async function processPipedriveWebhook(opts: {
     (typeof meta?.object === "string" && meta.object) ||
     null;
 
-  if (entity && entity !== "deal") {
+  if (!isPipedriveDealEntity(entity)) {
+    await logPipedriveSkip({
+      connectionId: conn.id,
+      reason: "not_deal",
+      extra: { entity },
+    });
     return { ok: true, skipped: "not_deal" };
   }
   if (action === "delete") {
@@ -319,6 +349,12 @@ export async function processPipedriveWebhook(opts: {
     !stageChanged &&
     !statusBecameTerminal
   ) {
+    await logPipedriveSkip({
+      connectionId: conn.id,
+      reason: "no_stage_or_status_change",
+      dealId,
+      extra: { action, stageId, dealStatus },
+    });
     return { ok: true, skipped: "no_stage_or_status_change" };
   }
 
@@ -330,21 +366,17 @@ export async function processPipedriveWebhook(opts: {
 
   let needStageEmit = false;
   let needStatusEmit = false;
-  let stageMap: {
-    meta_event_name: string | null;
-    ga4_event_name: string | null;
-  } | null = null;
-  let statusMap: {
-    meta_event_name: string | null;
-    ga4_event_name: string | null;
-  } | null = null;
+  let stageMap: CrmStageMap | null = null;
+  let statusMap: CrmStageMap | null = null;
 
+  let pipelineDisabled = false;
   if (stageId && stageChanged) {
     if (!(await isPipelineEnabled(conn.id, pipeKey))) {
       stageMap = null;
+      pipelineDisabled = true;
     } else {
       stageMap = await loadStageMap(conn.id, { stageExternalId: stageId });
-      if (stageMap && (stageMap.meta_event_name || stageMap.ga4_event_name)) {
+      if (crmMapHasDest(stageMap)) {
         const already = await stageAlreadyEmitted({
           connectionId: conn.id,
           dealExternalId: dealId,
@@ -358,7 +390,7 @@ export async function processPipedriveWebhook(opts: {
 
   if (dealStatus && statusBecameTerminal) {
     statusMap = await loadStageMap(conn.id, { dealStatus });
-    if (statusMap && (statusMap.meta_event_name || statusMap.ga4_event_name)) {
+    if (crmMapHasDest(statusMap)) {
       const already = await statusAlreadyEmitted({
         connectionId: conn.id,
         dealExternalId: dealId,
@@ -370,13 +402,20 @@ export async function processPipedriveWebhook(opts: {
 
   if (!needStageEmit && !needStatusEmit) {
     const skipped =
-      (stageId && stageChanged && (!stageMap || (!stageMap.meta_event_name && !stageMap.ga4_event_name))
+      (pipelineDisabled ? "pipeline_disabled" : null) ||
+      (stageId && stageChanged && !crmMapHasDest(stageMap)
         ? "no_stage_map"
         : null) ||
-      (dealStatus && statusBecameTerminal && (!statusMap || (!statusMap.meta_event_name && !statusMap.ga4_event_name))
+      (dealStatus && statusBecameTerminal && !crmMapHasDest(statusMap)
         ? "no_status_map"
         : null) ||
       "already_emitted";
+    await logPipedriveSkip({
+      connectionId: conn.id,
+      reason: skipped,
+      dealId,
+      extra: { action, stageId, dealStatus },
+    });
     return {
       ok: true,
       deduped: skipped === "already_emitted",
@@ -464,14 +503,8 @@ async function emitPipedriveAfterClaim(opts: {
   statusClaimed: boolean;
   stageEventIdValue: string | undefined;
   statusEventIdValue: string | undefined;
-  stageMap: {
-    meta_event_name: string | null;
-    ga4_event_name: string | null;
-  } | null;
-  statusMap: {
-    meta_event_name: string | null;
-    ga4_event_name: string | null;
-  } | null;
+  stageMap: CrmStageMap | null;
+  statusMap: CrmStageMap | null;
 }): Promise<ProcessPipedriveResult> {
   const {
     conn,
@@ -489,9 +522,11 @@ async function emitPipedriveAfterClaim(opts: {
   let personId: string | null = null;
 
   // Enrich only on first claim — deal + person for email/phone.
-  let email: string | null = null;
-  let phone: string | null = null;
-  let name: string | null = null;
+  const fromWebhook = extractDealPersonPii(data);
+  let email: string | null = fromWebhook.email;
+  let phone: string | null = fromWebhook.phone;
+  let name: string | null = fromWebhook.name;
+  if (fromWebhook.personId) personId = fromWebhook.personId;
   let value = parseNumeric(data.value);
   let currency =
     typeof data.currency === "string" ? data.currency : null;
@@ -505,7 +540,11 @@ async function emitPipedriveAfterClaim(opts: {
   if (deal) {
     stageId = idStr(deal.stage_id) || stageId;
     pipelineId = idStr(deal.pipeline_id) || pipelineId;
-    personId = idStr(deal.person_id) || personId;
+    const fromDeal = extractDealPersonPii(deal);
+    personId = fromDeal.personId || personId;
+    if (fromDeal.email) email = fromDeal.email;
+    if (fromDeal.phone) phone = fromDeal.phone;
+    if (fromDeal.name) name = fromDeal.name;
     if (!dealStatus && isDealStatus(deal.status)) {
       dealStatus = deal.status;
     }
@@ -515,11 +554,6 @@ async function emitPipedriveAfterClaim(opts: {
       currency = deal.currency;
     }
     if (typeof deal.title === "string" && deal.title) dealName = deal.title;
-    const personName =
-      deal.person_name && typeof deal.person_name === "string"
-        ? deal.person_name
-        : null;
-    if (personName) name = personName;
   }
 
   if (products.length === 0) {
@@ -552,12 +586,11 @@ async function emitPipedriveAfterClaim(opts: {
   });
 
   if (stageClaimed && stageEventIdValue && stageMap) {
-    const eventName =
-      stageMap.meta_event_name || stageMap.ga4_event_name || "Lead";
-    const results = await dispatchMapped({
+    const { results, eventName } = await dispatchCrmEvent({
+      sourceProvider: "pipedrive",
+      sourceConnectionId: conn.id,
+      map: stageMap,
       eventId: stageEventIdValue,
-      metaEventName: stageMap.meta_event_name,
-      ga4EventName: stageMap.ga4_event_name,
       eventSourceUrl: null,
       userData,
       customData,
@@ -582,12 +615,11 @@ async function emitPipedriveAfterClaim(opts: {
   }
 
   if (statusClaimed && statusEventIdValue && statusMap && dealStatus) {
-    const eventName =
-      statusMap.meta_event_name || statusMap.ga4_event_name || "Lead";
-    const results = await dispatchMapped({
+    const { results, eventName } = await dispatchCrmEvent({
+      sourceProvider: "pipedrive",
+      sourceConnectionId: conn.id,
+      map: statusMap,
       eventId: statusEventIdValue,
-      metaEventName: statusMap.meta_event_name,
-      ga4EventName: statusMap.ga4_event_name,
       eventSourceUrl: null,
       userData,
       customData: dealStatus === "won" ? customData : undefined,

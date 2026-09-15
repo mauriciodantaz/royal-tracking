@@ -19,6 +19,7 @@ import { ensureShortWebhookUrl } from "@/lib/integrations/webhook-slug";
 import { metadataRecord } from "@/lib/rd/credentials";
 import { MKT_LIFECYCLE_SLOTS } from "@/lib/rd/mkt";
 import { getAllowedEventDomains } from "@/lib/tracking/allowed-origins";
+import { listCustomEvents } from "@/lib/tracking/custom-events";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,7 @@ type StageMapRow = {
   deal_status: string | null;
   meta_event_name: string | null;
   ga4_event_name: string | null;
+  custom_event_id: string | null;
   stage_name: string | null;
   pipeline_name: string | null;
   pipeline_external_id: string | null;
@@ -70,6 +72,22 @@ const DEAL_STATUS_LABELS: Record<string, string> = {
   won: "Ganho (won)",
   lost: "Perda (lost)",
 };
+
+async function loadCatalogOptions() {
+  try {
+    const rows = await listCustomEvents({ activeOnly: true });
+    return rows.map((e) => ({
+      id: e.id,
+      slug: e.slug,
+      label: e.label,
+      meta_event_name: e.meta_event_name,
+      ga4_event_name: e.ga4_event_name,
+    }));
+  } catch (err) {
+    console.error("[integracoes] listCustomEvents", err);
+    return [];
+  }
+}
 
 export default async function ProviderIntegracaoPage({ params }: Props) {
   const { provider } = await params;
@@ -176,6 +194,7 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
              m.deal_status,
              m.meta_event_name,
              m.ga4_event_name,
+             m.custom_event_id,
              s.name as stage_name,
              p.name as pipeline_name,
              p.external_id as pipeline_external_id,
@@ -214,6 +233,7 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
              m.deal_status,
              m.meta_event_name,
              m.ga4_event_name,
+             m.custom_event_id,
              s.name as stage_name,
              p.name as pipeline_name,
              p.external_id as pipeline_external_id,
@@ -349,6 +369,8 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
           typeof whMeta?.status === "string" ? whMeta.status : null,
         webhookStatusMessage:
           typeof whMeta?.message === "string" ? whMeta.message : null,
+        webhookSetupError:
+          typeof meta.webhook_error === "string" ? meta.webhook_error : null,
       };
     })
   );
@@ -365,6 +387,7 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
           deal_status: m.deal_status,
           meta_event_name: m.meta_event_name ?? "",
           ga4_event_name: m.ga4_event_name ?? "",
+          custom_event_id: m.custom_event_id,
           label:
             m.stage_name ||
             m.mkt_lifecycle ||
@@ -400,6 +423,7 @@ export default async function ProviderIntegracaoPage({ params }: Props) {
       stackCurrency={stackCurrency}
       stackTestEventCode={stackTestEventCode}
       stageMapsByConnection={stageMapsByConnection}
+      customEvents={await loadCatalogOptions()}
       oauthCallbackUrl={
         isFunnelCrm
           ? `${appUrl}/api/integrations/${provider}/oauth/callback`

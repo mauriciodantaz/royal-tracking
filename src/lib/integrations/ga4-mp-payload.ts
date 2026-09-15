@@ -1,4 +1,5 @@
 import type { MetaCustomData } from "@/lib/meta/capi";
+import { sanitizeGa4ExtraParams } from "@/lib/tracking/event-params";
 
 export type Ga4MpEventInput = {
   eventName: string;
@@ -44,6 +45,22 @@ export function buildGa4MpPayload(input: Ga4MpEventInput): {
   const items = ga4ItemsFromCustomData(input.customData);
   if (items) eventParams.items = items;
   if (input.gaSessionId) eventParams.session_id = input.gaSessionId;
+  if (input.customData?.properties) {
+    const extras = sanitizeGa4ExtraParams(input.customData.properties);
+    for (const [key, value] of Object.entries(extras)) {
+      if (
+        key === "items" ||
+        key === "event_id" ||
+        key === "session_id" ||
+        key === "engagement_time_msec" ||
+        key === "transaction_id"
+      ) {
+        continue;
+      }
+      if (eventParams[key] != null) continue;
+      eventParams[key] = value;
+    }
+  }
   eventParams.event_id = input.eventId;
   const isPurchase =
     input.eventName === "purchase" || input.eventName === "Purchase";

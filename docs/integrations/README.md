@@ -26,6 +26,7 @@ URL: `/dashboard/integracoes/{provider}/docs`
 
 - Auth de **todos** os webhooks inbound: [WEBHOOK-AUTH.md](../WEBHOOK-AUTH.md)
 - Hub / dispatcher: [INTEGRATIONS.md](../INTEGRATIONS.md)
+- Eventos personalizados: [CUSTOM-EVENTS.md](../CUSTOM-EVENTS.md)
 - Single-stack + allowlist: [SELF-HOSTED.md](../SELF-HOSTED.md)
 - Checklist: [SECURITY.md](../../SECURITY.md)
 
