@@ -85,7 +85,7 @@ jobs:
         run: echo "release:none — sem bump SemVer; docker-publish só se a versão atual ainda não for stable."
 
       - name: Checkout beta
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: beta
           fetch-depth: 0
@@ -234,7 +234,7 @@ jobs:
           fi
 
       - name: Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
