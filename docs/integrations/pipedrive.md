@@ -47,7 +47,7 @@ Conecte o Pipedrive com **OAuth 2.0** (Private app no Developer Hub). Após auto
 - **Reenviar órfãos** reenvia emits sem `events_log` e GA4 `skipped` por falta de `client_id`.
 - Alterações de deal que **não** mudam estágio nem status → ignoradas sem chamada à API. O painel registra esse skip em `integration_delivery_log`.
 - `person_id` da API v1 (objeto `{value, email, phone}`) é extraído; o replay não chama `/persons/[object Object]`.
-- Se o registro do webhook remoto falhar, o erro aparece na conexão Pipedrive. Use **Sincronizar funis** de novo depois de corrigir escopos (`webhooks:full`).
+- **Sincronizar funis** confere o webhook na lista do Pipedrive. Se o id sumiu ou a URL não é a desta conexão, cria outro. Se a criação falhar, o erro aparece na conexão mesmo com os funis sincronizados. Use de novo depois de corrigir escopos (`webhooks:full`).
 - Estágios podem apontar para um evento do [catálogo](../CUSTOM-EVENTS.md) ou usar nome Meta/GA4 livre (Personalizado).
 - O envio usa o mesmo motor `dispatchEvent` do snippet (identidade, atribuição, CAPI e Measurement Protocol).
 

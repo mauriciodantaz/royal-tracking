@@ -122,6 +122,24 @@ export async function getPerson(
   return unwrapDataObject(json);
 }
 
+export async function listWebhooks(
+  conn: IntegrationConnectionRow
+): Promise<Array<{ id: string; subscriptionUrl: string }>> {
+  const { res, json } = await pipedriveFetch(conn, "/webhooks");
+  if (!res.ok) {
+    throw new Error(
+      `Pipedrive list webhooks HTTP ${res.status}: ${JSON.stringify(json).slice(0, 300)}`
+    );
+  }
+  return unwrapDataList(json)
+    .map((row) => ({
+      id: row.id != null ? String(row.id) : "",
+      subscriptionUrl:
+        typeof row.subscription_url === "string" ? row.subscription_url : "",
+    }))
+    .filter((row) => row.id);
+}
+
 export async function createDealWebhook(
   conn: IntegrationConnectionRow,
   input: {

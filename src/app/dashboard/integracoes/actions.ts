@@ -522,7 +522,15 @@ export async function reconfigureWhatsappWebhookAction(
 
 export async function syncRdFunnelsAction(
   connectionId: string
-): Promise<{ ok: true; pipelines: number; stages: number } | { ok: false; error: string }> {
+): Promise<
+  | {
+      ok: true;
+      pipelines: number;
+      stages: number;
+      webhookError: string | null;
+    }
+  | { ok: false; error: string }
+> {
   await requirePermission("integrations:manage");
   try {
     const conn = await queryOne<IntegrationConnectionRow>(
@@ -534,6 +542,7 @@ export async function syncRdFunnelsAction(
     }
 
     let result: { pipelines: number; stages: number };
+    let webhookError: string | null = null;
     if (conn.provider === "pipedrive") {
       result = await syncPipedriveFunnels(connectionId);
       try {
@@ -543,6 +552,7 @@ export async function syncRdFunnelsAction(
           err instanceof Error ? err.message : "webhook_setup_failed";
         console.error("[pipedrive] ensurePipedriveWebhooks", err);
         await persistPipedriveWebhookError(connectionId, message);
+        webhookError = message;
       }
     } else {
       result = await syncRdFunnels(connectionId);
@@ -553,7 +563,7 @@ export async function syncRdFunnelsAction(
       }
     }
     revalidateIntegrations(conn.provider);
-    return { ok: true, ...result };
+    return { ok: true, ...result, webhookError };
   } catch (e) {
     return {
       ok: false,

@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { destSelectValue } from "@/lib/integrations/dest-select";
 import type { IntegrationModuleDef } from "@/lib/integrations/registry";
 
 const META_EVENT_OPTIONS = [
@@ -413,11 +414,6 @@ function groupStageMapsByPipeline(
   });
 }
 
-function destSelectValue(current: string, options: string[]): string {
-  if (!current) return "__none__";
-  return options.includes(current) ? current : "__custom__";
-}
-
 function MapEventRow({
   row,
   customEvents,
@@ -435,8 +431,24 @@ function MapEventRow({
     >
   ) => void;
 }) {
-  const metaValue = destSelectValue(row.meta_event_name, META_EVENT_OPTIONS);
-  const ga4Value = destSelectValue(row.ga4_event_name, GA4_EVENT_OPTIONS);
+  const [metaEditingCustom, setMetaEditingCustom] = useState(
+    () =>
+      destSelectValue(row.meta_event_name, META_EVENT_OPTIONS) === "__custom__"
+  );
+  const [ga4EditingCustom, setGa4EditingCustom] = useState(
+    () =>
+      destSelectValue(row.ga4_event_name, GA4_EVENT_OPTIONS) === "__custom__"
+  );
+  const metaValue = destSelectValue(
+    row.meta_event_name,
+    META_EVENT_OPTIONS,
+    metaEditingCustom
+  );
+  const ga4Value = destSelectValue(
+    row.ga4_event_name,
+    GA4_EVENT_OPTIONS,
+    ga4EditingCustom
+  );
   return (
     <div className="grid gap-2 rounded-lg border border-border/40 p-3 sm:grid-cols-[minmax(0,1.1fr)_1fr_1fr]">
       <div className="min-w-0 space-y-2">
@@ -451,10 +463,18 @@ function MapEventRow({
               onValueChange={(value) => {
                 const id = value === "__none__" ? "" : String(value ?? "");
                 const picked = customEvents.find((e) => e.id === id);
+                const nextMeta = picked?.meta_event_name ?? row.meta_event_name;
+                const nextGa4 = picked?.ga4_event_name ?? row.ga4_event_name;
+                setMetaEditingCustom(
+                  destSelectValue(nextMeta, META_EVENT_OPTIONS) === "__custom__"
+                );
+                setGa4EditingCustom(
+                  destSelectValue(nextGa4, GA4_EVENT_OPTIONS) === "__custom__"
+                );
                 updateRow(row.id, {
                   custom_event_id: id || null,
-                  meta_event_name: picked?.meta_event_name ?? row.meta_event_name,
-                  ga4_event_name: picked?.ga4_event_name ?? row.ga4_event_name,
+                  meta_event_name: nextMeta,
+                  ga4_event_name: nextGa4,
                 });
               }}
             >
@@ -480,9 +500,10 @@ function MapEventRow({
           value={metaValue}
           onValueChange={(value) => {
             if (value === "__custom__") {
-              updateRow(row.id, { meta_event_name: row.meta_event_name || "Custom" });
+              setMetaEditingCustom(true);
               return;
             }
+            setMetaEditingCustom(false);
             const v = value === "__none__" ? "" : String(value ?? "");
             updateRow(row.id, { meta_event_name: v });
           }}
@@ -517,9 +538,10 @@ function MapEventRow({
           value={ga4Value}
           onValueChange={(value) => {
             if (value === "__custom__") {
-              updateRow(row.id, { ga4_event_name: row.ga4_event_name || "custom_event" });
+              setGa4EditingCustom(true);
               return;
             }
+            setGa4EditingCustom(false);
             const v = value === "__none__" ? "" : String(value ?? "");
             updateRow(row.id, { ga4_event_name: v });
           }}
@@ -1125,10 +1147,16 @@ export function ProviderDetailClient({
                         start(async () => {
                           const r = await syncRdFunnelsAction(c.id);
                           if (r.ok) {
-                            toast.success(
-                              `Sincronizado: ${r.stages} estágios/slots`
-                            );
                             refresh();
+                            if (r.webhookError) {
+                              toast.error(
+                                `Funis sincronizados, mas o webhook falhou: ${r.webhookError}`
+                              );
+                            } else {
+                              toast.success(
+                                `Sincronizado: ${r.stages} estágios/slots`
+                              );
+                            }
                           } else {
                             toast.error(r.error);
                           }
